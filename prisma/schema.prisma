@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Channel {
+  id          String    @id @default(cuid())
+  xmltvId     String    @unique
+  displayName String
+  normalized  String
+  country     String?
+  category    String?
+  icon        String?
+  logo        String?
+  image       String?
+  tmdbId      String?
+  seriesId    String?
+  sourceRefs  String?
+  programs    Program[]
+  aliases     Alias[]
+  mappings    Mapping[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Program {
+  id          String   @id @default(cuid())
+  channelId   String
+  channel     Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  title       String
+  subtitle    String?
+  description String?
+  category    String?
+  start       DateTime
+  stop        DateTime
+  sourceId    String?
+  source      Source?  @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  checksum    String
+  episodeNum  String?
+  season      Int?
+  episode     Int?
+  catchupUrl  String?
+  catchupDays Int?
+  image       String?
+  tmdbId      String?
+  seriesId    String?
+  createdAt   DateTime @default(now())
+
+  @@unique([channelId, start, stop, checksum])
+  @@index([channelId, start])
+}
+
+model Alias {
+  id        String   @id @default(cuid())
+  channelId String
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  value     String
+  normalized String
+  createdAt DateTime @default(now())
+
+  @@unique([channelId, normalized])
+}
+
+model Source {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  type        String
+  url         String?
+  enabled     Boolean     @default(true)
+  priority    Int         @default(100)
+  mergeWeight Int         @default(100)
+  lastRunAt   DateTime?
+  importRuns  ImportRun[]
+  programs    Program[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model ImportRun {
+  id              String   @id @default(cuid())
+  sourceId        String
+  source          Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  status          String
+  channelsSeen    Int      @default(0)
+  programsSeen    Int      @default(0)
+  channelsCreated Int      @default(0)
+  programsCreated Int      @default(0)
+  errors          String?
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+}
+
+model Mapping {
+  id                String   @id @default(cuid())
+  providerId        String
+  providerChannelId String
+  channelId         String
+  channel           Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([providerId, providerChannelId])
+}
+
+model ExportProfile {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  country     String?
+  category    String?
+  providerId  String?
+  channelIds  String?
+  token       String?   @unique
+  rateLimit   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+
+model ExportToken {
+  id          String   @id @default(cuid())
+  name        String
+  token       String   @unique
+  profileId   String?
+  providerId  String?
+  active      Boolean  @default(true)
+  requests    Int      @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Metric {
+  id        String   @id @default(cuid())
+  key       String
+  value     Float
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
