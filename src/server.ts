@@ -54,5 +54,15 @@ function sendXml(res: express.Response, xml: string) {
   res.setHeader('content-type', 'application/xml; charset=utf-8');
   res.send(xml);
 }
-
+app.get('/', (_req, res) => {
+  res.send(`
+    <h1>XMLTV Aggregator</h1>
+    <ul>
+      <li><a href="/health">Health</a></li>
+      <li><a href="/sources">Sources</a></li>
+      <li><a href="/monitoring/metrics">Metrics</a></li>
+      <li><a href="/admin">Admin</a></li>
+    </ul>
+  `);
+});
 app.listen(env.PORT, () => console.log(`XMLTV aggregator listening on ${env.BASE_URL}`));

@@ -65,20 +65,20 @@ export async function runImport(definition: SourceDefinition) {
       const channelId = channelMap.get(program.channel);
       if (!channelId) continue;
       const programChecksum = checksum({ title: program.title, subtitle: program.subtitle, description: program.description, category: program.category });
-      const result = await prisma.program.createMany({
-        data: [{
-          channelId,
-          title: program.title,
-          subtitle: program.subtitle,
-          description: program.description,
-          category: program.category,
-          start: program.start,
-          stop: program.stop,
-          sourceId: source.id,
-          checksum: programChecksum
-        }],
-        skipDuplicates: true
-      });
+     const result = await prisma.program.createMany({
+  data: [{
+    channelId,
+    title: program.title,
+    subtitle: program.subtitle,
+    description: program.description,
+    category: program.category,
+    start: program.start,
+    stop: program.stop,
+    sourceId: source.id,
+    checksum: programChecksum
+   }]
+    });
+
       programsCreated += result.count;
     }
 

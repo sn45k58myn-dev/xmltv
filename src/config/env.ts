@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 const schema = z.object({
   DATABASE_URL: z.string().default('file:./dev.db'),
-  PORT: z.coerce.number().default(3000),
-  BASE_URL: z.string().default('http://localhost:3000'),
+  PORT: z.coerce.number().default(3001),
+  BASE_URL: z.string().default('http://localhost:3001'),
   SCHEDULES_DIRECT_USERNAME: z.string().optional(),
   SCHEDULES_DIRECT_PASSWORD: z.string().optional(),
   SCHEDULES_DIRECT_COUNTRY: z.string().default('GBR'),
