@@ -8,6 +8,9 @@ import { rateLimit } from './middleware/rateLimit';
 import { requireExportToken } from './middleware/exportToken';
 import { systemMetrics } from './monitoring/metrics';
 import { prisma } from './db/prisma';
+import { channelRoutes } from './routes/channelRoutes';
+import { aliasRoutes } from './routes/aliasRoutes';
+import { importRoutes } from './routes/importRoutes';
 import { exportCategory, exportCountry, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
 import { getConfiguredSources } from './sources/sourceRegistry';
@@ -20,6 +23,22 @@ app.use(express.json());
 app.use(rateLimit);
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 app.use('/api/admin', adminApi);
+
+app.use('/api/channels', channelRoutes);
+app.use('/api/aliases', aliasRoutes);
+app.use('/api/imports', importRoutes);
+
+app.get('/coverage', async (_req, res) => {
+  const [channels, programs, aliases, sources, imports] = await Promise.all([
+    prisma.channel.count(),
+    prisma.program.count(),
+    prisma.alias.count(),
+    prisma.source.count(),
+    prisma.importRun.count(),
+  ]);
+  res.json({ channels, programs, aliases, sources, imports });
+});
+
 app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));

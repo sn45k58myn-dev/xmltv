@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coverage Dashboard</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; background: #f9f9f9; color: #333; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
+    .card h3 { margin-top: 0; color: #666; font-size: 1rem; text-transform: uppercase; }
+    .card strong { font-size: 2rem; color: #007bff; }
+  </style>
+</head>
+<body>
+  <h1>Coverage Dashboard</h1>
+  <div class="grid">
+    <div class="card">
+      <h3>Channels</h3>
+      <strong id="count-channels">-</strong>
+    </div>
+    <div class="card">
+      <h3>Programs</h3>
+      <strong id="count-programs">-</strong>
+    </div>
+    <div class="card">
+      <h3>Aliases</h3>
+      <strong id="count-aliases">-</strong>
+    </div>
+    <div class="card">
+      <h3>Sources</h3>
+      <strong id="count-sources">-</strong>
+    </div>
+    <div class="card">
+      <h3>Imports</h3>
+      <strong id="count-imports">-</strong>
+    </div>
+  </div>
+
+  <script>
+    fetch('/coverage')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('count-channels').innerText = data.channels || 0;
+        document.getElementById('count-programs').innerText = data.programs || 0;
+        document.getElementById('count-aliases').innerText = data.aliases || 0;
+        document.getElementById('count-sources').innerText = data.sources || 0;
+        document.getElementById('count-imports').innerText = data.imports || 0;
+      })
+      .catch(err => console.error('Failed to load coverage', err));
+  </script>
+</body>
+</html>
