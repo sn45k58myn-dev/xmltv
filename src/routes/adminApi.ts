@@ -5,6 +5,7 @@ import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
 import { autoGenerateAliases } from '../premium/aliasGenerator';
 import { attachCatchupMetadata, enrichChannelAssets, enrichProgramWithTmdb } from '../premium/enrichment';
+import { mergeChannels } from '../premium/mergeEngine';
 
 export const adminApi = Router();
 adminApi.use(requireAdmin);
@@ -25,6 +26,7 @@ adminApi.get('/coverage', async (_req, res) => {
 });
 adminApi.get('/channels', async (_req, res) => res.json(await prisma.channel.findMany({ include: { aliases: true, mappings: true }, orderBy: { displayName: 'asc' }, take: 500 })));
 adminApi.patch('/channels/:id', async (req, res) => res.json(await prisma.channel.update({ where: { id: req.params.id }, data: req.body })));
+adminApi.post('/channels/merge', async (req, res) => res.json(await mergeChannels(req.body.targetChannelId, req.body.channelIdsToMerge)));
 adminApi.post('/aliases/generate', async (req, res) => res.json(await autoGenerateAliases(req.body.channelId)));
 adminApi.post('/aliases', async (req, res) => res.status(201).json(await prisma.alias.create({ data: req.body })));
 adminApi.delete('/aliases/:id', async (req, res) => res.json(await prisma.alias.delete({ where: { id: req.params.id } })));
