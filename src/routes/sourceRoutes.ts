@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
+import { requireAdmin } from '../middleware/auth';
 
 export const sourceRoutes = Router();
+sourceRoutes.use(requireAdmin);
 
 sourceRoutes.get('/', async (_req, res) => {
   const sources = await prisma.source.findMany({

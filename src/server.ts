@@ -13,6 +13,7 @@ import { runImport } from './pipeline/importPipeline';
 import { getConfiguredSources } from './sources/sourceRegistry';
 import { startImportScheduler } from './jobs/importScheduler';
 import { sourceRoutes } from './routes/sourceRoutes';
+import { exportTokenRoutes } from './routes/exportTokenRoutes';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -23,13 +24,15 @@ app.use(rateLimit);
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 app.use('/api/admin', adminApi);
 app.use('/api/sources', sourceRoutes);
+app.use('/api/export-tokens', exportTokenRoutes);
 app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
-app.post('/imports/run', async (_req, res) => {
+import { requireAdmin } from './middleware/auth';
+app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   const sources = await prisma.source.findMany({
     where: {
       enabled: true
