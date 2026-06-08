@@ -8,10 +8,18 @@ const categoryMap: Record<string, string[]> = {
 
 export async function exportCountry(country: string): Promise<string> {
   const channels = await prisma.channel.findMany({
-    where: { OR: [{ country: country.toUpperCase() }, { xmltvId: { contains: `.${country.toLowerCase()}` } }] },
-    include: { programs: { orderBy: { start: 'asc' } } },
-    orderBy: { displayName: 'asc' }
+    include: {
+      programs: {
+        orderBy: {
+          start: 'asc'
+        }
+      }
+    },
+    orderBy: {
+      displayName: 'asc'
+    }
   });
+
   return writeXmltv(channels);
 }
 
