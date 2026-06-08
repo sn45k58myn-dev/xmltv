@@ -11,6 +11,8 @@ import { prisma } from './db/prisma';
 import { exportCategory, exportCountry, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
 import { getConfiguredSources } from './sources/sourceRegistry';
+import { startImportScheduler } from './jobs/importScheduler';
+import { sourceRoutes } from './routes/sourceRoutes';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -20,6 +22,7 @@ app.use(express.json());
 app.use(rateLimit);
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 app.use('/api/admin', adminApi);
+app.use('/api/sources', sourceRoutes);
 app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
@@ -27,8 +30,28 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
 app.post('/imports/run', async (_req, res) => {
+  const sources = await prisma.source.findMany({
+    where: {
+      enabled: true
+    },
+    orderBy: {
+      priority: 'asc'
+    }
+  });
+
   const results = [];
-  for (const source of getConfiguredSources()) results.push(await runImport(source));
+
+  for (const source of sources) {
+    results.push(
+      await runImport({
+        name: source.name,
+        type: source.type as any,
+        url: source.url ?? undefined,
+        priority: source.priority
+      })
+    );
+  }
+
   res.json(results);
 });
 
@@ -65,4 +88,52 @@ app.get('/', (_req, res) => {
     </ul>
   `);
 });
-app.listen(env.PORT, () => console.log(`XMLTV aggregator listening on ${env.BASE_URL}`));
+startImportScheduler();
+app.get('/debug/channels', async (_req, res) => {
+  const channels = await prisma.channel.findMany();
+  res.json(channels);
+});
+
+app.get('/debug/programs', async (_req, res) => {
+  const programs = await prisma.program.findMany({
+    take: 20
+  });
+
+  res.json(programs);
+});
+app.get('/channels', async (_req, res) => {
+  const channels = await prisma.channel.findMany({
+    orderBy: {
+      displayName: 'asc'
+    }
+  });
+
+  res.json(channels);
+});
+
+app.get('/programs', async (_req, res) => {
+  const programs = await prisma.program.findMany({
+    orderBy: {
+      start: 'asc'
+    },
+    take: 100
+  });
+
+  res.json(programs);
+});
+app.get('/coverage', async (_req, res) => {
+  const channels = await prisma.channel.count();
+  const programs = await prisma.program.count();
+  const aliases = await prisma.alias.count();
+  const sources = await prisma.source.count();
+
+  res.json({
+    channels,
+    programs,
+    aliases,
+    sources
+  });
+});
+app.listen(env.PORT, () => {
+  console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
+});
