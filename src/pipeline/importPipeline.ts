@@ -5,6 +5,7 @@ import { fetchXmltvSource } from '../sources/fetchers';
 import { checksum, normalizeName } from '../utils/normalize';
 import { parseXmltv } from './parseXmltv';
 import { validateXmltv } from './validateXmltv';
+import { enrichChannel } from '../enrichment/channelMetadata';
 
 async function upsertSource(definition: SourceDefinition): Promise<Source> {
   return prisma.source.upsert({
@@ -65,14 +66,14 @@ async function findOrCreateChannel(input: XmltvChannel, source: Source) {
 
     return { channel: similar, created: false };
   }
-
+const metadata = enrichChannel(input.displayName);
   const channel = await prisma.channel.create({
     data: {
       xmltvId: input.id,
       displayName: input.displayName,
       normalized,
-      country: input.country,
-      category: input.category,
+      country: input.country ?? metadata.country,
+category: input.category ?? metadata.category,
       icon: input.icon,
       sourceRefs: JSON.stringify([
         {

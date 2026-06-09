@@ -6,8 +6,16 @@ const categoryMap: Record<string, string[]> = {
   movies: ['movie', 'movies', 'film', 'cinema']
 };
 
-export async function exportCountry(_country: string): Promise<string> {
+export async function exportCountry(country: string): Promise<string> {
+  const normalized =
+    country.toLowerCase() === 'uk'
+      ? 'GB'
+      : country.toUpperCase();
+
   const channels = await prisma.channel.findMany({
+    where: {
+      country: normalized
+    },
     include: {
       programs: {
         orderBy: {
