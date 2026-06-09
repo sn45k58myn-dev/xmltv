@@ -52,6 +52,8 @@ model Program {
 
   @@unique([channelId, start, stop, checksum])
   @@index([channelId, start])
+  @@index([start])
+  @@index([stop])
 }
 
 model Alias {
@@ -140,4 +142,13 @@ model Metric {
   createdAt DateTime @default(now())
 
   @@index([key, createdAt])
+}
+
+
+model SourceHealth {
+  id String @id @default(cuid())
+  sourceId String
+  status String
+  message String?
+  checkedAt DateTime @default(now())
 }
