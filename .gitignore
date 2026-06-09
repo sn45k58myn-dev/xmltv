@@ -7,3 +7,5 @@ uploads/*
 data/*
 !uploads/.gitkeep
 !data/.gitkeep
+cache/
+*.xml
