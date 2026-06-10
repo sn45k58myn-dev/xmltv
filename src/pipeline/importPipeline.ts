@@ -54,33 +54,31 @@ async function findOrCreateChannel(input: XmltvChannel, source: Source) {
   });
 
   if (similar) {
-    await prisma.alias
-      .create({
-        data: {
-          channelId: similar.id,
-          value: input.displayName,
-          normalized
-        }
-      })
-      .catch(() => null);
+    await prisma.alias.create({
+      data: {
+        channelId: similar.id,
+        value: input.displayName,
+        normalized
+      }
+    }).catch(() => null);
 
     return { channel: similar, created: false };
   }
-const metadata = enrichChannel(input.displayName);
+
+  const metadata = enrichChannel(input.displayName);
+
   const channel = await prisma.channel.create({
     data: {
       xmltvId: input.id,
       displayName: input.displayName,
       normalized,
       country: input.country ?? metadata.country,
-category: input.category ?? metadata.category,
+      category: input.category ?? metadata.category,
       icon: input.icon,
-      sourceRefs: JSON.stringify([
-        {
-          sourceId: source.id,
-          sourceChannelId: input.id
-        }
-      ]),
+      sourceRefs: JSON.stringify([{
+        sourceId: source.id,
+        sourceChannelId: input.id
+      }]),
       aliases: {
         create: [
           {
@@ -117,6 +115,7 @@ export async function runImport(definition: SourceDefinition) {
 
     let channelsCreated = 0;
     let programsCreated = 0;
+
     const channelMap = new Map<string, string>();
 
     for (const channelInput of parsed.channels) {
@@ -159,17 +158,10 @@ export async function runImport(definition: SourceDefinition) {
         });
 
         programsCreated++;
-      } catch (error: unknown) {
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'code' in error &&
-          error.code === 'P2002'
-        ) {
-          continue;
+      } catch (error: any) {
+        if (error?.code !== 'P2002') {
+          throw error;
         }
-
-        throw error;
       }
     }
 
