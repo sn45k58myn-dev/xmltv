@@ -14,10 +14,12 @@ import { getConfiguredSources } from './sources/sourceRegistry';
 import { startImportScheduler } from './jobs/importScheduler';
 import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
+import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
 
+app.use('/api/source-health', sourceHealthRoutes);
 app.use(cors());
 app.use(express.json());
 app.use(rateLimit);

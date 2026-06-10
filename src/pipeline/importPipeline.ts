@@ -7,7 +7,7 @@ import { parseXmltv } from './parseXmltv';
 import { validateXmltv } from './validateXmltv';
 import { enrichChannel } from '../enrichment/channelMetadata';
 
-async function upsertSource(definition: SourceDefinition): Promise<Source> {
+async function upsertSource(definition) {
   return prisma.source.upsert({
     where: { name: definition.name },
     create: {
@@ -25,7 +25,7 @@ async function upsertSource(definition: SourceDefinition): Promise<Source> {
   });
 }
 
-async function findOrCreateChannel(input: XmltvChannel, source: Source) {
+async function findOrCreateChannel(input, source) {
   const normalized = normalizeName(input.displayName);
 
   const existingById = await prisma.channel.findUnique({
@@ -97,7 +97,7 @@ async function findOrCreateChannel(input: XmltvChannel, source: Source) {
   return { channel, created: true };
 }
 
-export async function runImport(definition: SourceDefinition) {
+export async function runImport(definition) {
   const source = await upsertSource(definition);
 
   const run = await prisma.importRun.create({
@@ -116,7 +116,7 @@ export async function runImport(definition: SourceDefinition) {
     let channelsCreated = 0;
     let programsCreated = 0;
 
-    const channelMap = new Map<string, string>();
+    const channelMap = new Map();
 
     for (const channelInput of parsed.channels) {
       const { channel, created } = await findOrCreateChannel(channelInput, source);
@@ -158,7 +158,7 @@ export async function runImport(definition: SourceDefinition) {
         });
 
         programsCreated++;
-      } catch (error: any) {
+      } catch (error) {
         if (error?.code !== 'P2002') {
           throw error;
         }
@@ -171,7 +171,13 @@ export async function runImport(definition: SourceDefinition) {
         lastRunAt: new Date()
       }
     });
-
+    await prisma.sourceHealth.create({
+      data: {
+        sourceId: source.id,
+        status: 'success',
+        message: `Channels: ${parsed.channels.length}, Programs: ${parsed.programs.length}`
+      }
+    });
     return prisma.importRun.update({
       where: { id: run.id },
       data: {
@@ -185,7 +191,17 @@ export async function runImport(definition: SourceDefinition) {
     });
   } catch (error) {
     console.error('IMPORT ERROR:', error);
-
+    
+    await prisma.sourceHealth.create({
+      data: {
+        sourceId: source.id,
+        status: 'failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      }
+    });
     return prisma.importRun.update({
       where: { id: run.id },
       data: {
