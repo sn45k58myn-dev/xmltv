@@ -15,6 +15,7 @@ import { startImportScheduler } from './jobs/importScheduler';
 import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
 import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
+import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
 import { requireAdmin } from './middleware/auth';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 
@@ -23,6 +24,7 @@ const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
 
 app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
+app.use('/api/discovery', feedDiscoveryRoutes);
 app.use(cors());
 app.use(express.json());
 app.use(rateLimit);
