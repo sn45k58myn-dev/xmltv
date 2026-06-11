@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
+import { getFeedDownloads } from '../services/downloadMetrics';
 import { getFeedSizes } from '../services/feedMetrics';
 
 export const statsRoutes = Router();
@@ -48,4 +49,9 @@ statsRoutes.get('/imports', async (_req, res) => {
     });
 
   res.json(runs);
+});
+
+
+statsRoutes.get('/downloads', async (_req, res) => {
+  res.json(await getFeedDownloads());
 });

@@ -18,6 +18,7 @@ import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
 import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
 import { requireAdmin } from './middleware/auth';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
+import { recordFeedDownload } from './services/downloadMetrics';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -132,6 +133,10 @@ app.get(
       return res.status(404).send('Feed not generated');
     }
 
+    await recordFeedDownload(
+      `${country}.xml`
+    );
+
     res.setHeader(
       'content-type',
       'application/xml; charset=utf-8'
@@ -152,6 +157,10 @@ app.get(
     if (!gzip) {
       return res.status(404).send('Feed not generated');
     }
+
+    await recordFeedDownload(
+      `${country}.xml.gz`
+    );
 
     res.setHeader(
       'content-type',

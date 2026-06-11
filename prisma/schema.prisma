@@ -169,3 +169,13 @@ model SourceHealth {
   checkedAt DateTime @default(now())
   Source    Source   @relation(fields: [sourceId], references: [id])
 }
+
+
+model FeedDownload {
+  id             String   @id @default(cuid())
+  feedKey        String   @unique
+  downloads      Int      @default(0)
+  lastDownloaded DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
