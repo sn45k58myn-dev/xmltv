@@ -118,11 +118,46 @@ Open `http://localhost:3000/admin` and enter `ADMIN_TOKEN` from your environment
 
 - Sources management
 - Import run history
+- Analytics dashboard
 - Coverage view
 - Channel mapping and aliases
 - Export profiles
 - Export token generation
 - Monitoring dashboard
+
+## Discovery and operations APIs
+
+- `GET /api/docs` returns a machine-readable endpoint catalogue.
+- `GET /api/discovery/manifest` returns the full feed manifest.
+- `GET /api/discovery/countries` lists country feeds.
+- `GET /api/discovery/providers` lists provider feeds from channel mappings.
+- `GET /api/discovery/metadata` returns cache and feed metadata.
+- `GET /api/discovery/validation` validates cached XMLTV feeds.
+- `GET /api/stats/dashboard` returns dashboard analytics.
+
+Debug routes are disabled by default. Set `ENABLE_DEBUG_ROUTES=true` and send
+`x-admin-token` to access `/debug/channels` and `/debug/programs`.
+
+## Production Docker
+
+The Docker image builds TypeScript, generates the Prisma client, prunes dev
+dependencies, runs as the non-root `node` user, and exposes a `/health`
+healthcheck. `docker-compose.yml` includes a PostgreSQL 16 service and persists
+database, cache, data, and upload directories.
+
+```bash
+docker compose up --build
+```
+
+## v3.0.0 release checklist
+
+- Dynamic manifest, country, and provider discovery endpoints are available.
+- Cached feed metadata and validation endpoints are available.
+- Admin analytics page is available.
+- Package version is read from `package.json` for manifests and docs.
+- Debug routes are production-hardened behind an explicit flag and admin token.
+- CI runs install, Prisma generate, TypeScript build, import smoke test, and audit.
+- Production Docker image is multi-stage and non-root.
 
 ## Premium feature modules
 

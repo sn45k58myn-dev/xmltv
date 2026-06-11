@@ -16,10 +16,11 @@ import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
 import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
 import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
+import { docsRoutes } from './routes/docsRoutes';
 import { requireAdmin } from './middleware/auth';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
-import { getFeedManifest } from './services/feedManifest';
+import { buildManifest } from './services/manifestService';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -31,6 +32,7 @@ app.use(rateLimit);
 app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
 app.use('/api/discovery', feedDiscoveryRoutes);
+app.use('/api/docs', docsRoutes);
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 app.use('/api/admin', adminApi);
 app.use('/api/sources', sourceRoutes);
@@ -43,11 +45,13 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get(
   '/manifest.json',
   async (_req, res) => {
-    res.json(await getFeedManifest());
+    res.json(
+      await buildManifest()
+    );
   }
 );
 
-app.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
+app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   const sources = await prisma.source.findMany({
@@ -173,32 +177,52 @@ function sendXml(
 
 app.get('/', (_req, res) => {
   res.send(`
-    <h1>XMLTV Aggregator</h1>
-    <ul>
-      <li><a href="/health">Health</a></li>
-      <li><a href="/sources">Sources</a></li>
-      <li><a href="/monitoring/metrics">Metrics</a></li>
-      <li><a href="/admin">Admin</a></li>
-    </ul>
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>XMLTV Aggregator</title>
+        <style>
+          body{font-family:system-ui,Segoe UI,sans-serif;margin:0;background:#f6f7fb;color:#172033;display:grid;min-height:100vh;place-items:center}
+          main{max-width:36rem;padding:2rem;text-align:center}
+          a{color:#172033;font-weight:700}
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>XMLTV Aggregator</h1>
+          <p>Service is running.</p>
+          <p><a href="/admin">Open admin</a></p>
+        </main>
+      </body>
+    </html>
   `);
 });
 
 startImportScheduler();
 
-app.get('/debug/channels', async (_req, res) => {
-  const channels = await prisma.channel.findMany();
-  res.json(channels);
-});
-
-app.get('/debug/programs', async (_req, res) => {
-  const programs = await prisma.program.findMany({
-    take: 20
+if (env.ENABLE_DEBUG_ROUTES === 'true') {
+  app.get('/debug/channels', requireAdmin, async (_req, res) => {
+    const channels = await prisma.channel.findMany({
+      take: 500
+    });
+    res.json(channels);
   });
 
-  res.json(programs);
-});
+  app.get('/debug/programs', requireAdmin, async (_req, res) => {
+    const programs = await prisma.program.findMany({
+      take: 100,
+      orderBy: {
+        start: 'desc'
+      }
+    });
 
-app.get('/channels', async (_req, res) => {
+    res.json(programs);
+  });
+}
+
+app.get('/channels', requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.findMany({
     orderBy: {
       displayName: 'asc'
@@ -208,7 +232,7 @@ app.get('/channels', async (_req, res) => {
   res.json(channels);
 });
 
-app.get('/programs', async (_req, res) => {
+app.get('/programs', requireAdmin, async (_req, res) => {
   const programs = await prisma.program.findMany({
     orderBy: {
       start: 'asc'
@@ -219,7 +243,7 @@ app.get('/programs', async (_req, res) => {
   res.json(programs);
 });
 
-app.get('/coverage', async (_req, res) => {
+app.get('/coverage', requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.count();
   const programs = await prisma.program.count();
   const aliases = await prisma.alias.count();

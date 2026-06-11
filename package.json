@@ -11,7 +11,10 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "import": "tsx src/cli/import.ts",
+    "smoke:import": "tsx src/cli/importSmoke.ts",
     "export": "tsx src/cli/export.ts",
+    "metadata:backfill": "tsx src/cli/backfillMetadata.ts",
+    "metadata:iptv-org": "tsx src/cli/enrichFromIptvOrg.ts",
     "lint": "eslint src --ext .ts",
     "admin": "tsx src/server.ts"
   },

@@ -6,6 +6,10 @@ import { requireAdmin } from '../middleware/auth';
 import { autoGenerateAliases } from '../premium/aliasGenerator';
 import { attachCatchupMetadata, enrichChannelAssets, enrichProgramWithTmdb } from '../premium/enrichment';
 import { mergeChannels } from '../premium/mergeEngine';
+import { getDashboardStats } from '../services/dashboardService';
+import { getFeedMetadata } from '../services/feedMetadata';
+import { validateCachedFeeds } from '../services/feedValidation';
+import { getSourceCategories } from '../services/sourceCategoryService';
 
 export const adminApi = Router();
 adminApi.use(requireAdmin);
@@ -16,13 +20,61 @@ adminApi.get('/summary', async (_req, res) => {
   ]);
   res.json({ sources, channels, programs, aliases, profiles, runs, tokens });
 });
+adminApi.get('/analytics', async (_req, res) => res.json(await getDashboardStats()));
+adminApi.get('/metadata', async (_req, res) => res.json(await getFeedMetadata()));
+adminApi.get('/validation', async (_req, res) => res.json(await validateCachedFeeds()));
+adminApi.get('/source-categories', async (_req, res) => res.json(await getSourceCategories()));
 adminApi.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 adminApi.post('/sources', async (req, res) => res.status(201).json(await prisma.source.create({ data: req.body })));
 adminApi.patch('/sources/:id', async (req, res) => res.json(await prisma.source.update({ where: { id: req.params.id }, data: req.body })));
 adminApi.get('/imports', async (_req, res) => res.json(await prisma.importRun.findMany({ include: { source: true }, orderBy: { startedAt: 'desc' }, take: 100 })));
 adminApi.get('/coverage', async (_req, res) => {
-  const channels = await prisma.channel.findMany({ include: { programs: true }, orderBy: { displayName: 'asc' } });
-  res.json(channels.map(c => ({ id: c.id, name: c.displayName, country: c.country, programs: c.programs.length, first: c.programs[0]?.start, last: c.programs.at(-1)?.stop })));
+  const [
+    channels,
+    programStats
+  ] = await Promise.all([
+    prisma.channel.findMany({
+      orderBy: {
+        displayName: 'asc'
+      },
+      select: {
+        id: true,
+        displayName: true,
+        country: true,
+        category: true
+      },
+      take: 1000
+    }),
+    prisma.program.groupBy({
+      by: ['channelId'],
+      _count: {
+        _all: true
+      },
+      _min: {
+        start: true
+      },
+      _max: {
+        stop: true
+      }
+    })
+  ]);
+  const statsByChannel = new Map(
+    programStats.map((row) => [row.channelId, row])
+  );
+
+  res.json(channels.map((channel) => {
+    const stats = statsByChannel.get(channel.id);
+
+    return {
+      id: channel.id,
+      name: channel.displayName,
+      country: channel.country,
+      category: channel.category,
+      programs: stats?._count._all ?? 0,
+      first: stats?._min.start,
+      last: stats?._max.stop
+    };
+  }));
 });
 adminApi.get('/channels', async (_req, res) => res.json(await prisma.channel.findMany({ include: { aliases: true, mappings: true }, orderBy: { displayName: 'asc' }, take: 500 })));
 adminApi.patch('/channels/:id', async (req, res) => res.json(await prisma.channel.update({ where: { id: req.params.id }, data: req.body })));

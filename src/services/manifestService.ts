@@ -1,5 +1,5 @@
-import { appInfo } from '../config/appInfo';
 import { prisma } from '../db/prisma';
+import { appInfo } from '../config/appInfo';
 
 export async function getCountryFeeds() {
   const rows = await prisma.channel.groupBy({
@@ -21,8 +21,26 @@ export async function getCountryFeeds() {
       gzip: `/country/${r.country}.xml.gz`
     }))
     .sort((a, b) =>
-      String(a.code).localeCompare(String(b.code))
+      String(a.code).localeCompare(
+        String(b.code)
+      )
     );
+}
+
+export async function getProviderFeeds() {
+  const rows = await prisma.mapping.groupBy({
+    by: ['providerId'],
+    _count: true,
+    orderBy: {
+      providerId: 'asc'
+    }
+  });
+
+  return rows.map((row) => ({
+    providerId: row.providerId,
+    channels: row._count,
+    xml: `/provider/${row.providerId}.xml`
+  }));
 }
 
 export async function getSystemStats() {
@@ -30,7 +48,8 @@ export async function getSystemStats() {
     channels,
     programs,
     sources,
-    countries
+    countries,
+    providers
   ] = await Promise.all([
     prisma.channel.count(),
     prisma.program.count(),
@@ -42,6 +61,9 @@ export async function getSystemStats() {
           not: null
         }
       }
+    }),
+    prisma.mapping.groupBy({
+      by: ['providerId']
     })
   ]);
 
@@ -49,17 +71,20 @@ export async function getSystemStats() {
     channels,
     programs,
     sources,
-    countries: countries.length
+    countries: countries.length,
+    providers: providers.length
   };
 }
 
-export async function getFeedManifest() {
+export async function buildManifest() {
   const [
     stats,
-    countries
+    countries,
+    providers
   ] = await Promise.all([
     getSystemStats(),
-    getCountryFeeds()
+    getCountryFeeds(),
+    getProviderFeeds()
   ]);
 
   return {
@@ -68,8 +93,10 @@ export async function getFeedManifest() {
     generatedAt: new Date().toISOString(),
     stats: {
       ...stats,
-      countries: countries.length
+      countries: countries.length,
+      providers: providers.length
     },
-    countries
+    countries,
+    providers
   };
 }

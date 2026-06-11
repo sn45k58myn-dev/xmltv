@@ -18,7 +18,8 @@ const schema = z.object({
   PREMIUM_ENABLED: z.string().default('true'),
   PROGRAM_RETENTION_DAYS: z.coerce.number().default(14),
   EXPORT_PAST_HOURS: z.coerce.number().default(12),
-  EXPORT_FUTURE_DAYS: z.coerce.number().default(7)
+  EXPORT_FUTURE_DAYS: z.coerce.number().default(7),
+  ENABLE_DEBUG_ROUTES: z.string().default('false')
 });
 
 export const env = schema.parse(process.env);
