@@ -22,19 +22,64 @@ import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
 
-app.use('/api/stats', statsRoutes);
-app.use('/api/source-health', sourceHealthRoutes);
-app.use('/api/discovery', feedDiscoveryRoutes);
 app.use(cors());
 app.use(express.json());
 app.use(rateLimit);
+
+app.use('/api/stats', statsRoutes);
+app.use('/api/source-health', sourceHealthRoutes);
+app.use('/api/discovery', feedDiscoveryRoutes);
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 app.use('/api/admin', adminApi);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/export-tokens', exportTokenRoutes);
+
 app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+app.get(
+  '/manifest.json',
+  async (_req, res) => {
+    const [
+      channels,
+      programs,
+      sources,
+      countries
+    ] = await Promise.all([
+      prisma.channel.count(),
+      prisma.program.count(),
+      prisma.source.count(),
+      prisma.channel.groupBy({
+        by: ['country'],
+        _count: true,
+        where: {
+          country: {
+            not: null
+          }
+        }
+      })
+    ]);
+
+    res.json({
+      name: 'XMLTV Aggregator',
+      version: '2.5.0',
+      generatedAt: new Date().toISOString(),
+      stats: {
+        channels,
+        programs,
+        sources,
+        countries: countries.length
+      },
+     countries: countries.map((c) => ({
+  code: c.country,
+  channels: c._count,
+  xml: `/country/${c.country}.xml`,
+  gzip: `/country/${c.country}.xml.gz`
+}))
+    });
+  }
+);
 
 app.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
@@ -54,7 +99,7 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
     results.push(
       await runImport({
         name: source.name,
-        type: source.type as any,
+        type: source.type,
         url: source.url ?? undefined,
         priority: source.priority
       })
@@ -141,8 +186,8 @@ app.get('/profile/:id.xml', requireExportToken, async (req, res) => sendXml(res,
 app.get('/provider/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProvider(req.params.id)));
 
 function sendXml(
-  res: express.Response,
-  xml: string
+  res,
+  xml
 ) {
   res.setHeader(
     'content-type',
