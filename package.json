@@ -1,6 +1,6 @@
 {
   "name": "xmltv-aggregator",
-  "version": "0.1.0",
+  "version": "3.0.0",
   "description": "XMLTV EPG aggregation service with multiple sources, normalization, deduplication, alias matching and profile exports.",
   "main": "dist/server.js",
   "scripts": {
