@@ -1,68 +1,96 @@
 # XMLTV Aggregator
 
-A Node.js/TypeScript XMLTV EPG service that imports multiple guide sources, validates XMLTV, normalizes channels, deduplicates programs, matches aliases, stores everything in SQLite via Prisma, and exposes XMLTV export feeds.
+Node.js/TypeScript XMLTV EPG aggregation service for importing guide sources,
+normalizing channels, deduplicating programmes, enriching metadata, and exposing
+country, category, profile, and provider XMLTV feeds.
 
-## Core services
+Version: `3.0.0`
+
+## Features
+
+- PostgreSQL storage through Prisma
+- XMLTV import, validation, normalization, and deduplication
+- Dynamic country feed discovery for any imported country
+- Provider feed discovery from channel mappings
+- Cached `.xml` and `.xml.gz` country feeds
+- Export profiles and private export tokens
+- Admin dashboard with analytics, coverage, source management, mappings, profiles, tokens, monitoring, and source categories
+- Channel metadata backfill from local rules and IPTV-org channel metadata
+- Feed validation and feed metadata APIs
+- Production Docker image and GitHub Actions CI
+
+## Architecture
 
 ```text
-XMLTV Sources
-├── epg.pw
-├── IPTV-Org
-├── Schedules Direct adapter placeholder
-├── Custom XMLTV URLs
-└── User uploads
+XMLTV sources
+  - epg.pw
+  - IPTV-org metadata enrichment
+  - Schedules Direct adapter placeholder
+  - Custom XMLTV URLs
+  - User uploads
 
-Processing Pipeline
-Fetch
-  ↓
-Validate XMLTV
-  ↓
-Normalize channels
-  ↓
-Deduplicate
-  ↓
-Match aliases
-  ↓
-Store
-  ↓
-Generate exports
-
-Database
-Channel
-Program
-Alias
-Source
-ImportRun
-Mapping
-ExportProfile
+Pipeline
+  Fetch
+  Validate XMLTV
+  Normalize channels
+  Enrich channel metadata
+  Deduplicate programmes
+  Match aliases
+  Store in PostgreSQL
+  Rebuild cached feeds
 
 Exports
-/uk.xml
-/us.xml
-/sports.xml
-/movies.xml
-/profile/:id.xml
-/provider/:id.xml
+  /country/:country.xml
+  /country/:country.xml.gz
+  /sports.xml
+  /movies.xml
+  /profile/:id.xml
+  /provider/:id.xml
 ```
 
-## Quick start
+## Quick Start
 
 ```bash
 cp .env.example .env
 npm install
 npm run db:generate
 npm run db:push
-npm run dev
+npm run build
+npm start
 ```
 
-The default Prisma datasource is PostgreSQL. The example `.env` points at
-`postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public`; update it if
-your database credentials differ.
+Open:
 
-Run imports:
+```text
+http://localhost:3000/admin
+```
+
+Use the `ADMIN_TOKEN` from `.env`.
+
+## Environment
+
+The default datasource is PostgreSQL:
+
+```env
+DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public"
+PORT=3000
+BASE_URL=http://localhost:3000
+ADMIN_TOKEN=dev-admin-token
+PUBLIC_EXPORTS=false
+EXPORT_PAST_HOURS=12
+EXPORT_FUTURE_DAYS=7
+ENABLE_DEBUG_ROUTES=false
+```
+
+Set `PUBLIC_EXPORTS=true` for open feeds. Otherwise pass
+`?token=<export-token>` to protected feeds.
+
+## Imports
+
+Run the configured imports:
 
 ```bash
-curl -X POST http://localhost:3000/imports/run
+npm run import
 ```
 
 Upload a local XMLTV file:
@@ -71,104 +99,133 @@ Upload a local XMLTV file:
 curl -F "xmltv=@guide.xml" http://localhost:3000/imports/upload
 ```
 
-Open exports:
-
-```bash
-http://localhost:3000/uk.xml
-http://localhost:3000/us.xml
-http://localhost:3000/sports.xml
-http://localhost:3000/movies.xml
-http://localhost:3000/profile/:id.xml
-http://localhost:3000/provider/:id.xml
-```
-
-## Custom XMLTV URLs
-
-Add comma-separated XMLTV URLs to `.env`:
+Add custom XMLTV URLs:
 
 ```env
 CUSTOM_XMLTV_URLS=https://example.com/one.xml,https://example.com/two.xml
 ```
 
-## Export windows
+## Metadata And Categories
+
+The imported XMLTV files may not include channel or programme categories. The
+service supports two enrichment passes:
+
+```bash
+npm run metadata:backfill
+npm run metadata:iptv-org
+```
+
+`metadata:backfill` uses local channel-name rules and source hints.
+
+`metadata:iptv-org` downloads the public IPTV-org channel catalogue and fills
+missing categories by matching channel names, alternate names, and country.
+
+After imports, run:
+
+```bash
+npm run metadata:backfill
+npm run metadata:iptv-org
+npm run import
+```
+
+The admin `Categories` tab shows categories grouped by source.
+
+## Admin UI
+
+The admin dashboard is available at:
+
+```text
+http://localhost:3000/admin
+```
+
+It includes:
+
+- Dashboard summary
+- Analytics
+- Categories by source
+- Source management
+- Import run history
+- Coverage view
+- Channel mapping
+- Channel merge tools
+- Alias generation
+- Export profiles
+- Export tokens
+- Monitoring
+
+## Discovery APIs
+
+```text
+GET /api/docs
+GET /api/discovery/manifest
+GET /api/discovery/countries
+GET /api/discovery/providers
+GET /api/discovery/metadata
+GET /api/discovery/validation
+GET /api/stats/dashboard
+```
+
+## Feed URLs
+
+```text
+GET /country/:country.xml
+GET /country/:country.xml.gz
+GET /sports.xml
+GET /movies.xml
+GET /profile/:id.xml
+GET /provider/:id.xml
+```
+
+Legacy redirects:
+
+```text
+/uk.xml -> /country/GB.xml
+/us.xml -> /country/US.xml
+```
+
+## Export Windows
 
 Country, category, profile, and provider exports include programmes that overlap
-the configured export window. Set these values in `.env`:
+the configured export window:
 
 ```env
 EXPORT_PAST_HOURS=12
 EXPORT_FUTURE_DAYS=7
 ```
 
-## Schedules Direct
-
-`Schedules Direct` is scaffolded as a source type, but the token/login and lineup conversion is intentionally isolated in `src/sources/fetchers.ts`. Add your account credentials to `.env`, implement the adapter, and return XMLTV text to feed the same parser/pipeline.
-
-## Notes
-
-- Deduplication uses a unique database constraint on `channelId + start + stop + checksum`.
-- Alias matching normalizes channel names by removing common quality/country suffixes.
-- Provider exports use `Mapping` records to decide which internal channels belong to a provider.
-- Profile exports use `ExportProfile` filters and optional explicit channel ID lists.
-
-
-## Admin UI
-
-Open `http://localhost:3000/admin` and enter `ADMIN_TOKEN` from your environment. The UI includes:
-
-- Sources management
-- Import run history
-- Analytics dashboard
-- Coverage view
-- Channel mapping and aliases
-- Export profiles
-- Export token generation
-- Monitoring dashboard
-
-## Discovery and operations APIs
-
-- `GET /api/docs` returns a machine-readable endpoint catalogue.
-- `GET /api/discovery/manifest` returns the full feed manifest.
-- `GET /api/discovery/countries` lists country feeds.
-- `GET /api/discovery/providers` lists provider feeds from channel mappings.
-- `GET /api/discovery/metadata` returns cache and feed metadata.
-- `GET /api/discovery/validation` validates cached XMLTV feeds.
-- `GET /api/stats/dashboard` returns dashboard analytics.
-
-Debug routes are disabled by default. Set `ENABLE_DEBUG_ROUTES=true` and send
-`x-admin-token` to access `/debug/channels` and `/debug/programs`.
-
-## Production Docker
-
-The Docker image builds TypeScript, generates the Prisma client, prunes dev
-dependencies, runs as the non-root `node` user, and exposes a `/health`
-healthcheck. `docker-compose.yml` includes a PostgreSQL 16 service and persists
-database, cache, data, and upload directories.
+## Docker
 
 ```bash
 docker compose up --build
 ```
 
-## v3.0.0 release checklist
+The compose stack includes PostgreSQL 16 and the production app image. The image
+builds TypeScript, generates the Prisma client, prunes development dependencies,
+runs as the non-root `node` user, and exposes a `/health` healthcheck.
 
-- Dynamic manifest, country, and provider discovery endpoints are available.
-- Cached feed metadata and validation endpoints are available.
-- Admin analytics page is available.
+## Checks
+
+```bash
+npm run db:generate
+npm run build
+npm run smoke:import
+npm audit
+```
+
+`npm run lint` requires an ESLint 9 flat config before it can be used in CI.
+
+## Production Notes
+
+- Debug routes are disabled by default.
+- Set `ENABLE_DEBUG_ROUTES=true` only when needed.
+- Debug routes require `x-admin-token`.
+- Feed caches are rebuilt after imports.
+- Provider exports use `Mapping` records.
+- Profile exports use `ExportProfile` filters and optional explicit channel IDs.
 - Package version is read from `package.json` for manifests and docs.
-- Debug routes are production-hardened behind an explicit flag and admin token.
-- CI runs install, Prisma generate, TypeScript build, import smoke test, and audit.
-- Production Docker image is multi-stage and non-root.
 
-## Premium feature modules
+## Schedules Direct
 
-The repo now includes production-ready extension points for:
-
-- Multi-source merge with source merge weights
-- Automatic alias generation
-- Catch-up metadata fields in XMLTV exports
-- TMDB enrichment for programme images and series metadata
-- Channel logos and images
-- Export tokens for private XML feeds
-- In-memory rate limiting middleware
-
-Set `PUBLIC_EXPORTS=true` for open feeds, or keep it false and pass `?token=<export-token>` to `/uk.xml`, `/us.xml`, `/sports.xml`, `/movies.xml`, `/profile/:id.xml`, and `/provider/:id.xml`.
+Schedules Direct is scaffolded as a source type. The login/token and lineup
+conversion should be implemented in `src/sources/fetchers.ts`, returning XMLTV
+text into the existing parser and import pipeline.
