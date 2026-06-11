@@ -1,3 +1,4 @@
+import { prisma } from '../db/prisma';
 import { exportCountry } from '../exports/exportService';
 import {
   setCachedFeed,
@@ -8,29 +9,43 @@ import { compressXml } from './gzipService';
 export async function rebuildFeeds() {
   console.log('Rebuilding cached feeds...');
 
-  // UK
-  const uk = await exportCountry('uk');
+  const countries = await prisma.channel.findMany({
+    distinct: ['country'],
+    select: {
+      country: true
+    },
+    where: {
+      country: {
+        not: null
+      }
+    }
+  });
 
-  await setCachedFeed('uk', uk);
+  for (const row of countries) {
+    const country = row.country;
 
-  const ukGzip = await compressXml(uk);
+    if (!country) {
+      continue;
+    }
 
-  await setCachedFeedGzip(
-    'uk',
-    ukGzip
-  );
+    console.log(
+      `Building feed for ${country}`
+    );
 
-  // US
-  const us = await exportCountry('us');
+    const xml = await exportCountry(country);
 
-  await setCachedFeed('us', us);
+    await setCachedFeed(
+      country,
+      xml
+    );
 
-  const usGzip = await compressXml(us);
+    const gzip = await compressXml(xml);
 
-  await setCachedFeedGzip(
-    'us',
-    usGzip
-  );
+    await setCachedFeedGzip(
+      country,
+      gzip
+    );
+  }
 
   console.log('Cached feeds rebuilt');
 }
