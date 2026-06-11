@@ -118,8 +118,15 @@ export async function runImport(definition) {
 
     const channelMap = new Map();
 
+    console.log(
+      `Processing ${parsed.channels.length} channels and ${parsed.programs.length} programmes`
+    );
+
     for (const channelInput of parsed.channels) {
-      const { channel, created } = await findOrCreateChannel(channelInput, source);
+      const { channel, created } = await findOrCreateChannel(
+        channelInput,
+        source
+      );
 
       channelMap.set(channelInput.id, channel.id);
 
@@ -127,6 +134,12 @@ export async function runImport(definition) {
         channelsCreated++;
       }
     }
+
+    console.log(
+      `Channels complete (${channelsCreated} created)`
+    );
+
+    const batch = [];
 
     for (const program of parsed.programs) {
       const channelId = channelMap.get(program.channel);
@@ -142,35 +155,60 @@ export async function runImport(definition) {
         category: program.category
       });
 
-      try {
-        await prisma.program.create({
-          data: {
-            channelId,
-            title: program.title,
-            subtitle: program.subtitle,
-            description: program.description,
-            category: program.category,
-            start: program.start,
-            stop: program.stop,
-            sourceId: source.id,
-            checksum: programChecksum
-          }
+      batch.push({
+        channelId,
+        title: program.title,
+        subtitle: program.subtitle,
+        description: program.description,
+        category: program.category,
+        start: program.start,
+        stop: program.stop,
+        sourceId: source.id,
+        checksum: programChecksum
+      });
+    }
+
+    console.log(
+      `Prepared ${batch.length} programme rows`
+    );
+
+    const CHUNK_SIZE = 5000;
+
+    for (
+      let i = 0;
+      i < batch.length;
+      i += CHUNK_SIZE
+    ) {
+      const chunk = batch.slice(
+        i,
+        i + CHUNK_SIZE
+      );
+
+      const result =
+        await prisma.program.createMany({
+          data: chunk,
+          skipDuplicates: true
         });
 
-        programsCreated++;
-      } catch (error) {
-        if (error?.code !== 'P2002') {
-          throw error;
-        }
-      }
+      programsCreated += result.count;
+
+      console.log(
+        `Imported ${Math.min(
+          i + CHUNK_SIZE,
+          batch.length
+        )} / ${batch.length} programmes`
+      );
     }
 
     await prisma.source.update({
-      where: { id: source.id },
+      where: {
+        id: source.id
+      },
       data: {
         lastRunAt: new Date()
       }
     });
+
     await prisma.sourceHealth.create({
       data: {
         sourceId: source.id,
@@ -178,8 +216,11 @@ export async function runImport(definition) {
         message: `Channels: ${parsed.channels.length}, Programs: ${parsed.programs.length}`
       }
     });
+
     return prisma.importRun.update({
-      where: { id: run.id },
+      where: {
+        id: run.id
+      },
       data: {
         status: 'success',
         channelsSeen: parsed.channels.length,
@@ -191,7 +232,7 @@ export async function runImport(definition) {
     });
   } catch (error) {
     console.error('IMPORT ERROR:', error);
-    
+
     await prisma.sourceHealth.create({
       data: {
         sourceId: source.id,
@@ -202,8 +243,11 @@ export async function runImport(definition) {
             : String(error)
       }
     });
+
     return prisma.importRun.update({
-      where: { id: run.id },
+      where: {
+        id: run.id
+      },
       data: {
         status: 'failed',
         errors:

@@ -51,9 +51,12 @@ model Program {
   createdAt   DateTime @default(now())
 
   @@unique([channelId, start, stop, checksum])
+  @@index([channelId])
   @@index([channelId, start])
   @@index([start])
   @@index([stop])
+  @@index([checksum])
+  @@index([sourceId])
 }
 
 model Alias {
