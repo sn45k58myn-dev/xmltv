@@ -1,13 +1,14 @@
 import cron from 'node-cron';
 import { prisma } from '../db/prisma';
 import { runImport } from '../pipeline/importPipeline';
+import { runProgramRetention } from './programRetention';
 
 let importRunning = false;
 
 export function startImportScheduler() {
   console.log('Import scheduler started');
 
-  // Run daily at 03:00
+  // Daily imports at 03:00
   cron.schedule('0 3 * * *', async () => {
     if (importRunning) {
       console.log('Import already running, skipping schedule');
@@ -57,6 +58,18 @@ export function startImportScheduler() {
       console.error('Scheduler error', err);
     } finally {
       importRunning = false;
+    }
+  });
+
+  // Daily retention cleanup at 04:00
+  cron.schedule('0 4 * * *', async () => {
+    try {
+      await runProgramRetention();
+    } catch (err) {
+      console.error(
+        'Program retention failed',
+        err
+      );
     }
   });
 }

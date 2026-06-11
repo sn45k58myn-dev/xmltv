@@ -15,10 +15,12 @@ const schema = z.object({
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
   RATE_LIMIT_MAX: z.coerce.number().default(120),
   TMDB_API_KEY: z.string().optional(),
-  PREMIUM_ENABLED: z.string().default('true')
+  PREMIUM_ENABLED: z.string().default('true'),
+  PROGRAM_RETENTION_DAYS: z.coerce.number().default(14)
 });
 
 export const env = schema.parse(process.env);
+
 export const customXmltvUrls = (env.CUSTOM_XMLTV_URLS ?? '')
   .split(',')
   .map((url) => url.trim())
