@@ -1,23 +1,16 @@
-import { customXmltvUrls } from '../config/env';
-import { SourceDefinition } from '../models/xmltv';
-
-export const builtInSources: SourceDefinition[] = [
-  {
-    name: 'epg.pw UK',
-    type: 'epg.pw',
-    url: 'https://epg.pw/xmltv/epg_GB.xml',
-    priority: 10
-  }
-];
-
-export function getConfiguredSources(): SourceDefinition[] {
+export function getConfiguredSources() {
   return [
-    ...builtInSources,
-    ...customXmltvUrls.map((url, index) => ({
-      name: `Custom XMLTV URL ${index + 1}`,
-      type: 'custom-url' as const,
-      url,
-      priority: 50
-    }))
+    {
+      name: 'epg.pw UK',
+      type: 'epg.pw',
+      url: 'https://epg.pw/xmltv/epg_GB.xml',
+      priority: 10
+    },
+    {
+      name: 'epg.pw US',
+      type: 'epg.pw',
+      url: 'https://epg.pw/xmltv/epg_US.xml',
+      priority: 10
+    }
   ];
 }

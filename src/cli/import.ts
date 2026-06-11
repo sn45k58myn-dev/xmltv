@@ -1,26 +1,17 @@
 import { prisma } from '../db/prisma';
 import { runImport } from '../pipeline/importPipeline';
+import { getConfiguredSources } from '../sources/sourceRegistry';
 
 async function main() {
-  const sources = await prisma.source.findMany({
-    where: {
-      enabled: true
-    },
-    orderBy: {
-      priority: 'asc'
-    }
-  });
+  for (const source of getConfiguredSources()) {
+    console.log(`Importing ${source.name}`);
 
-  for (const source of sources) {
-    console.log(
-      await runImport({
-        name: source.name,
-        type: source.type as any,
-        url: source.url ?? undefined,
-        priority: source.priority
-      })
-    );
+    const result = await runImport(source);
+
+    console.log(result);
   }
 }
 
-main().finally(() => prisma.$disconnect());
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect());
