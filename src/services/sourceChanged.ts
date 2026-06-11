@@ -1,0 +1,56 @@
+import axios from 'axios';
+import { getSourceCache, updateSourceCache } from './sourceCache';
+
+export async function sourceChanged(
+  sourceId: string,
+  url: string
+): Promise<boolean> {
+  try {
+    const cache = await getSourceCache(sourceId);
+
+    const response = await axios.head(url, {
+      timeout: 10000,
+      validateStatus: () => true
+    });
+
+    const etag =
+      typeof response.headers.etag === 'string'
+        ? response.headers.etag
+        : undefined;
+
+    const lastModified =
+      typeof response.headers['last-modified'] === 'string'
+        ? response.headers['last-modified']
+        : undefined;
+
+    if (!cache) {
+      await updateSourceCache(
+        sourceId,
+        etag,
+        lastModified
+      );
+
+      return true;
+    }
+
+    const changed =
+      cache.etag !== etag ||
+      cache.lastModified !== lastModified;
+
+    if (changed) {
+      await updateSourceCache(
+        sourceId,
+        etag,
+        lastModified
+      );
+    }
+
+    return changed;
+  } catch (error) {
+    console.warn(
+      `Unable to check source freshness, importing anyway`
+    );
+
+    return true;
+  }
+}

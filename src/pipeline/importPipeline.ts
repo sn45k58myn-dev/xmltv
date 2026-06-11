@@ -1,3 +1,4 @@
+import { sourceChanged } from '../services/sourceChanged';
 import { Source } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { SourceDefinition, XmltvChannel } from '../models/xmltv';
@@ -99,7 +100,23 @@ async function findOrCreateChannel(input, source) {
 
 export async function runImport(definition) {
   const source = await upsertSource(definition);
+  if (definition.url) {
+    const changed = await sourceChanged(
+      source.id,
+      definition.url
+    );
 
+    if (!changed) {
+      console.log(
+        `${source.name} unchanged, skipping import`
+      );
+
+      return {
+        sourceId: source.id,
+        status: 'skipped'
+      };
+    }
+  }
   const run = await prisma.importRun.create({
     data: {
       sourceId: source.id,
