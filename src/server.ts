@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import multer from 'multer';
+import { statsRoutes } from './routes/statsRoutes';
 import path from 'node:path';
 import { env } from './config/env';
 import { adminApi } from './routes/adminApi';
@@ -10,7 +11,6 @@ import { systemMetrics } from './monitoring/metrics';
 import { prisma } from './db/prisma';
 import { exportCategory, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
-import { getConfiguredSources } from './sources/sourceRegistry';
 import { startImportScheduler } from './jobs/importScheduler';
 import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
@@ -21,6 +21,7 @@ import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
 
+app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
 app.use(cors());
 app.use(express.json());
