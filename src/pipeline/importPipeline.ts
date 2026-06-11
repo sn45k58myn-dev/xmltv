@@ -1,7 +1,6 @@
+import { getLatestProgramStart } from '../services/programWindow';
 import { sourceChanged } from '../services/sourceChanged';
-import { Source } from '@prisma/client';
 import { prisma } from '../db/prisma';
-import { SourceDefinition, XmltvChannel } from '../models/xmltv';
 import { fetchXmltvSource } from '../sources/fetchers';
 import { checksum, normalizeName } from '../utils/normalize';
 import { parseXmltv } from './parseXmltv';
@@ -15,14 +14,14 @@ async function upsertSource(definition) {
       name: definition.name,
       type: definition.type,
       url: definition.url,
-      priority: definition.priority ?? 100
+      priority: definition.priority ?? 100,
     },
     update: {
       type: definition.type,
       url: definition.url,
       priority: definition.priority ?? 100,
-      enabled: true
-    }
+      enabled: true,
+    },
   });
 }
 
@@ -30,7 +29,7 @@ async function findOrCreateChannel(input, source) {
   const normalized = normalizeName(input.displayName);
 
   const existingById = await prisma.channel.findUnique({
-    where: { xmltvId: input.id }
+    where: { xmltvId: input.id },
   });
 
   if (existingById) {
@@ -38,20 +37,20 @@ async function findOrCreateChannel(input, source) {
   }
 
   const alias = await prisma.alias.findFirst({
-    where: { normalized }
+    where: { normalized },
   });
 
   if (alias) {
     return {
       channel: await prisma.channel.findUniqueOrThrow({
-        where: { id: alias.channelId }
+        where: { id: alias.channelId },
       }),
-      created: false
+      created: false,
     };
   }
 
   const similar = await prisma.channel.findFirst({
-    where: { normalized }
+    where: { normalized },
   });
 
   if (similar) {
@@ -59,8 +58,8 @@ async function findOrCreateChannel(input, source) {
       data: {
         channelId: similar.id,
         value: input.displayName,
-        normalized
-      }
+        normalized,
+      },
     }).catch(() => null);
 
     return { channel: similar, created: false };
@@ -74,32 +73,34 @@ async function findOrCreateChannel(input, source) {
       displayName: input.displayName,
       normalized,
       country:
-  input.country ??
-  metadata.country ??
-  (source.name.includes('UK')
-    ? 'GB'
-    : source.name.includes('US')
-    ? 'US'
-    : null),
+        input.country ??
+        metadata.country ??
+        (source.name.includes('UK')
+          ? 'GB'
+          : source.name.includes('US')
+            ? 'US'
+            : null),
       category: input.category ?? metadata.category,
       icon: input.icon,
-      sourceRefs: JSON.stringify([{
-        sourceId: source.id,
-        sourceChannelId: input.id
-      }]),
+      sourceRefs: JSON.stringify([
+        {
+          sourceId: source.id,
+          sourceChannelId: input.id,
+        },
+      ]),
       aliases: {
         create: [
           {
             value: input.displayName,
-            normalized
+            normalized,
           },
           ...(input.aliases ?? []).map((value) => ({
             value,
-            normalized: normalizeName(value)
-          }))
-        ]
-      }
-    }
+            normalized: normalizeName(value),
+          })),
+        ],
+      },
+    },
   });
 
   return { channel, created: true };
@@ -107,6 +108,7 @@ async function findOrCreateChannel(input, source) {
 
 export async function runImport(definition) {
   const source = await upsertSource(definition);
+
   if (definition.url) {
     const changed = await sourceChanged(
       source.id,
@@ -120,15 +122,16 @@ export async function runImport(definition) {
 
       return {
         sourceId: source.id,
-        status: 'skipped'
+        status: 'skipped',
       };
     }
   }
+
   const run = await prisma.importRun.create({
     data: {
       sourceId: source.id,
-      status: 'running'
-    }
+      status: 'running',
+    },
   });
 
   try {
@@ -142,8 +145,24 @@ export async function runImport(definition) {
 
     const channelMap = new Map();
 
+    const latestStart = await getLatestProgramStart(source.id);
+
+    let programs = parsed.programs;
+
+    if (latestStart) {
+      const cutoff = new Date(
+        latestStart.getTime() - 48 * 60 * 60 * 1000
+      );
+
+      programs = parsed.programs.filter((p) => p.start >= cutoff);
+
+      console.log(
+        `Incremental mode: ${programs.length} / ${parsed.programs.length} programmes`
+      );
+    }
+
     console.log(
-      `Processing ${parsed.channels.length} channels and ${parsed.programs.length} programmes`
+      `Processing ${parsed.channels.length} channels and ${programs.length} programmes`
     );
 
     for (const channelInput of parsed.channels) {
@@ -159,13 +178,11 @@ export async function runImport(definition) {
       }
     }
 
-    console.log(
-      `Channels complete (${channelsCreated} created)`
-    );
+    console.log(`Channels complete (${channelsCreated} created)`);
 
     const batch = [];
 
-    for (const program of parsed.programs) {
+    for (const program of programs) {
       const channelId = channelMap.get(program.channel);
 
       if (!channelId) {
@@ -176,7 +193,7 @@ export async function runImport(definition) {
         title: program.title,
         subtitle: program.subtitle,
         description: program.description,
-        category: program.category
+        category: program.category,
       });
 
       batch.push({
@@ -188,71 +205,58 @@ export async function runImport(definition) {
         start: program.start,
         stop: program.stop,
         sourceId: source.id,
-        checksum: programChecksum
+        checksum: programChecksum,
       });
     }
 
-    console.log(
-      `Prepared ${batch.length} programme rows`
-    );
+    console.log(`Prepared ${batch.length} programme rows`);
 
     const CHUNK_SIZE = 5000;
 
-    for (
-      let i = 0;
-      i < batch.length;
-      i += CHUNK_SIZE
-    ) {
-      const chunk = batch.slice(
-        i,
-        i + CHUNK_SIZE
-      );
+    for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
+      const chunk = batch.slice(i, i + CHUNK_SIZE);
 
-      const result =
-        await prisma.program.createMany({
-          data: chunk,
-          skipDuplicates: true
-        });
+      const result = await prisma.program.createMany({
+        data: chunk,
+        skipDuplicates: true,
+      });
 
       programsCreated += result.count;
 
       console.log(
-        `Imported ${Math.min(
-          i + CHUNK_SIZE,
-          batch.length
-        )} / ${batch.length} programmes`
+        `Imported ${Math.min(i + CHUNK_SIZE, batch.length)} / ${batch.length} programmes`
       );
     }
 
     await prisma.source.update({
       where: {
-        id: source.id
+        id: source.id,
       },
       data: {
-        lastRunAt: new Date()
-      }
+        lastRunAt: new Date(),
+      },
     });
 
     await prisma.sourceHealth.create({
       data: {
         sourceId: source.id,
         status: 'success',
-        message: `Channels: ${parsed.channels.length}, Programs: ${parsed.programs.length}`
-      }
+        message: `Channels: ${parsed.channels.length}, Programs: ${programs.length}`,
+      },
     });
 
     return prisma.importRun.update({
       where: {
-        id: run.id
+        id: run.id,
       },
       data: {
         status: 'success',
         channelsSeen: parsed.channels.length,
-        programsSeen: parsed.programs.length,
+        programsSeen: programs.length,
         channelsCreated,
         programsCreated,
-        finishedAt: new Date()
-      }
+        finishedAt: new Date(),
+      },
     });
   } catch (error) {
     console.error('IMPORT ERROR:', error);
@@ -262,15 +266,13 @@ export async function runImport(definition) {
         sourceId: source.id,
         status: 'failed',
         message:
-          error instanceof Error
-            ? error.message
-            : String(error)
-      }
+          error instanceof Error ? error.message : String(error),
+      },
     });
 
     return prisma.importRun.update({
       where: {
-        id: run.id
+        id: run.id,
       },
       data: {
         status: 'failed',
@@ -278,8 +280,8 @@ export async function runImport(definition) {
           error instanceof Error
             ? `${error.message}\n${error.stack ?? ''}`
             : String(error),
-        finishedAt: new Date()
-      }
+        finishedAt: new Date(),
+      },
     });
   }
 }

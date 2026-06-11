@@ -12,11 +12,7 @@ async function main() {
     console.log(result);
   }
 
-  console.log('Rebuilding cached feeds...');
-
   await rebuildFeeds();
-
-  console.log('Cached feeds rebuilt');
 }
 
 main()
