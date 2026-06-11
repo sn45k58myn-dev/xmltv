@@ -1,10 +1,37 @@
 import { prisma } from '../db/prisma';
+import { env } from '../config/env';
 import { writeXmltv } from './xmltvWriter';
 
 const categoryMap: Record<string, string[]> = {
   sports: ['sport', 'sports', 'football', 'soccer', 'rugby', 'cricket', 'tennis'],
   movies: ['movie', 'movies', 'film', 'cinema']
 };
+
+function exportProgramWindow() {
+  const now = new Date();
+  const earliestStop = new Date(
+    now.getTime() - env.EXPORT_PAST_HOURS * 60 * 60 * 1000
+  );
+  const latestStart = new Date(
+    now.getTime() + env.EXPORT_FUTURE_DAYS * 24 * 60 * 60 * 1000
+  );
+
+  return {
+    stop: {
+      gte: earliestStop
+    },
+    start: {
+      lte: latestStart
+    }
+  };
+}
+
+function containsInsensitive(term: string) {
+  return {
+    contains: term,
+    mode: 'insensitive' as const
+  };
+}
 
 export async function exportCountry(country: string): Promise<string> {
   const normalized =
@@ -18,6 +45,7 @@ export async function exportCountry(country: string): Promise<string> {
     },
     include: {
       programs: {
+        where: exportProgramWindow(),
         orderBy: {
           start: 'asc'
         }
@@ -34,8 +62,18 @@ export async function exportCountry(country: string): Promise<string> {
 export async function exportCategory(category: string): Promise<string> {
   const terms = categoryMap[category.toLowerCase()] ?? [category.toLowerCase()];
   const channels = await prisma.channel.findMany({
-    where: { OR: terms.map((term) => ({ category: { contains: term } })) },
-    include: { programs: { where: { OR: terms.map((term) => ({ category: { contains: term } })) }, orderBy: { start: 'asc' } } },
+    where: { OR: terms.map((term) => ({ category: containsInsensitive(term) })) },
+    include: {
+      programs: {
+        where: {
+          AND: [
+            exportProgramWindow(),
+            { OR: terms.map((term) => ({ category: containsInsensitive(term) })) }
+          ]
+        },
+        orderBy: { start: 'asc' }
+      }
+    },
     orderBy: { displayName: 'asc' }
   });
   return writeXmltv(channels.filter((c) => c.programs.length));
@@ -47,10 +85,15 @@ export async function exportProfile(id: string): Promise<string> {
   const channels = await prisma.channel.findMany({
     where: {
       ...(profile.country ? { country: profile.country } : {}),
-      ...(profile.category ? { category: { contains: profile.category } } : {}),
+      ...(profile.category ? { category: containsInsensitive(profile.category) } : {}),
       ...(channelIds?.length ? { id: { in: channelIds } } : {})
     },
-    include: { programs: { orderBy: { start: 'asc' } } },
+    include: {
+      programs: {
+        where: exportProgramWindow(),
+        orderBy: { start: 'asc' }
+      }
+    },
     orderBy: { displayName: 'asc' }
   });
   return writeXmltv(channels);
@@ -60,7 +103,12 @@ export async function exportProvider(providerId: string): Promise<string> {
   const mappings = await prisma.mapping.findMany({ where: { providerId }, select: { channelId: true } });
   const channels = await prisma.channel.findMany({
     where: { id: { in: mappings.map((m) => m.channelId) } },
-    include: { programs: { orderBy: { start: 'asc' } } },
+    include: {
+      programs: {
+        where: exportProgramWindow(),
+        orderBy: { start: 'asc' }
+      }
+    },
     orderBy: { displayName: 'asc' }
   });
   return writeXmltv(channels);

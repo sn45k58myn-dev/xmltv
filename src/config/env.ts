@@ -16,7 +16,9 @@ const schema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().default(120),
   TMDB_API_KEY: z.string().optional(),
   PREMIUM_ENABLED: z.string().default('true'),
-  PROGRAM_RETENTION_DAYS: z.coerce.number().default(14)
+  PROGRAM_RETENTION_DAYS: z.coerce.number().default(14),
+  EXPORT_PAST_HOURS: z.coerce.number().default(12),
+  EXPORT_FUTURE_DAYS: z.coerce.number().default(7)
 });
 
 export const env = schema.parse(process.env);

@@ -55,6 +55,10 @@ npm run db:push
 npm run dev
 ```
 
+The default Prisma datasource is PostgreSQL. The example `.env` points at
+`postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public`; update it if
+your database credentials differ.
+
 Run imports:
 
 ```bash
@@ -84,6 +88,16 @@ Add comma-separated XMLTV URLs to `.env`:
 
 ```env
 CUSTOM_XMLTV_URLS=https://example.com/one.xml,https://example.com/two.xml
+```
+
+## Export windows
+
+Country, category, profile, and provider exports include programmes that overlap
+the configured export window. Set these values in `.env`:
+
+```env
+EXPORT_PAST_HOURS=12
+EXPORT_FUTURE_DAYS=7
 ```
 
 ## Schedules Direct

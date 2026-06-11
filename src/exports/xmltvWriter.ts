@@ -5,7 +5,8 @@ function esc(value: string | null | undefined): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 function xmltvDate(date: Date): string {
@@ -20,7 +21,8 @@ export function writeXmltv(channels: ChannelWithPrograms[]): string {
   for (const channel of channels) {
     out.push(`  <channel id="${esc(channel.xmltvId)}">`);
     out.push(`    <display-name>${esc(channel.displayName)}</display-name>`);
-    if (channel.icon) out.push(`    <icon src="${esc(channel.icon)}" />`);
+    const icon = channel.logo ?? channel.icon ?? channel.image;
+    if (icon) out.push(`    <icon src="${esc(icon)}" />`);
     out.push('  </channel>');
   }
   for (const channel of channels) {

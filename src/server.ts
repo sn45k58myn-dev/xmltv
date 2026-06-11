@@ -19,6 +19,7 @@ import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
 import { requireAdmin } from './middleware/auth';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
+import { getFeedManifest } from './services/feedManifest';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -42,43 +43,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get(
   '/manifest.json',
   async (_req, res) => {
-    const [
-      channels,
-      programs,
-      sources,
-      countries
-    ] = await Promise.all([
-      prisma.channel.count(),
-      prisma.program.count(),
-      prisma.source.count(),
-      prisma.channel.groupBy({
-        by: ['country'],
-        _count: true,
-        where: {
-          country: {
-            not: null
-          }
-        }
-      })
-    ]);
-
-    res.json({
-      name: 'XMLTV Aggregator',
-      version: '2.5.0',
-      generatedAt: new Date().toISOString(),
-      stats: {
-        channels,
-        programs,
-        sources,
-        countries: countries.length
-      },
-     countries: countries.map((c) => ({
-  code: c.country,
-  channels: c._count,
-  xml: `/country/${c.country}.xml`,
-  gzip: `/country/${c.country}.xml.gz`
-}))
-    });
+    res.json(await getFeedManifest());
   }
 );
 
