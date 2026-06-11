@@ -73,7 +73,14 @@ async function findOrCreateChannel(input, source) {
       xmltvId: input.id,
       displayName: input.displayName,
       normalized,
-      country: input.country ?? metadata.country,
+      country:
+  input.country ??
+  metadata.country ??
+  (source.name.includes('UK')
+    ? 'GB'
+    : source.name.includes('US')
+    ? 'US'
+    : null),
       category: input.category ?? metadata.category,
       icon: input.icon,
       sourceRefs: JSON.stringify([{

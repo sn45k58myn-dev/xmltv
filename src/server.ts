@@ -8,13 +8,15 @@ import { rateLimit } from './middleware/rateLimit';
 import { requireExportToken } from './middleware/exportToken';
 import { systemMetrics } from './monitoring/metrics';
 import { prisma } from './db/prisma';
-import { exportCategory, exportCountry, exportProfile, exportProvider } from './exports/exportService';
+import { exportCategory, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
 import { getConfiguredSources } from './sources/sourceRegistry';
 import { startImportScheduler } from './jobs/importScheduler';
 import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
 import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
+import { requireAdmin } from './middleware/auth';
+import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -33,7 +35,6 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
-import { requireAdmin } from './middleware/auth';
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   const sources = await prisma.source.findMany({
     where: {
@@ -71,17 +72,83 @@ app.post('/profiles', async (req, res) => {
   res.status(201).json(profile);
 });
 
-app.get('/uk.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCountry('uk')));
-app.get('/us.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCountry('us')));
+app.get('/uk.xml', requireExportToken, async (_req, res) => {
+  const xml = await getCachedFeed('uk');
+
+  if (!xml) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  res.setHeader(
+    'content-type',
+    'application/xml; charset=utf-8'
+  );
+
+  res.send(xml);
+});
+
+app.get('/uk.xml.gz', requireExportToken, async (_req, res) => {
+  const gzip = await getCachedFeedGzip('uk');
+
+  if (!gzip) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  res.setHeader(
+    'content-type',
+    'application/gzip'
+  );
+
+  res.send(gzip);
+});
+
+app.get('/us.xml', requireExportToken, async (_req, res) => {
+  const xml = await getCachedFeed('us');
+
+  if (!xml) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  res.setHeader(
+    'content-type',
+    'application/xml; charset=utf-8'
+  );
+
+  res.send(xml);
+});
+
+app.get('/us.xml.gz', requireExportToken, async (_req, res) => {
+  const gzip = await getCachedFeedGzip('us');
+
+  if (!gzip) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  res.setHeader(
+    'content-type',
+    'application/gzip'
+  );
+
+  res.send(gzip);
+});
+
 app.get('/sports.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('sports')));
 app.get('/movies.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('movies')));
 app.get('/profile/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProfile(req.params.id)));
 app.get('/provider/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProvider(req.params.id)));
 
-function sendXml(res: express.Response, xml: string) {
-  res.setHeader('content-type', 'application/xml; charset=utf-8');
+function sendXml(
+  res: express.Response,
+  xml: string
+) {
+  res.setHeader(
+    'content-type',
+    'application/xml; charset=utf-8'
+  );
+
   res.send(xml);
 }
+
 app.get('/', (_req, res) => {
   res.send(`
     <h1>XMLTV Aggregator</h1>
@@ -93,7 +160,9 @@ app.get('/', (_req, res) => {
     </ul>
   `);
 });
+
 startImportScheduler();
+
 app.get('/debug/channels', async (_req, res) => {
   const channels = await prisma.channel.findMany();
   res.json(channels);
@@ -106,6 +175,7 @@ app.get('/debug/programs', async (_req, res) => {
 
   res.json(programs);
 });
+
 app.get('/channels', async (_req, res) => {
   const channels = await prisma.channel.findMany({
     orderBy: {
@@ -126,6 +196,7 @@ app.get('/programs', async (_req, res) => {
 
   res.json(programs);
 });
+
 app.get('/coverage', async (_req, res) => {
   const channels = await prisma.channel.count();
   const programs = await prisma.program.count();
@@ -139,6 +210,7 @@ app.get('/coverage', async (_req, res) => {
     sources
   });
 });
+
 app.listen(env.PORT, () => {
   console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
 });

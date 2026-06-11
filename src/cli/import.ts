@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { runImport } from '../pipeline/importPipeline';
+import { rebuildFeeds } from '../services/feedGenerator';
 import { getConfiguredSources } from '../sources/sourceRegistry';
 
 async function main() {
@@ -10,6 +11,12 @@ async function main() {
 
     console.log(result);
   }
+
+  console.log('Rebuilding cached feeds...');
+
+  await rebuildFeeds();
+
+  console.log('Cached feeds rebuilt');
 }
 
 main()
