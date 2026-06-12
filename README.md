@@ -210,6 +210,18 @@ Main admin views:
 
 The admin UI sends `x-admin-token` from the token input saved in local storage.
 
+## Observability
+
+Runtime monitoring is available at:
+
+```text
+GET /monitoring/metrics
+```
+
+The response includes import status, channel/program counts, uptime, process
+memory, request totals, in-flight requests, status buckets, latency percentiles,
+and top routes by request count.
+
 ## Discovery Endpoints
 
 ```text

@@ -23,6 +23,7 @@ import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 import { buildManifest } from './services/manifestService';
 import { providerFeedKey } from './services/feedKeys';
+import { requestMetrics } from './monitoring/requestMetrics';
 
 const app = express();
 const upload = multer({
@@ -54,6 +55,7 @@ app.use(express.json({
   limit: env.JSON_BODY_LIMIT
 }));
 app.use(rateLimit);
+app.use(requestMetrics);
 
 app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
