@@ -29,7 +29,9 @@ const schema = z.object({
   EXPORT_FUTURE_DAYS: z.coerce.number().default(7),
   ENABLE_DEBUG_ROUTES: z.string().default('false'),
   ENABLE_SCHEDULER: z.string().default('true'),
-  FEED_CACHE_MAX_AGE_SECONDS: z.coerce.number().default(300)
+  FEED_CACHE_MAX_AGE_SECONDS: z.coerce.number().default(300),
+  VALIDATION_MAX_FEED_MB: z.coerce.number().default(250),
+  VALIDATION_TIMEOUT_MS: z.coerce.number().default(30000)
 });
 
 export const env = schema.parse(process.env);

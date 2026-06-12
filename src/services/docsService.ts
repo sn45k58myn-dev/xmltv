@@ -19,7 +19,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/discovery/countries', description: 'Available country feeds.' },
       { method: 'GET', path: '/api/discovery/providers', description: 'Provider feed discovery from mappings.' },
       { method: 'GET', path: '/api/discovery/metadata', description: 'Cache and feed metadata.' },
-      { method: 'GET', path: '/api/discovery/validation', description: 'Cached feed validation summary.' },
+      { method: 'GET', path: '/api/discovery/validation', description: 'Lightweight public cached feed validation summary. Full validation is admin-only.' },
       { method: 'GET', path: '/api/discovery/quality', description: 'Cached feed quality scores.' },
       { method: 'GET', path: '/country/:country.xml', description: 'Cached country XMLTV feed.' },
       { method: 'GET', path: '/country/:country.xml.gz', description: 'Cached compressed country XMLTV feed.' },
@@ -32,7 +32,7 @@ export function buildApiDocs() {
       { method: 'POST', path: '/profiles', description: 'Admin-protected export profile creation. Requires x-admin-token.' },
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
-      { method: 'GET', path: '/api/admin/validation', description: 'Admin feed validation details.' },
+      { method: 'GET', path: '/api/admin/validation', description: 'Admin full feed validation details. Parses cached XML feeds and may be expensive.' },
       { method: 'GET', path: '/api/admin/quality', description: 'Admin feed quality details.' },
       { method: 'GET', path: '/api/admin/metadata', description: 'Admin feed metadata details.' }
     ]

@@ -75,6 +75,8 @@ RUN_MIGRATIONS=false
 BACKUP_DIR=backups
 ENABLE_SCHEDULER=true
 FEED_CACHE_MAX_AGE_SECONDS=300
+VALIDATION_MAX_FEED_MB=250
+VALIDATION_TIMEOUT_MS=30000
 ```
 
 Important variables:
@@ -103,6 +105,8 @@ Important variables:
 - `BACKUP_DIR`: Directory used by database backup scripts.
 - `ENABLE_SCHEDULER`: Set to `false` on non-primary replicas.
 - `FEED_CACHE_MAX_AGE_SECONDS`: Cache-Control max-age for generated feed responses.
+- `VALIDATION_MAX_FEED_MB`: Maximum cached feed file size parsed by full validation.
+- `VALIDATION_TIMEOUT_MS`: Per-feed timeout guard for full validation.
 
 ## Database Setup
 
@@ -201,6 +205,12 @@ curl http://localhost:3000/api/discovery/quality
 
 Metadata includes total cache size, feed count, XML/GZip type, update time, and
 download counts where available.
+
+`/api/discovery/validation` is intentionally lightweight for public use. It
+returns cache metadata and points operators to the full admin validation route.
+Full validation parses XML and compressed XML feeds, so it is protected behind
+`/api/admin/validation` and guarded by `VALIDATION_MAX_FEED_MB` and
+`VALIDATION_TIMEOUT_MS`.
 
 Feed quality scores combine validation status, channel/program counts, cache
 size, freshness, and download metadata. Scores are advisory and do not block
