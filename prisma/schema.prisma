@@ -204,3 +204,16 @@ model JobLock {
 
   @@index([lockedUntil])
 }
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String?
+  actor      String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
+}

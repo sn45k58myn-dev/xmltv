@@ -1,0 +1,66 @@
+import { Request } from 'express';
+import { prisma } from '../db/prisma';
+
+type AuditEvent = {
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  metadata?: unknown;
+};
+
+export function maskSecret(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  if (value.length <= 12) {
+    return `${value.slice(0, 2)}...${value.slice(-2)}`;
+  }
+
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+export function maskExportToken<T extends { token: string }>(token: T) {
+  const {
+    token: _token,
+    ...rest
+  } = token;
+
+  return {
+    ...rest,
+    tokenPreview: maskSecret(token.token)
+  };
+}
+
+function actorFromRequest(req: Request) {
+  return req.requestId ?? req.ip;
+}
+
+export async function recordAuditEvent(
+  req: Request,
+  event: AuditEvent
+) {
+  await prisma.auditLog.create({
+    data: {
+      action: event.action,
+      entityType: event.entityType,
+      entityId: event.entityId ?? undefined,
+      actor: actorFromRequest(req),
+      metadata: event.metadata === undefined
+        ? undefined
+        : JSON.stringify(event.metadata)
+    }
+  });
+}
+
+export async function getAuditEvents(limit = 100) {
+  return prisma.auditLog.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    },
+    take: Math.min(
+      Math.max(limit, 1),
+      500
+    )
+  });
+}

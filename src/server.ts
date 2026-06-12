@@ -31,6 +31,7 @@ import { runTrackedJob } from './jobs/jobRuns';
 import { requestContext } from './middleware/requestContext';
 import { cleanupUploadedFile, validateUploadedXml } from './services/uploadValidation';
 import { assertCacheDirectoryWritable } from './services/cacheService';
+import { recordAuditEvent } from './services/auditLog';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -142,6 +143,14 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
     }
   );
 
+  await recordAuditEvent(_req, {
+    action: 'import.trigger',
+    entityType: 'ImportRun',
+    metadata: {
+      trigger: 'manual'
+    }
+  });
+
   res.json(results);
 });
 
@@ -161,6 +170,17 @@ app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, re
 
 app.post('/profiles', requireAdmin, async (req, res) => {
   const profile = await prisma.exportProfile.create({ data: req.body });
+
+  await recordAuditEvent(req, {
+    action: 'profile.create',
+    entityType: 'ExportProfile',
+    entityId: profile.id,
+    metadata: {
+      name: profile.name,
+      slug: profile.slug
+    }
+  });
+
   res.status(201).json(profile);
 });
 

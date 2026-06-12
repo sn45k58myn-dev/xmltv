@@ -283,6 +283,7 @@ Main admin views:
 - Feed metadata and validation
 - Source management
 - Import history and import runner
+- Audit log
 - Coverage
 - Channel mapping and merging
 - Alias generation
@@ -292,6 +293,8 @@ Main admin views:
 - Categories by source
 
 The admin UI sends `x-admin-token` from the token input saved in local storage.
+Export token listings show token previews only; full token values are never
+returned by admin list endpoints after creation.
 
 ## Observability
 
