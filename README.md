@@ -71,6 +71,7 @@ PROGRAM_RETENTION_DAYS=14
 EXPORT_PAST_HOURS=12
 EXPORT_FUTURE_DAYS=7
 ENABLE_DEBUG_ROUTES=false
+RUN_MIGRATIONS=false
 ```
 
 Important variables:
@@ -95,6 +96,7 @@ Important variables:
 - `EXPORT_FUTURE_DAYS`: Future programme window included in generated feeds.
 - `ENABLE_DEBUG_ROUTES`: Enables admin-protected debug routes when `true`.
 - `TMDB_API_KEY`: Optional programme enrichment key.
+- `RUN_MIGRATIONS`: Set to `true` in Docker deployments to run `prisma migrate deploy` before app start.
 
 ## Database Setup
 
@@ -308,7 +310,7 @@ docker compose up --build -d
 Apply the database schema:
 
 ```bash
-docker compose exec xmltv npx prisma db push
+docker compose exec xmltv npx prisma migrate deploy
 ```
 
 Follow logs:
@@ -318,8 +320,8 @@ docker compose logs -f xmltv
 ```
 
 The production image builds TypeScript, generates Prisma client files, prunes
-development dependencies, runs as the non-root `node` user, and exposes
-`/health`.
+development-only dependencies, can run migrations on start when
+`RUN_MIGRATIONS=true`, runs as the non-root `node` user, and exposes `/health`.
 
 ## Production Notes
 

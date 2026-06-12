@@ -26,6 +26,7 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql://xmltv:xmltv@postgres:5432/xmltv?schema=public
+      RUN_MIGRATIONS: "true"
     volumes:
       - ./cache:/app/cache
       - ./data:/app/data
