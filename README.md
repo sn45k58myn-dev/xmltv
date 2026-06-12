@@ -52,6 +52,8 @@ SCHEDULES_DIRECT_USERNAME=
 SCHEDULES_DIRECT_PASSWORD=
 SCHEDULES_DIRECT_COUNTRY=GBR
 SCHEDULES_DIRECT_LINEUP=
+SCHEDULES_DIRECT_DAYS=7
+SCHEDULES_DIRECT_BASE_URL=https://json.schedulesdirect.org/20141201
 CUSTOM_XMLTV_URLS=https://example.com/guide.xml
 
 ADMIN_TOKEN=dev-admin-token
@@ -90,6 +92,10 @@ Important variables:
 - `NODE_ENV`: Set to `production` for deployed runtime safety checks.
 - `PORT`: HTTP port exposed by the app.
 - `BASE_URL`: Public URL shown in startup logs and docs.
+- `SCHEDULES_DIRECT_USERNAME` and `SCHEDULES_DIRECT_PASSWORD`: Optional SD-JSON credentials.
+- `SCHEDULES_DIRECT_LINEUP`: Optional lineup id. If omitted, the first account lineup is used.
+- `SCHEDULES_DIRECT_DAYS`: Number of schedule days to request from SD-JSON.
+- `SCHEDULES_DIRECT_BASE_URL`: SD-JSON API base URL.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
 - `ADMIN_TOKEN`: Required for admin UI/API mutations and protected admin APIs.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
@@ -167,6 +173,14 @@ Admin upload and profile mutation routes require `x-admin-token`. Uploaded
 XMLTV files are rejected when empty, larger than `UPLOAD_MAX_MB`, or obviously
 not XML before import parsing starts. Temporary upload files are removed after
 success or failure.
+
+Schedules Direct imports use the SD-JSON API when
+`SCHEDULES_DIRECT_USERNAME` and `SCHEDULES_DIRECT_PASSWORD` are set. The adapter
+authenticates with the SHA1 password token flow, fetches the selected lineup,
+downloads station schedules and program details, then converts the result to
+XMLTV before it enters the normal parser/import pipeline. Set
+`SCHEDULES_DIRECT_LINEUP` to pin a specific lineup; otherwise the first account
+lineup is used.
 
 URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
 `SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source

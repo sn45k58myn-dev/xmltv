@@ -1,5 +1,8 @@
+import { env } from '../config/env';
+import { SourceDefinition } from '../models/xmltv';
+
 export function getConfiguredSources() {
-  return [
+  const sources: SourceDefinition[] = [
     {
       name: 'epg.pw UK',
       type: 'epg.pw',
@@ -13,4 +16,14 @@ export function getConfiguredSources() {
       priority: 10
     }
   ];
+
+  if (env.SCHEDULES_DIRECT_USERNAME && env.SCHEDULES_DIRECT_PASSWORD) {
+    sources.push({
+      name: 'Schedules Direct',
+      type: 'schedules-direct',
+      priority: 20
+    });
+  }
+
+  return sources;
 }

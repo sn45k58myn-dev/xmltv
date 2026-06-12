@@ -2,6 +2,7 @@ import axios from 'axios';
 import fs from 'node:fs/promises';
 import { env } from '../config/env';
 import { SourceDefinition } from '../models/xmltv';
+import { fetchSchedulesDirectXmltv } from './schedulesDirect';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -18,7 +19,7 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
   }
 
   if (source.type === 'schedules-direct') {
-    throw new Error('Schedules Direct adapter placeholder: add JSON/token implementation for your lineup, then convert to XMLTV before parsing.');
+    return fetchSchedulesDirectXmltv();
   }
 
   if (!source.url) throw new Error(`Source ${source.name} missing URL`);
