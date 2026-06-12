@@ -7,8 +7,8 @@ export function buildApiDocs() {
     description: appInfo.description,
     generatedAt: new Date().toISOString(),
     authentication: {
-      admin: 'Send x-admin-token for /api/admin, /api/sources, /api/export-tokens, and debug routes.',
-      exports: 'Set PUBLIC_EXPORTS=true or pass ?token=<export-token> for protected feeds.'
+      admin: 'Send x-admin-token for /api/admin, /api/sources, /api/export-tokens, /imports/upload, /profiles, and debug routes.',
+      exports: 'Protected feeds require PUBLIC_EXPORTS=true, ?token=<export-token>, or x-export-token.'
     },
     endpoints: [
       { method: 'GET', path: '/health', description: 'Basic health check.' },
@@ -26,6 +26,8 @@ export function buildApiDocs() {
       { method: 'GET', path: '/profile/:id.xml', description: 'Dynamic export profile XMLTV feed.' },
       { method: 'GET', path: '/provider/:id.xml', description: 'Dynamic provider XMLTV feed.' },
       { method: 'GET', path: '/provider/:id.xml.gz', description: 'Cached compressed provider XMLTV feed.' },
+      { method: 'POST', path: '/imports/upload', description: 'Admin-protected XMLTV upload. Requires x-admin-token.' },
+      { method: 'POST', path: '/profiles', description: 'Admin-protected export profile creation. Requires x-admin-token.' },
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
       { method: 'GET', path: '/api/admin/validation', description: 'Admin feed validation details.' },

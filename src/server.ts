@@ -80,13 +80,13 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   res.json(results);
 });
 
-app.post('/imports/upload', upload.single('xmltv'), async (req, res) => {
+app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Missing xmltv file upload field' });
   const result = await runImport({ name: `Upload ${req.file.originalname}`, type: 'upload', url: req.file.path, priority: 30 });
   res.json(result);
 });
 
-app.post('/profiles', async (req, res) => {
+app.post('/profiles', requireAdmin, async (req, res) => {
   const profile = await prisma.exportProfile.create({ data: req.body });
   res.status(201).json(profile);
 });
@@ -127,9 +127,18 @@ app.get('/us.xml.gz', requireExportToken, (_req, res) =>
   sendCachedCountryGzip(res, 'US')
 );
 
-app.get('/sports.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('sports')));
-app.get('/movies.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('movies')));
-app.get('/profile/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProfile(req.params.id)));
+app.get('/sports.xml', requireExportToken, async (_req, res) => {
+  await recordFeedDownload('sports.xml');
+  sendXml(res, await exportCategory('sports'));
+});
+app.get('/movies.xml', requireExportToken, async (_req, res) => {
+  await recordFeedDownload('movies.xml');
+  sendXml(res, await exportCategory('movies'));
+});
+app.get('/profile/:id.xml', requireExportToken, async (req, res) => {
+  await recordFeedDownload(`profile_${req.params.id}.xml`);
+  sendXml(res, await exportProfile(req.params.id));
+});
 app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
   const key = providerFeedKey(req.params.id);
   const cached = await getCachedFeed(key);
