@@ -39,82 +39,75 @@ export async function getFeedMetadata() {
       })
   );
 
-  const countryRows = await prisma.channel.groupBy({
-    by: ['country'],
-    _count: true,
-    where: {
-      country: {
-        not: null
-      }
-    }
-  });
-  const countries = [];
-
-  for (const row of countryRows) {
-    if (!row.country) continue;
-
-    const channelIds = await prisma.channel.findMany({
+  const [
+    channels,
+    programStats
+  ] = await Promise.all([
+    prisma.channel.findMany({
       where: {
-        country: row.country
+        country: {
+          not: null
+        }
       },
       select: {
-        id: true
+        id: true,
+        country: true
       }
-    });
-    const ids = channelIds.map((channel) => channel.id);
-    const [
-      programs,
-      firstProgram,
-      lastProgram
-    ] = await Promise.all([
-      prisma.program.count({
-        where: {
-          channelId: {
-            in: ids
-          }
-        }
-      }),
-      prisma.program.findFirst({
-        where: {
-          channelId: {
-            in: ids
-          }
-        },
-        orderBy: {
-          start: 'asc'
-        },
-        select: {
-          start: true
-        }
-      }),
-      prisma.program.findFirst({
-        where: {
-          channelId: {
-            in: ids
-          }
-        },
-        orderBy: {
-          stop: 'desc'
-        },
-        select: {
-          stop: true
-        }
-      })
-    ]);
+    }),
+    prisma.program.groupBy({
+      by: ['channelId'],
+      _count: {
+        _all: true
+      },
+      _min: {
+        start: true
+      },
+      _max: {
+        stop: true
+      }
+    })
+  ]);
+  const statsByChannel = new Map(
+    programStats.map((row) => [row.channelId, row])
+  );
+  const countryMap = new Map<string, {
+    country: string;
+    channels: number;
+    programs: number;
+    firstProgramStart?: string;
+    lastProgramStop?: string;
+  }>();
 
-    countries.push({
-      country: row.country,
-      channels: row._count,
-      programs,
-      firstProgramStart: firstProgram?.start.toISOString(),
-      lastProgramStop: lastProgram?.stop.toISOString()
-    });
+  for (const channel of channels) {
+    if (!channel.country) continue;
+
+    const current = countryMap.get(channel.country) ?? {
+      country: channel.country,
+      channels: 0,
+      programs: 0
+    };
+    const stats = statsByChannel.get(channel.id);
+    const first = stats?._min.start?.toISOString();
+    const last = stats?._max.stop?.toISOString();
+
+    current.channels++;
+    current.programs += stats?._count._all ?? 0;
+
+    if (first && (!current.firstProgramStart || first < current.firstProgramStart)) {
+      current.firstProgramStart = first;
+    }
+
+    if (last && (!current.lastProgramStop || last > current.lastProgramStop)) {
+      current.lastProgramStop = last;
+    }
+
+    countryMap.set(channel.country, current);
   }
 
   return {
     generatedAt: new Date().toISOString(),
     cacheDirectory: CACHE_DIR,
     cachedFeeds: cachedFeeds.sort((a, b) => a.feedKey.localeCompare(b.feedKey)),
-    countries: countries.sort((a, b) => a.country.localeCompare(b.country))
+    countries: Array.from(countryMap.values()).sort((a, b) => a.country.localeCompare(b.country))
   };
 }

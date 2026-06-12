@@ -353,10 +353,12 @@ async function loadAnalytics() {
       channels: analytics.channels,
       programs: analytics.programs,
       sources: analytics.sources,
+      enabledSources: analytics.enabledSources,
       downloads: analytics.totalDownloads,
       feeds: analytics.feedCount,
       cacheMB: analytics.cacheSizeMB,
-      failedImports24h: analytics.recentFailures
+      failedImports24h: analytics.recentFailures,
+      lastImport: analytics.lastImportStatus || 'none'
     });
     content().innerHTML = `
       <h2>Analytics</h2>
@@ -368,6 +370,8 @@ async function loadAnalytics() {
       ${table(analytics.topFeeds)}
       <h3>Cached Feed Sizes</h3>
       ${table(analytics.feeds)}
+      <h3>Last Import</h3>
+      ${table(analytics.lastImport ? [analytics.lastImport] : [])}
       <div id="analytics-detail"></div>
     `;
   } catch (error) {

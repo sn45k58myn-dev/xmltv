@@ -8,6 +8,7 @@ export async function getDashboardStats() {
     programs,
     aliases,
     sources,
+    enabledSources,
     downloads,
     feedSizes,
     lastImport,
@@ -17,6 +18,11 @@ export async function getDashboardStats() {
     prisma.program.count(),
     prisma.alias.count(),
     prisma.source.count(),
+    prisma.source.count({
+      where: {
+        enabled: true
+      }
+    }),
     getFeedDownloads(),
     getFeedSizes(),
     prisma.importRun.findFirst({
@@ -51,12 +57,15 @@ export async function getDashboardStats() {
     programs,
     aliases,
     sources,
+    enabledSources,
     totalDownloads,
     feedCount: feedSizes.length,
     cacheSizeMB,
     recentFailures,
     topFeeds: downloads.slice(0, 10),
     feeds: feedSizes,
-    lastImport
+    lastImport,
+    lastImportStatus: lastImport?.status,
+    lastImportAt: lastImport?.finishedAt ?? lastImport?.startedAt
   };
 }
