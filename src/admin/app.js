@@ -27,6 +27,19 @@ function storeAdminToken(token) {
   writeCookie('adminToken', token);
 }
 
+function clearStoredAdminToken() {
+  currentAdminToken = '';
+
+  try {
+    localStorage.removeItem('adminToken');
+    delete localStorage.adminToken;
+  } catch {
+    // Storage may be blocked; clearing the in-page token still helps.
+  }
+
+  writeCookie('adminToken', '', 0);
+}
+
 function adminToken() {
   return tokenInput().value.trim() || currentAdminToken;
 }
@@ -41,8 +54,8 @@ function readCookie(name) {
   return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : '';
 }
 
-function writeCookie(name, value) {
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/admin; max-age=31536000; SameSite=Lax`;
+function writeCookie(name, value, maxAge = 31536000) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/admin; max-age=${maxAge}; SameSite=Lax`;
 }
 
 function saveToken() {
@@ -57,6 +70,12 @@ function saveToken() {
   tokenInput().value = token;
   showNotice('Admin token saved.');
   loadDashboard();
+}
+
+function clearToken() {
+  clearStoredAdminToken();
+  tokenInput().value = '';
+  showAuthRequired();
 }
 
 function hasAdminToken() {
@@ -118,6 +137,14 @@ function showError(error) {
 
   if (message.includes('Admin token required. Enter your admin token')) {
     showAuthRequired();
+    return;
+  }
+
+  if (message.includes('Admin token required. Send x-admin-token header.')) {
+    content().innerHTML = `
+      <h2>Admin token rejected</h2>
+      <p class="error">The saved admin token did not match the server. Click Clear token, paste the exact ADMIN_TOKEN from .env, then click Save.</p>
+    `;
     return;
   }
 

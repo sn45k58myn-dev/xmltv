@@ -72,7 +72,11 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
 app.use('/api/discovery', feedDiscoveryRoutes);
 app.use('/api/docs', docsRoutes);
-app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use('/admin', express.static(path.join(__dirname, 'admin'), {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store');
+  }
+}));
 app.use('/api/admin', adminApi);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/export-tokens', exportTokenRoutes);
