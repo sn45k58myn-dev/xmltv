@@ -27,7 +27,7 @@ import { requestMetrics } from './monitoring/requestMetrics';
 import { runTrackedJob } from './jobs/jobRuns';
 import { requestContext } from './middleware/requestContext';
 
-const app = express();
+export const app = express();
 const upload = multer({
   dest: path.join(process.cwd(), 'uploads'),
   limits: {
@@ -307,12 +307,6 @@ app.get('/', (_req, res) => {
   `);
 });
 
-if (env.ENABLE_SCHEDULER === 'true') {
-  startImportScheduler();
-} else {
-  console.log('Import scheduler disabled');
-}
-
 if (env.ENABLE_DEBUG_ROUTES === 'true') {
   app.get('/debug/channels', requireAdmin, async (_req, res) => {
     const channels = await prisma.channel.findMany({
@@ -368,27 +362,41 @@ app.get('/coverage', requireAdmin, async (_req, res) => {
   });
 });
 
-const server = app.listen(env.PORT, () => {
-  console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
-});
+export function startServer() {
+  if (env.ENABLE_SCHEDULER === 'true') {
+    startImportScheduler();
+  } else {
+    console.log('Import scheduler disabled');
+  }
 
-async function shutdown(signal: string) {
-  console.log(`Received ${signal}, shutting down`);
-
-  server.close(async () => {
-    await prisma.$disconnect();
-    process.exit(0);
+  const server = app.listen(env.PORT, () => {
+    console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
   });
 
-  setTimeout(() => {
-    process.exit(1);
-  }, 10000).unref();
+  async function shutdown(signal: string) {
+    console.log(`Received ${signal}, shutting down`);
+
+    server.close(async () => {
+      await prisma.$disconnect();
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      process.exit(1);
+    }, 10000).unref();
+  }
+
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
+
+  return server;
 }
 
-process.on('SIGTERM', () => {
-  void shutdown('SIGTERM');
-});
-
-process.on('SIGINT', () => {
-  void shutdown('SIGINT');
-});
+if (require.main === module) {
+  startServer();
+}
