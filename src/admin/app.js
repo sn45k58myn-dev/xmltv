@@ -253,9 +253,9 @@ async function loadDashboard() {
     content().innerHTML = `
       <h2>Dashboard</h2>
       <div class="actions">
-        <button onclick="loadDashboardMetadata()">Load metadata</button>
-        <button onclick="loadDashboardValidation()">Run validation</button>
-        <button onclick="runDashboardImports()">Run imports</button>
+        <button data-action="dashboard-metadata">Load metadata</button>
+        <button data-action="dashboard-validation">Run validation</button>
+        <button data-action="dashboard-imports">Run imports</button>
       </div>
       <h3>Top Feeds</h3>
       ${table(analytics.topFeeds)}
@@ -333,11 +333,11 @@ async function loadSourcesUI() {
   content().innerHTML = `
     <h2>Sources</h2>
     <div class="card">
-      <button onclick="runAllImports()">Run All Enabled Imports</button>
+      <button data-action="run-all-imports">Run All Enabled Imports</button>
     </div>
     <div class="card">
       <h3 id="form-title">Add Source</h3>
-      <form id="source-form" onsubmit="saveSource(event)">
+      <form id="source-form" data-submit-action="save-source">
         <input type="hidden" id="source-id">
         <label>Name <input type="text" id="source-name" required></label>
         <label>Type
@@ -354,7 +354,7 @@ async function loadSourcesUI() {
         <label>Merge Weight <input type="number" id="source-weight" value="100"></label>
         <label class="inline"><input type="checkbox" id="source-enabled" checked> Enabled</label>
         <button type="submit" id="save-btn">Save Source</button>
-        <button type="button" onclick="loadSourcesUI()">Cancel</button>
+        <button type="button" data-action="sources-ui">Cancel</button>
       </form>
     </div>
     <h3>Existing Sources</h3>
@@ -386,9 +386,9 @@ async function refreshSourcesList() {
               <td>${fmt(source.priority)}</td>
               <td>${fmt(source.mergeWeight)}</td>
               <td>
-                <button onclick="editSource('${source.id}')">Edit</button>
-                <button onclick="toggleSource('${source.id}', ${!source.enabled})">${source.enabled ? 'Disable' : 'Enable'}</button>
-                <button onclick="deleteSource('${source.id}')">Delete</button>
+                <button data-action="edit-source" data-id="${escapeHtml(source.id)}">Edit</button>
+                <button data-action="toggle-source" data-id="${escapeHtml(source.id)}" data-enabled="${String(!source.enabled)}">${source.enabled ? 'Disable' : 'Enable'}</button>
+                <button data-action="delete-source" data-id="${escapeHtml(source.id)}">Delete</button>
               </td>
             </tr>
           `).join('')}
@@ -481,10 +481,10 @@ async function runAllImports() {
 async function loadTokensUI() {
   cardsEl().innerHTML = '';
   content().innerHTML = `
-    <h2>Export Tokens</h2>
-    <div class="card">
-      <h3>Create Token</h3>
-      <form onsubmit="createToken(event)">
+      <h2>Export Tokens</h2>
+      <div class="card">
+        <h3>Create Token</h3>
+      <form data-submit-action="create-token">
         <label>Name <input type="text" id="token-name" required></label>
         <label>Token <input type="text" id="token-value" placeholder="Leave blank for random"></label>
         <button type="submit">Create Token</button>
@@ -519,7 +519,7 @@ async function refreshTokensList() {
               <td>${fmt(token.providerId || '-')}</td>
               <td>${fmt(token.active)}</td>
               <td>${fmt(token.requests)}</td>
-              <td><button onclick="deleteExportToken('${token.id}')">Delete</button></td>
+              <td><button data-action="delete-export-token" data-id="${escapeHtml(token.id)}">Delete</button></td>
             </tr>
           `).join('')}
         </tbody>
@@ -607,11 +607,11 @@ async function loadAnalytics() {
     content().innerHTML = `
       <h2>Analytics</h2>
       <div class="actions">
-        <button onclick="loadFeedMetadata()">Load metadata</button>
-        <button onclick="loadFeedValidation()">Run validation</button>
-        <button onclick="loadFeedQuality()">Score quality</button>
-        <button onclick="loadFeedQualityHistory()">Quality history</button>
-        <button onclick="runDashboardImports()">Run imports</button>
+        <button data-action="feed-metadata">Load metadata</button>
+        <button data-action="feed-validation">Run validation</button>
+        <button data-action="feed-quality">Score quality</button>
+        <button data-action="feed-quality-history">Quality history</button>
+        <button data-action="dashboard-imports">Run imports</button>
       </div>
       <h3>Top Feeds</h3>
       ${table(analytics.topFeeds)}
@@ -750,7 +750,7 @@ async function loadProfilesUI() {
       <h2>Profiles</h2>
       <div class="card">
         <h3>Create Export Profile</h3>
-        <form onsubmit="createProfile(event)">
+        <form data-submit-action="create-profile">
           <label>Name <input id="profile-name" required></label>
           <label>Slug <input id="profile-slug" required></label>
           <label>Country <input id="profile-country" placeholder="US, GB, CA"></label>
@@ -797,7 +797,7 @@ async function mergeChannelsUI() {
     content().innerHTML = `
       <h2>Merge Channels</h2>
       <div class="card">
-        <form onsubmit="mergeChannelsSubmit(event)">
+        <form data-submit-action="merge-channels">
           <label>Target Channel
             <select id="merge-target" required>${options}</select>
           </label>
@@ -854,7 +854,7 @@ async function generateAliases() {
     content().innerHTML = `
       <h2>Generate Aliases</h2>
       <div class="card">
-        <form onsubmit="generateAliasesSubmit(event)">
+        <form data-submit-action="generate-aliases">
           <label>Channel
             <select id="alias-channel">
               <option value="">All channels</option>
@@ -914,5 +914,51 @@ async function loadMonitoring() {
     showError(error);
   }
 }
+
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-action]');
+
+  if (!button) return;
+
+  const action = button.dataset.action;
+  const id = button.dataset.id;
+
+  if (action === 'save-token') return saveToken();
+  if (action === 'clear-token') return clearToken();
+  if (action === 'load') return load(button.dataset.target);
+  if (action === 'analytics') return loadAnalytics();
+  if (action === 'source-categories') return loadSourceCategories();
+  if (action === 'merge-channels') return mergeChannelsUI();
+  if (action === 'generate-aliases') return generateAliases();
+  if (action === 'audit-log') return loadAuditLog();
+  if (action === 'monitoring') return loadMonitoring();
+  if (action === 'dashboard-metadata') return loadDashboardMetadata();
+  if (action === 'dashboard-validation') return loadDashboardValidation();
+  if (action === 'dashboard-imports') return runDashboardImports();
+  if (action === 'sources-ui') return loadSourcesUI();
+  if (action === 'run-all-imports') return runAllImports();
+  if (action === 'edit-source') return editSource(id);
+  if (action === 'toggle-source') return toggleSource(id, button.dataset.enabled === 'true');
+  if (action === 'delete-source') return deleteSource(id);
+  if (action === 'delete-export-token') return deleteExportToken(id);
+  if (action === 'feed-metadata') return loadFeedMetadata();
+  if (action === 'feed-validation') return loadFeedValidation();
+  if (action === 'feed-quality') return loadFeedQuality();
+  if (action === 'feed-quality-history') return loadFeedQualityHistory();
+});
+
+document.addEventListener('submit', (event) => {
+  const form = event.target.closest('form[data-submit-action]');
+
+  if (!form) return;
+
+  const action = form.dataset.submitAction;
+
+  if (action === 'save-source') return saveSource(event);
+  if (action === 'create-token') return createToken(event);
+  if (action === 'create-profile') return createProfile(event);
+  if (action === 'merge-channels') return mergeChannelsSubmit(event);
+  if (action === 'generate-aliases') return generateAliasesSubmit(event);
+});
 
 load('summary');
