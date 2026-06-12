@@ -72,6 +72,7 @@ EXPORT_PAST_HOURS=12
 EXPORT_FUTURE_DAYS=7
 ENABLE_DEBUG_ROUTES=false
 RUN_MIGRATIONS=false
+BACKUP_DIR=backups
 ```
 
 Important variables:
@@ -97,6 +98,7 @@ Important variables:
 - `ENABLE_DEBUG_ROUTES`: Enables admin-protected debug routes when `true`.
 - `TMDB_API_KEY`: Optional programme enrichment key.
 - `RUN_MIGRATIONS`: Set to `true` in Docker deployments to run `prisma migrate deploy` before app start.
+- `BACKUP_DIR`: Directory used by database backup scripts.
 
 ## Database Setup
 
@@ -322,6 +324,27 @@ docker compose logs -f xmltv
 The production image builds TypeScript, generates Prisma client files, prunes
 development-only dependencies, can run migrations on start when
 `RUN_MIGRATIONS=true`, runs as the non-root `node` user, and exposes `/health`.
+
+## Backup And Recovery
+
+Database backups use `pg_dump` in custom format. The scripts require PostgreSQL
+client tools on the machine running the command.
+
+Create a backup:
+
+```bash
+npm run backup:db
+```
+
+Restore a backup:
+
+```bash
+npm run restore:db -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
+```
+
+Backups are written to `BACKUP_DIR`, defaulting to `backups/`, which is ignored
+by git. Stop writers or schedule backups during a quiet import window for the
+most consistent recovery point.
 
 ## Production Notes
 

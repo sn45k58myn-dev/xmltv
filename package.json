@@ -10,6 +10,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
+    "backup:db": "node scripts/backup-postgres.js",
+    "restore:db": "node scripts/restore-postgres.js",
     "import": "tsx src/cli/import.ts",
     "smoke:import": "tsx src/cli/importSmoke.ts",
     "export": "tsx src/cli/export.ts",
