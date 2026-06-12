@@ -40,12 +40,28 @@ jobs:
           node-version: 22
           cache: npm
 
-      - run: npm ci
-      - run: npm run db:generate
-      - run: npx prisma migrate deploy
-      - run: npm run build
-      - run: npm run smoke:import
-      - run: npm audit --audit-level=moderate
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Deploy migrations
+        run: npx prisma migrate deploy
+
+      - name: Verify migrations on fresh schema
+        env:
+          DATABASE_URL: postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=fresh_migrate_deploy
+        run: npx prisma migrate deploy
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke import
+        run: npm run smoke:import
+
+      - name: Audit moderate vulnerabilities
+        run: npm audit --audit-level=moderate
 
   docker:
     runs-on: ubuntu-latest
