@@ -18,16 +18,41 @@ import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
 import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
 import { docsRoutes } from './routes/docsRoutes';
 import { requireAdmin } from './middleware/auth';
+import { securityHeaders } from './middleware/securityHeaders';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 import { buildManifest } from './services/manifestService';
 import { providerFeedKey } from './services/feedKeys';
 
 const app = express();
-const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
+const upload = multer({
+  dest: path.join(process.cwd(), 'uploads'),
+  limits: {
+    fileSize: env.UPLOAD_MAX_MB * 1024 * 1024
+  }
+});
+const corsOrigins = env.CORS_ORIGIN
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
-app.use(express.json());
+if (env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
+
+app.use(securityHeaders);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('CORS origin not allowed'));
+  }
+}));
+app.use(express.json({
+  limit: env.JSON_BODY_LIMIT
+}));
 app.use(rateLimit);
 
 app.use('/api/stats', statsRoutes);

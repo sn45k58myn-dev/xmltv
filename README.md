@@ -55,6 +55,10 @@ CUSTOM_XMLTV_URLS=https://example.com/guide.xml
 
 ADMIN_TOKEN=dev-admin-token
 PUBLIC_EXPORTS=false
+CORS_ORIGIN=*
+JSON_BODY_LIMIT=1mb
+UPLOAD_MAX_MB=200
+TRUST_PROXY=false
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=120
 TMDB_API_KEY=
@@ -73,6 +77,10 @@ Important variables:
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
 - `ADMIN_TOKEN`: Required for admin UI/API mutations and protected admin APIs.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
+- `CORS_ORIGIN`: `*` or a comma-separated list of allowed browser origins.
+- `JSON_BODY_LIMIT`: Maximum JSON request body size.
+- `UPLOAD_MAX_MB`: Maximum XMLTV upload size in megabytes.
+- `TRUST_PROXY`: Set to `true` when running behind a trusted reverse proxy.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: In-memory API rate limit.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
@@ -277,6 +285,8 @@ development dependencies, runs as the non-root `node` user, and exposes
 - Use export tokens for feed consumers.
 - Keep `ENABLE_DEBUG_ROUTES=false` in production.
 - Rotate `ADMIN_TOKEN` before deployment.
+- Set `CORS_ORIGIN` to the public admin origin instead of `*` where possible.
+- Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports.
 
