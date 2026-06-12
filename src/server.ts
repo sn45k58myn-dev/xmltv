@@ -30,6 +30,7 @@ import { requestMetrics } from './monitoring/requestMetrics';
 import { runTrackedJob } from './jobs/jobRuns';
 import { requestContext } from './middleware/requestContext';
 import { cleanupUploadedFile, validateUploadedXml } from './services/uploadValidation';
+import { assertCacheDirectoryWritable } from './services/cacheService';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -403,7 +404,9 @@ app.use((
   });
 });
 
-export function startServer() {
+export async function startServer() {
+  await assertCacheDirectoryWritable();
+
   if (env.ENABLE_SCHEDULER === 'true') {
     startImportScheduler();
   } else {
@@ -439,5 +442,5 @@ export function startServer() {
 }
 
 if (require.main === module) {
-  startServer();
+  void startServer();
 }

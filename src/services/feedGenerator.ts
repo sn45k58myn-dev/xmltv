@@ -1,30 +1,17 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { exportCountry, exportProvider } from '../exports/exportService';
 import { prisma } from '../db/prisma';
 import {
+  assertCacheDirectoryWritable,
   setCachedFeed,
   setCachedFeedGzip
 } from './cacheService';
 import { compressXml } from './gzipService';
 import { providerFeedKey } from './feedKeys';
 
-const CACHE_DIR = path.join(
-  process.cwd(),
-  'cache'
-);
-
 export async function rebuildFeeds() {
   console.log('Rebuilding cached feeds...');
 
-  await fs.rm(CACHE_DIR, {
-    recursive: true,
-    force: true
-  });
-
-  await fs.mkdir(CACHE_DIR, {
-    recursive: true
-  });
+  await assertCacheDirectoryWritable();
 
   const countries = await prisma.channel.findMany({
     distinct: ['country'],
