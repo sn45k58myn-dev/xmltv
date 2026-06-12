@@ -397,7 +397,7 @@ async function refreshTokensList() {
           ${data.map((token) => `
             <tr>
               <td>${fmt(token.name)}</td>
-              <td><code>${escapeHtml(token.token)}</code></td>
+              <td><code>${escapeHtml(token.tokenPreview || '')}</code></td>
               <td>${fmt(token.profileId || '-')}</td>
               <td>${fmt(token.providerId || '-')}</td>
               <td>${fmt(token.active)}</td>
@@ -407,6 +407,29 @@ async function refreshTokensList() {
           `).join('')}
         </tbody>
       </table>
+    `;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function loadAuditLog() {
+  cardsEl().innerHTML = '';
+  content().innerHTML = '<p class="muted">Loading audit log...</p>';
+
+  try {
+    const events = await api('audit');
+
+    content().innerHTML = `
+      <h2>Audit Log</h2>
+      ${table(events.map((event) => ({
+        createdAt: event.createdAt,
+        action: event.action,
+        entityType: event.entityType,
+        entityId: event.entityId || '-',
+        actor: event.actor || '-',
+        metadata: event.metadata || '-'
+      })))}
     `;
   } catch (error) {
     showError(error);

@@ -30,8 +30,13 @@ vi.mock('./db/prisma', () => ({
     },
     exportToken: {
       count: vi.fn(),
+      findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn()
+    },
+    auditLog: {
+      create: vi.fn(),
+      findMany: vi.fn()
     }
   }
 }));
@@ -125,5 +130,55 @@ describe('server API', () => {
       error: 'Internal server error'
     });
     expect(response.text).not.toContain('database secret details');
+  });
+
+  it('returns admin audit events for valid admin tokens', async () => {
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([
+      {
+        id: 'audit-1',
+        action: 'source.create',
+        entityType: 'Source',
+        entityId: 'source-1',
+        actor: 'request-1',
+        metadata: '{"name":"Test"}',
+        createdAt: new Date('2026-06-12T12:00:00.000Z')
+      }
+    ] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/audit')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({
+      id: 'audit-1',
+      action: 'source.create'
+    });
+  });
+
+  it('does not expose full export tokens in admin token listing', async () => {
+    vi.mocked(prisma.exportToken.findMany).mockResolvedValue([
+      {
+        id: 'token-1',
+        name: 'Main',
+        token: 'abcdef1234567890',
+        profileId: null,
+        providerId: null,
+        active: true,
+        requests: 0,
+        lastUsedAt: null,
+        createdAt: new Date('2026-06-12T12:00:00.000Z')
+      }
+    ] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/export-tokens')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body[0].token).toBeUndefined();
+    expect(response.body[0].tokenPreview).toBe('abcdef...7890');
   });
 });
