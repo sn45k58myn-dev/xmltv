@@ -9,5 +9,5 @@ export async function mergeSourcesForChannel(channelId: string) {
     const current = winners.get(key);
     if (!current || (program.source?.mergeWeight ?? 100) < (current.source?.mergeWeight ?? 100)) winners.set(key, program);
   }
-  return Array.from(winners.values()).map(({ source, ...program }) => program);
+  return Array.from(winners.values()).map(({ source: _source, ...program }) => program);
 }
