@@ -1,7 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../db/prisma';
-import { getFeedDownloads } from './downloadMetrics';
 
 const CACHE_DIR = path.join(
   process.cwd(),
@@ -14,6 +13,17 @@ type CountryMetadata = {
   programs: number;
   firstProgramStart?: string;
   lastProgramStop?: string;
+};
+
+type CachedFeedMetadata = {
+  feedKey: string;
+  country: string;
+  type: string;
+  bytes: number;
+  megabytes: number;
+  updatedAt: string;
+  downloads: number;
+  lastDownloaded?: string;
 };
 
 function feedKind(file: string) {
@@ -38,67 +48,133 @@ function dateString(value: Date | string | null | undefined) {
 }
 
 async function getCountryMetadata(): Promise<CountryMetadata[]> {
-  const rows = await prisma.$queryRaw<Array<{
+  const [channelRows, programRows] = await Promise.all([
+    prisma.channel.groupBy({
+      by: ['country'],
+      where: {
+        country: {
+          not: null
+        }
+      },
+      _count: {
+        _all: true
+      },
+      orderBy: {
+        country: 'asc'
+      }
+    }),
+    prisma.$queryRaw<Array<{
     country: string;
-    channels: bigint | number;
     programs: bigint | number | null;
     firstProgramStart: Date | null;
     lastProgramStop: Date | null;
   }>>`
     SELECT
       c.country AS "country",
-      COUNT(DISTINCT c.id) AS "channels",
       COUNT(p.id) AS "programs",
       MIN(p.start) AS "firstProgramStart",
       MAX(p.stop) AS "lastProgramStop"
     FROM "Channel" c
-    LEFT JOIN "Program" p ON p."channelId" = c.id
+    INNER JOIN "Program" p ON p."channelId" = c.id
     WHERE c.country IS NOT NULL
     GROUP BY c.country
     ORDER BY c.country ASC
-  `;
+  `
+  ]);
+  const programsByCountry = new Map(
+    programRows.map((row) => [row.country, row])
+  );
 
-  return rows.map((row) => ({
-    country: row.country,
-    channels: Number(row.channels),
-    programs: Number(row.programs ?? 0),
-    firstProgramStart: dateString(row.firstProgramStart),
-    lastProgramStop: dateString(row.lastProgramStop)
-  }));
+  return channelRows.map((row) => {
+    const country = row.country ?? '';
+    const programRow = programsByCountry.get(country);
+
+    return {
+      country,
+      channels: row._count._all,
+      programs: Number(programRow?.programs ?? 0),
+      firstProgramStart: dateString(programRow?.firstProgramStart),
+      lastProgramStop: dateString(programRow?.lastProgramStop)
+    };
+  });
 }
 
-export async function getFeedMetadata() {
-  let cacheFiles: string[] = [];
+async function getCachedFeeds(): Promise<CachedFeedMetadata[]> {
+  let cacheEntries: Array<{ name: string; isFile: () => boolean }> = [];
 
   try {
-    cacheFiles = await fs.readdir(CACHE_DIR);
+    cacheEntries = await fs.readdir(CACHE_DIR, {
+      withFileTypes: true
+    });
   } catch {
-    cacheFiles = [];
+    return [];
   }
 
-  const downloads = await getFeedDownloads();
+  const cacheFiles = cacheEntries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((file) => file.endsWith('.xml') || file.endsWith('.xml.gz'));
+
+  const downloadKeys = Array.from(
+    new Set(
+      cacheFiles.flatMap((file) => [
+        file,
+        cacheIdentity(file).feedKey
+      ])
+    )
+  );
+  const downloads = downloadKeys.length
+    ? await prisma.feedDownload.findMany({
+        where: {
+          feedKey: {
+            in: downloadKeys
+          }
+        }
+      })
+    : [];
   const downloadsByFeed = new Map(
     downloads.map((row) => [row.feedKey, row])
   );
-  const cachedFeeds = await Promise.all(
-    cacheFiles
-      .filter((file) => file.endsWith('.xml') || file.endsWith('.xml.gz'))
-      .map(async (file) => {
-        const stat = await fs.stat(path.join(CACHE_DIR, file));
-        const identity = cacheIdentity(file);
-        const download = downloadsByFeed.get(file) ?? downloadsByFeed.get(identity.feedKey);
 
-        return {
-          feedKey: file,
-          country: identity.country,
-          type: feedKind(file),
-          bytes: stat.size,
-          megabytes: Number((stat.size / 1024 / 1024).toFixed(2)),
-          updatedAt: stat.mtime.toISOString(),
-          downloads: download?.downloads ?? 0,
-          lastDownloaded: download?.lastDownloaded?.toISOString()
-        };
-      })
+  return Promise.all(
+    cacheFiles.map(async (file) => {
+      const stat = await fs.stat(path.join(CACHE_DIR, file));
+      const identity = cacheIdentity(file);
+      const download =
+        downloadsByFeed.get(file) ?? downloadsByFeed.get(identity.feedKey);
+
+      return {
+        feedKey: file,
+        country: identity.country,
+        type: feedKind(file),
+        bytes: stat.size,
+        megabytes: Number((stat.size / 1024 / 1024).toFixed(2)),
+        updatedAt: stat.mtime.toISOString(),
+        downloads: download?.downloads ?? 0,
+        lastDownloaded: download?.lastDownloaded?.toISOString()
+      };
+    })
+  );
+}
+
+function summarizeFeedTypes(cachedFeeds: CachedFeedMetadata[]) {
+  return cachedFeeds.reduce<Record<string, number>>((summary, feed) => {
+    summary[feed.type] = (summary[feed.type] ?? 0) + 1;
+    return summary;
+  }, {
+    xml: 0,
+    gzip: 0,
+    unknown: 0
+  });
+}
+
+export async function getFeedMetadata() {
+  const [cachedFeeds, countries] = await Promise.all([
+    getCachedFeeds(),
+    getCountryMetadata()
+  ]);
+  const sortedCachedFeeds = cachedFeeds.sort((a, b) =>
+    a.feedKey.localeCompare(b.feedKey)
   );
   const totalCacheBytes = cachedFeeds.reduce(
     (sum, feed) => sum + feed.bytes,
@@ -110,7 +186,9 @@ export async function getFeedMetadata() {
     cacheDirectory: CACHE_DIR,
     totalCacheBytes,
     totalCacheMegabytes: Number((totalCacheBytes / 1024 / 1024).toFixed(2)),
-    cachedFeeds: cachedFeeds.sort((a, b) => a.feedKey.localeCompare(b.feedKey)),
-    countries: await getCountryMetadata()
+    feedCount: cachedFeeds.length,
+    feedTypes: summarizeFeedTypes(cachedFeeds),
+    cachedFeeds: sortedCachedFeeds,
+    countries
   };
 }
