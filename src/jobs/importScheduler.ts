@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { prisma } from '../db/prisma';
 import { runImport } from '../pipeline/importPipeline';
 import { runProgramRetention } from './programRetention';
+import { finishJobRun, startJobRun } from './jobRuns';
 
 let importRunning = false;
 
@@ -16,6 +17,12 @@ export function startImportScheduler() {
     }
 
     importRunning = true;
+    const job = await startJobRun(
+      'scheduled-imports',
+      'cron'
+    );
+    let imported = 0;
+    let failed = 0;
 
     try {
       console.log('Starting scheduled imports...');
@@ -39,6 +46,7 @@ export function startImportScheduler() {
             url: source.url ?? undefined,
             priority: source.priority
           });
+          imported++;
 
           const seconds = Math.round(
             (Date.now() - started) / 1000
@@ -48,14 +56,27 @@ export function startImportScheduler() {
             `Imported ${source.name} in ${seconds}s`
           );
         } catch (err) {
+          failed++;
           console.error(
             `Import failed for ${source.name}`,
             err
           );
         }
       }
+
+      await finishJobRun(
+        job.id,
+        failed > 0 ? 'failed' : 'success',
+        `Imported ${imported}, failed ${failed}`
+      );
     } catch (err) {
       console.error('Scheduler error', err);
+      await finishJobRun(
+        job.id,
+        'failed',
+        undefined,
+        err
+      );
     } finally {
       importRunning = false;
     }
@@ -63,11 +84,29 @@ export function startImportScheduler() {
 
   // Daily retention cleanup at 04:00
   cron.schedule('0 4 * * *', async () => {
+    const job = await startJobRun(
+      'program-retention',
+      'cron'
+    );
+
     try {
-      await runProgramRetention();
+      const removed = await runProgramRetention();
+
+      await finishJobRun(
+        job.id,
+        'success',
+        `Removed ${removed} old programmes`
+      );
     } catch (err) {
       console.error(
         'Program retention failed',
+        err
+      );
+
+      await finishJobRun(
+        job.id,
+        'failed',
+        undefined,
         err
       );
     }

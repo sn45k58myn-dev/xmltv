@@ -24,6 +24,7 @@ import { recordFeedDownload } from './services/downloadMetrics';
 import { buildManifest } from './services/manifestService';
 import { providerFeedKey } from './services/feedKeys';
 import { requestMetrics } from './monitoring/requestMetrics';
+import { runTrackedJob } from './jobs/jobRuns';
 
 const app = express();
 const upload = multer({
@@ -82,27 +83,40 @@ app.get(
 app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
-  const sources = await prisma.source.findMany({
-    where: {
-      enabled: true
+  const results = await runTrackedJob(
+    'manual-imports',
+    'manual',
+    async () => {
+      const sources = await prisma.source.findMany({
+        where: {
+          enabled: true
+        },
+        orderBy: {
+          priority: 'asc'
+        }
+      });
+
+      const importResults = [];
+
+      for (const source of sources) {
+        importResults.push(
+          await runImport({
+            name: source.name,
+            type: source.type,
+            url: source.url ?? undefined,
+            priority: source.priority
+          })
+        );
+      }
+
+      return importResults;
     },
-    orderBy: {
-      priority: 'asc'
+    (importResults) => {
+      const failed = importResults.filter((result) => result.status === 'failed').length;
+
+      return `Imported ${importResults.length - failed}, failed ${failed}`;
     }
-  });
-
-  const results = [];
-
-  for (const source of sources) {
-    results.push(
-      await runImport({
-        name: source.name,
-        type: source.type,
-        url: source.url ?? undefined,
-        priority: source.priority
-      })
-    );
-  }
+  );
 
   res.json(results);
 });

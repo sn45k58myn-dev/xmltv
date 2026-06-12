@@ -28,6 +28,7 @@ adminApi.get('/sources', async (_req, res) => res.json(await prisma.source.findM
 adminApi.post('/sources', async (req, res) => res.status(201).json(await prisma.source.create({ data: req.body })));
 adminApi.patch('/sources/:id', async (req, res) => res.json(await prisma.source.update({ where: { id: req.params.id }, data: req.body })));
 adminApi.get('/imports', async (_req, res) => res.json(await prisma.importRun.findMany({ include: { source: true }, orderBy: { startedAt: 'desc' }, take: 100 })));
+adminApi.get('/jobs', async (_req, res) => res.json(await prisma.jobRun.findMany({ orderBy: { startedAt: 'desc' }, take: 100 })));
 adminApi.get('/coverage', async (_req, res) => {
   const [
     channels,

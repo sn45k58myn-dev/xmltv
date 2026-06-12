@@ -143,6 +143,18 @@ URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
 `SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
 returns usable `ETag` or `Last-Modified` validators.
 
+## Job Runs
+
+The app records coarse job history in the `JobRun` table for scheduled imports,
+manual imports, and program retention. Source-level import details remain in the
+existing `ImportRun` table.
+
+```text
+GET /api/admin/jobs
+```
+
+The admin jobs endpoint requires `x-admin-token`.
+
 ## Metadata And Categories
 
 When source XMLTV files do not provide useful channel or programme categories,
