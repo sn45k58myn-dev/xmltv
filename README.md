@@ -73,6 +73,8 @@ IMPORT_TIMEOUT_MS=1800000
 SCHEDULER_LOCK_TTL_MS=3600000
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=120
+RATE_LIMIT_STORE=memory
+REDIS_URL=
 TMDB_API_KEY=
 PREMIUM_ENABLED=true
 PROGRAM_RETENTION_DAYS=14
@@ -112,7 +114,9 @@ Important variables:
 - `SOURCE_FAILURE_BACKOFF_MINUTES`: Scheduler skips a source for this long after its latest failed health check.
 - `IMPORT_TIMEOUT_MS`: Maximum wall-clock time for one scheduled source import.
 - `SCHEDULER_LOCK_TTL_MS`: Database job lock TTL for scheduled imports and retention jobs.
-- `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: In-memory API rate limit.
+- `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: API rate limit window and request cap.
+- `RATE_LIMIT_STORE`: `memory` for local/single process, or `redis` for shared multi-replica rate limiting.
+- `REDIS_URL`: Redis connection URL used when `RATE_LIMIT_STORE=redis`.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
 - `EXPORT_FUTURE_DAYS`: Future programme window included in generated feeds.
@@ -526,7 +530,8 @@ dropdb xmltv_restore_check
 - Watch `cacheWarning` from `/api/stats/dashboard` and increase storage or prune
   generated cache files when the warning is present.
 - The built-in rate limiter and request metrics are process-local; use external
-  rate limiting and metrics aggregation when scaling horizontally.
+  metrics aggregation when scaling horizontally. Set `RATE_LIMIT_STORE=redis`
+  and `REDIS_URL` to share API rate limits across app replicas.
 
 ## CI/CD
 
