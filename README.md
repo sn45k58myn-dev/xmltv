@@ -188,10 +188,15 @@ Metadata and validation:
 ```bash
 curl http://localhost:3000/api/discovery/metadata
 curl http://localhost:3000/api/discovery/validation
+curl http://localhost:3000/api/discovery/quality
 ```
 
 Metadata includes total cache size, feed count, XML/GZip type, update time, and
 download counts where available.
+
+Feed quality scores combine validation status, channel/program counts, cache
+size, freshness, and download metadata. Scores are advisory and do not block
+feed serving.
 
 ## Export Tokens
 
@@ -255,6 +260,7 @@ GET /api/discovery/countries
 GET /api/discovery/providers
 GET /api/discovery/metadata
 GET /api/discovery/validation
+GET /api/discovery/quality
 GET /api/stats/dashboard
 ```
 
