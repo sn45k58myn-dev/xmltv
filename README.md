@@ -69,14 +69,25 @@ Use the `ADMIN_TOKEN` from `.env`.
 
 ## Environment
 
-The default datasource is PostgreSQL:
+The default datasource is PostgreSQL. Copy `.env.example` to `.env` and update
+values for your deployment:
 
 ```env
 DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public"
 PORT=3000
 BASE_URL=http://localhost:3000
+SCHEDULES_DIRECT_USERNAME=
+SCHEDULES_DIRECT_PASSWORD=
+SCHEDULES_DIRECT_COUNTRY=GBR
+SCHEDULES_DIRECT_LINEUP=
+CUSTOM_XMLTV_URLS=https://example.com/guide.xml
 ADMIN_TOKEN=dev-admin-token
 PUBLIC_EXPORTS=false
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX=120
+TMDB_API_KEY=
+PREMIUM_ENABLED=true
+PROGRAM_RETENTION_DAYS=14
 EXPORT_PAST_HOURS=12
 EXPORT_FUTURE_DAYS=7
 ENABLE_DEBUG_ROUTES=false
@@ -84,6 +95,19 @@ ENABLE_DEBUG_ROUTES=false
 
 Set `PUBLIC_EXPORTS=true` for open feeds. Otherwise pass
 `?token=<export-token>` to protected feeds.
+
+Important variables:
+
+- `DATABASE_URL`: PostgreSQL connection string used by Prisma.
+- `PORT`: HTTP port for the app.
+- `BASE_URL`: Public base URL used in logs and integrations.
+- `ADMIN_TOKEN`: Required for admin APIs and the admin UI.
+- `PUBLIC_EXPORTS`: Set to `true` to disable export token checks.
+- `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: In-memory request limiting.
+- `CUSTOM_XMLTV_URLS`: Comma-separated custom XMLTV source URLs.
+- `PROGRAM_RETENTION_DAYS`: Old programme cleanup window.
+- `EXPORT_PAST_HOURS` and `EXPORT_FUTURE_DAYS`: Export feed time window.
+- `ENABLE_DEBUG_ROUTES`: Enables protected debug routes when set to `true`.
 
 ## Imports
 
@@ -202,6 +226,45 @@ docker compose up --build
 The compose stack includes PostgreSQL 16 and the production app image. The image
 builds TypeScript, generates the Prisma client, prunes development dependencies,
 runs as the non-root `node` user, and exposes a `/health` healthcheck.
+
+## Deployment
+
+Local production-style deploy:
+
+```bash
+npm ci
+npx prisma generate
+npm run build
+npm run db:push
+npm start
+```
+
+Docker deploy:
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+docker compose exec xmltv npx prisma db push
+docker compose logs -f xmltv
+```
+
+After the first import or any source update, refresh metadata and cached feeds:
+
+```bash
+npm run import
+npm run metadata:backfill
+npm run metadata:iptv-org
+```
+
+Release check before tagging:
+
+```bash
+npm ci
+npx prisma generate
+npm run build
+npm run smoke:import
+npm audit
+```
 
 ## Checks
 
