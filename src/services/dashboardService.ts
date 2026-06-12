@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { env } from '../config/env';
 import { getFeedDownloads } from './downloadMetrics';
 import { getFeedSizes } from './feedMetrics';
 
@@ -84,6 +85,10 @@ export async function getDashboardStats() {
     totalDownloads,
     feedCount: feedSizes.length,
     cacheSizeMB,
+    cacheWarning: cacheSizeMB >= env.CACHE_WARNING_MB
+      ? `Cache size ${cacheSizeMB} MB exceeds warning threshold ${env.CACHE_WARNING_MB} MB`
+      : null,
+    cacheWarningThresholdMB: env.CACHE_WARNING_MB,
     recentFailures,
     topFeeds: downloads.slice(0, 10),
     feeds: feedSizes,
