@@ -71,6 +71,8 @@ jobs:
     needs: build
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Compose file
+        run: docker compose config
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:

@@ -22,6 +22,9 @@ audit logging, and production deployment documentation.
 - Export token list masking
 - Docker production image and Docker Compose stack
 - Backup and restore scripts plus restore verification docs
+- Backup verification command for disposable restore-check databases
+- Hardened Compose defaults: restart policy, readiness healthcheck, dropped
+  capabilities, no-new-privileges, and `/tmp` tmpfs
 
 ## Current Production Baseline
 
@@ -34,6 +37,7 @@ npx prisma migrate deploy
 npm run verify
 npm run smoke:import
 docker compose build
+docker compose config
 ```
 
 Runtime checks:

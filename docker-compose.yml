@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: xmltv
       POSTGRES_USER: xmltv
@@ -17,6 +18,8 @@ services:
 
   xmltv:
     build: .
+    restart: unless-stopped
+    init: true
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,6 +34,19 @@ services:
       - ./cache:/app/cache
       - ./data:/app/data
       - ./uploads:/app/uploads
+      - ./backups:/app/backups
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 volumes:
   postgres-data:

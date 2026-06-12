@@ -394,6 +394,8 @@ docker compose logs -f xmltv
 The production image builds TypeScript, generates Prisma client files, prunes
 development-only dependencies, can run migrations on start when
 `RUN_MIGRATIONS=true`, runs as the non-root `node` user, and exposes `/health`.
+The compose service also uses restart policies, a `/ready` healthcheck,
+`no-new-privileges`, dropped Linux capabilities, and a `/tmp` tmpfs.
 
 ## Production Deployment
 
@@ -499,12 +501,8 @@ Verify restore into a disposable database before trusting a backup:
 
 ```bash
 createdb xmltv_restore_check
-DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
-  npm run restore:db -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
-DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
-  npx prisma migrate deploy
-DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
-  node -e 'const {PrismaClient}=require("@prisma/client"); const p=new PrismaClient(); p.channel.count().then((count)=>{ console.log({channels: count}); return p.$disconnect(); })'
+VERIFY_DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
+  npm run backup:verify -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
 dropdb xmltv_restore_check
 ```
 
