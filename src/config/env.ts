@@ -30,6 +30,7 @@ const schema = z.object({
   ENABLE_DEBUG_ROUTES: z.string().default('false'),
   ENABLE_SCHEDULER: z.string().default('true'),
   FEED_CACHE_MAX_AGE_SECONDS: z.coerce.number().default(300),
+  CACHE_WARNING_MB: z.coerce.number().default(1024),
   VALIDATION_MAX_FEED_MB: z.coerce.number().default(250),
   VALIDATION_TIMEOUT_MS: z.coerce.number().default(30000)
 });

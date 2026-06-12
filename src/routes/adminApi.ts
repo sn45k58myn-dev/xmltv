@@ -31,6 +31,21 @@ adminApi.post('/sources', async (req, res) => res.status(201).json(await prisma.
 adminApi.patch('/sources/:id', async (req, res) => res.json(await prisma.source.update({ where: { id: req.params.id }, data: req.body })));
 adminApi.get('/imports', async (_req, res) => res.json(await prisma.importRun.findMany({ include: { source: true }, orderBy: { startedAt: 'desc' }, take: 100 })));
 adminApi.get('/jobs', async (_req, res) => res.json(await prisma.jobRun.findMany({ orderBy: { startedAt: 'desc' }, take: 100 })));
+adminApi.get('/jobs/:id', async (req, res) => {
+  const job = await prisma.jobRun.findUnique({
+    where: {
+      id: req.params.id
+    }
+  });
+
+  if (!job) {
+    return res.status(404).json({
+      error: 'Job run not found'
+    });
+  }
+
+  return res.json(job);
+});
 adminApi.get('/coverage', async (_req, res) => {
   const [
     channels,

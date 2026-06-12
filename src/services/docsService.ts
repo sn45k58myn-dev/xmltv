@@ -32,6 +32,8 @@ export function buildApiDocs() {
       { method: 'POST', path: '/profiles', description: 'Admin-protected export profile creation. Requires x-admin-token.' },
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
+      { method: 'GET', path: '/api/admin/jobs', description: 'Admin job run history.' },
+      { method: 'GET', path: '/api/admin/jobs/:id', description: 'Admin job run details.' },
       { method: 'GET', path: '/api/admin/validation', description: 'Admin full feed validation details. Parses cached XML feeds and may be expensive.' },
       { method: 'GET', path: '/api/admin/quality', description: 'Admin feed quality details.' },
       { method: 'GET', path: '/api/admin/metadata', description: 'Admin feed metadata details.' }

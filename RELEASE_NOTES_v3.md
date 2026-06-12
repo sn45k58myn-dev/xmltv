@@ -22,6 +22,8 @@ release-grade deployment paths.
 - Real export token enforcement for generated feeds
 - Protected admin mutation routes
 - Download metrics for generated feed endpoints
+- Structured request logs with `x-request-id` correlation
+- Cache size warnings in dashboard analytics
 - Docker production image
 - GitHub Actions CI for install, Prisma generation, build, smoke import, and audit
 
@@ -33,6 +35,9 @@ release-grade deployment paths.
 - Admin mutation routes require `x-admin-token`.
 - PostgreSQL is the production datastore.
 - Cached feed files are generated under `cache/` and should not be committed.
+- Full admin job run details are available under protected admin APIs.
+- Run only one `ENABLE_SCHEDULER=true` instance in multi-container deployments.
+- Backup and restore scripts use `DATABASE_URL`, `pg_dump`, and `pg_restore`.
 
 ## Upgrade Notes
 
@@ -64,6 +69,8 @@ GET /api/discovery/providers
 GET /api/discovery/metadata
 GET /api/discovery/validation
 GET /api/stats/dashboard
+GET /api/admin/jobs
+GET /api/admin/jobs/:id
 GET /country/:country.xml
 GET /country/:country.xml.gz
 GET /profile/:id.xml

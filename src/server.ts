@@ -25,6 +25,7 @@ import { buildManifest } from './services/manifestService';
 import { providerFeedKey } from './services/feedKeys';
 import { requestMetrics } from './monitoring/requestMetrics';
 import { runTrackedJob } from './jobs/jobRuns';
+import { requestContext } from './middleware/requestContext';
 
 const app = express();
 const upload = multer({
@@ -43,6 +44,7 @@ if (env.TRUST_PROXY === 'true') {
 }
 
 app.use(securityHeaders);
+app.use(requestContext);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) {

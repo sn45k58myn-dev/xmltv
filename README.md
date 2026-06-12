@@ -75,6 +75,7 @@ RUN_MIGRATIONS=false
 BACKUP_DIR=backups
 ENABLE_SCHEDULER=true
 FEED_CACHE_MAX_AGE_SECONDS=300
+CACHE_WARNING_MB=1024
 VALIDATION_MAX_FEED_MB=250
 VALIDATION_TIMEOUT_MS=30000
 ```
@@ -105,6 +106,7 @@ Important variables:
 - `BACKUP_DIR`: Directory used by database backup scripts.
 - `ENABLE_SCHEDULER`: Set to `false` on non-primary replicas.
 - `FEED_CACHE_MAX_AGE_SECONDS`: Cache-Control max-age for generated feed responses.
+- `CACHE_WARNING_MB`: Dashboard warning threshold for generated cache size.
 - `VALIDATION_MAX_FEED_MB`: Maximum cached feed file size parsed by full validation.
 - `VALIDATION_TIMEOUT_MS`: Per-feed timeout guard for full validation.
 
@@ -277,6 +279,15 @@ and top routes by request count.
 `/ready` performs a lightweight database probe for load balancers and
 orchestrators.
 
+Every HTTP response includes an `x-request-id` header. If an upstream proxy sends
+`x-request-id`, the app preserves it; otherwise it generates a UUID. Completed
+requests are written as structured JSON logs with the request id, method, path,
+status code, duration, client IP, and user agent so production logs can be
+searched by request id.
+
+The dashboard response includes `cacheWarning` and `cacheWarningThresholdMB`.
+Set `CACHE_WARNING_MB` to match the storage budget for the deployment.
+
 ## Discovery Endpoints
 
 ```text
@@ -352,7 +363,8 @@ development-only dependencies, can run migrations on start when
 ## Backup And Recovery
 
 Database backups use `pg_dump` in custom format. The scripts require PostgreSQL
-client tools on the machine running the command.
+client tools on the machine running the command and read `DATABASE_URL` from the
+environment.
 
 Create a backup:
 
@@ -360,15 +372,20 @@ Create a backup:
 npm run backup:db
 ```
 
+This runs `scripts/backup-postgres.js` and writes a timestamped `.dump` file to
+`BACKUP_DIR`, defaulting to `backups/`.
+
 Restore a backup:
 
 ```bash
 npm run restore:db -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
 ```
 
-Backups are written to `BACKUP_DIR`, defaulting to `backups/`, which is ignored
-by git. Stop writers or schedule backups during a quiet import window for the
-most consistent recovery point.
+This runs `scripts/restore-postgres.js`, which calls `pg_restore --clean
+--if-exists`. Restores replace objects in the target database, so verify
+`DATABASE_URL` before running it. `BACKUP_DIR` is ignored by git. Stop writers or
+schedule backups during a quiet import window for the most consistent recovery
+point.
 
 ## Production Notes
 
@@ -380,8 +397,11 @@ most consistent recovery point.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports.
-- In multi-replica deployments, run `ENABLE_SCHEDULER=true` on only one replica.
+- In multi-container or multi-replica deployments, run `ENABLE_SCHEDULER=true`
+  on only one scheduler owner and set it to `false` everywhere else.
 - Generated feeds send `Cache-Control` using `FEED_CACHE_MAX_AGE_SECONDS`.
+- Watch `cacheWarning` from `/api/stats/dashboard` and increase storage or prune
+  generated cache files when the warning is present.
 - The built-in rate limiter and request metrics are process-local; use external
   rate limiting and metrics aggregation when scaling horizontally.
 
