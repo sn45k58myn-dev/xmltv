@@ -5,23 +5,42 @@ const cardsEl = () => document.getElementById('cards');
 tokenInput().value = localStorage.adminToken || '';
 
 function saveToken() {
-  localStorage.adminToken = tokenInput().value;
+  localStorage.adminToken = tokenInput().value.trim();
+  tokenInput().value = localStorage.adminToken;
   showNotice('Admin token saved.');
+  loadDashboard();
+}
+
+function hasAdminToken() {
+  return Boolean(tokenInput().value.trim());
+}
+
+function showAuthRequired() {
+  cardsEl().innerHTML = '';
+  content().innerHTML = `
+    <h2>Admin token required</h2>
+    <p class="muted">Enter your admin token above and click Save to load the dashboard.</p>
+  `;
 }
 
 async function api(path, opts = {}) {
+  if (!hasAdminToken()) {
+    showAuthRequired();
+    throw new Error('Admin token required. Enter your admin token above and click Save.');
+  }
+
   const url = path.startsWith('/') ? path : '/api/admin/' + path;
   const res = await fetch(url, {
     ...opts,
     headers: {
       'content-type': 'application/json',
-      'x-admin-token': tokenInput().value,
+      'x-admin-token': tokenInput().value.trim(),
       ...opts.headers
     }
   });
 
   if (!res.ok) {
-    throw new Error(await res.text());
+    throw new Error(await errorMessage(res));
   }
 
   if (res.status === 204) {
@@ -31,12 +50,30 @@ async function api(path, opts = {}) {
   return res.json();
 }
 
+async function errorMessage(res) {
+  const text = await res.text();
+
+  try {
+    const data = JSON.parse(text);
+    return data.error || data.message || text;
+  } catch {
+    return text;
+  }
+}
+
 function showNotice(message) {
   content().innerHTML = `<p class="notice">${escapeHtml(message)}</p>`;
 }
 
 function showError(error) {
-  content().innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
+  const message = error.message || String(error);
+
+  if (message.includes('Admin token required')) {
+    showAuthRequired();
+    return;
+  }
+
+  content().innerHTML = `<pre class="error">${escapeHtml(message)}</pre>`;
 }
 
 function escapeHtml(value) {
@@ -101,17 +138,22 @@ async function load(name) {
 }
 
 async function fetchJson(path, opts = {}) {
+  if (!hasAdminToken()) {
+    showAuthRequired();
+    throw new Error('Admin token required. Enter your admin token above and click Save.');
+  }
+
   const res = await fetch(path, {
     ...opts,
     headers: {
       'content-type': 'application/json',
-      'x-admin-token': tokenInput().value,
+      'x-admin-token': tokenInput().value.trim(),
       ...opts.headers
     }
   });
 
   if (!res.ok) {
-    throw new Error(await res.text());
+    throw new Error(await errorMessage(res));
   }
 
   return res.json();
