@@ -2,7 +2,7 @@ const tokenInput = () => document.getElementById('token');
 const content = () => document.getElementById('content');
 const cardsEl = () => document.getElementById('cards');
 
-tokenInput().value = localStorage.adminToken || 'dev-admin-token';
+tokenInput().value = localStorage.adminToken || '';
 
 function saveToken() {
   localStorage.adminToken = tokenInput().value;

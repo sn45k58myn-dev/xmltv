@@ -100,4 +100,30 @@ describe('server API', () => {
     expect(response.status).toBe(401);
     expect(response.body.error).toContain('Invalid or inactive export token');
   });
+
+  it('rejects obviously non-XML uploads before import processing', async () => {
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/imports/upload')
+      .set('x-admin-token', 'test-admin-token')
+      .attach('xmltv', Buffer.from('not xml at all'), 'bad.txt');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('does not look like XML');
+  });
+
+  it('returns a generic JSON error for internal route failures', async () => {
+    vi.mocked(prisma.source.findMany).mockRejectedValue(new Error('database secret details'));
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/sources')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      error: 'Internal server error'
+    });
+    expect(response.text).not.toContain('database secret details');
+  });
 });

@@ -45,6 +45,7 @@ Copy `.env.example` to `.env` and adjust values for your machine or deployment.
 
 ```env
 DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public"
+NODE_ENV=development
 PORT=3000
 BASE_URL=http://localhost:3000
 SCHEDULES_DIRECT_USERNAME=
@@ -83,6 +84,7 @@ VALIDATION_TIMEOUT_MS=30000
 Important variables:
 
 - `DATABASE_URL`: PostgreSQL connection string used by Prisma.
+- `NODE_ENV`: Set to `production` for deployed runtime safety checks.
 - `PORT`: HTTP port exposed by the app.
 - `BASE_URL`: Public URL shown in startup logs and docs.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
@@ -155,7 +157,10 @@ curl -H "x-admin-token: dev-admin-token" \
   http://localhost:3000/imports/upload
 ```
 
-Admin upload and profile mutation routes require `x-admin-token`.
+Admin upload and profile mutation routes require `x-admin-token`. Uploaded
+XMLTV files are rejected when empty, larger than `UPLOAD_MAX_MB`, or obviously
+not XML before import parsing starts. Temporary upload files are removed after
+success or failure.
 
 URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
 `SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
@@ -392,7 +397,9 @@ point.
 - Keep `PUBLIC_EXPORTS=false` unless feeds should be public.
 - Use export tokens for feed consumers.
 - Keep `ENABLE_DEBUG_ROUTES=false` in production.
-- Rotate `ADMIN_TOKEN` before deployment.
+- Set `NODE_ENV=production`; startup refuses the default `ADMIN_TOKEN` and
+  local development database URLs in production mode.
+- Rotate `ADMIN_TOKEN` before deployment and do not use `dev-admin-token`.
 - Set `CORS_ORIGIN` to the public admin origin instead of `*` where possible.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
