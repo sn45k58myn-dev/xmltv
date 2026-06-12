@@ -122,44 +122,32 @@ async function loadDashboard() {
   content().innerHTML = '<p class="muted">Loading dashboard...</p>';
 
   try {
-    const [
-      dashboard,
-      downloads,
-      feedSizes,
-      imports,
-      health
-    ] = await Promise.all([
-      fetchJson('/api/stats/dashboard'),
-      fetchJson('/api/stats/downloads'),
-      fetchJson('/api/stats/feeds'),
-      fetchJson('/api/stats/imports'),
-      fetchJson('/api/source-health')
-    ]);
+    const analytics = await api('analytics');
 
     cards({
-      channels: dashboard.channels,
-      programs: dashboard.programs,
-      sources: dashboard.sources,
-      enabledSources: dashboard.enabledSources,
-      downloads: dashboard.totalDownloads,
-      cacheMB: dashboard.cacheSizeMB,
-      failedImports24h: dashboard.recentFailures,
-      lastImport: dashboard.lastImportStatus || 'none'
+      Channels: analytics.channels,
+      Programs: analytics.programs,
+      Sources: analytics.sources,
+      'Enabled sources': analytics.enabledSources,
+      Downloads: analytics.totalDownloads,
+      'Cache size': `${fmt(analytics.cacheSizeMB)} MB`,
+      'Recent failed imports': analytics.recentFailures
     });
     content().innerHTML = `
       <h2>Dashboard</h2>
-      <div class="card">
-        <button onclick="loadDashboardMetadata()">Metadata</button>
-        <button onclick="loadDashboardValidation()">Validation</button>
+      <div class="actions">
+        <button onclick="loadDashboardMetadata()">Load metadata</button>
+        <button onclick="loadDashboardValidation()">Run validation</button>
+        <button onclick="runDashboardImports()">Run imports</button>
       </div>
-      <h3>Downloads</h3>
-      ${table(downloads.slice(0, 20))}
-      <h3>Feed Sizes</h3>
-      ${table(feedSizes)}
+      <h3>Top Feeds</h3>
+      ${table(analytics.topFeeds)}
+      <h3>Cached Feeds</h3>
+      ${table(analytics.feeds)}
       <h3>Recent Imports</h3>
-      ${table(imports.slice(0, 20))}
-      <h3>Source Health</h3>
-      ${table(health.slice(0, 20))}
+      ${table(analytics.recentImports)}
+      <h3>Recent Failed Imports</h3>
+      ${table(analytics.recentFailedImports)}
       <div id="dashboard-detail"></div>
     `;
   } catch (error) {
@@ -200,6 +188,23 @@ async function loadDashboardValidation() {
         generatedAt: validation.generatedAt
       }])}
       ${table(validation.feeds)}
+    `;
+  } catch (error) {
+    target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
+  }
+}
+
+async function runDashboardImports() {
+  const target = document.getElementById('dashboard-detail') || document.getElementById('analytics-detail');
+  target.innerHTML = '<p class="muted">Running enabled imports...</p>';
+
+  try {
+    const result = await api('imports/run', {
+      method: 'POST'
+    });
+    target.innerHTML = `
+      <h3>Import Results</h3>
+      ${table(result)}
     `;
   } catch (error) {
     target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
@@ -451,28 +456,29 @@ async function loadAnalytics() {
     const analytics = await api('analytics');
 
     cards({
-      channels: analytics.channels,
-      programs: analytics.programs,
-      sources: analytics.sources,
-      enabledSources: analytics.enabledSources,
-      downloads: analytics.totalDownloads,
-      feeds: analytics.feedCount,
-      cacheMB: analytics.cacheSizeMB,
-      failedImports24h: analytics.recentFailures,
-      lastImport: analytics.lastImportStatus || 'none'
+      Channels: analytics.channels,
+      Programs: analytics.programs,
+      Sources: analytics.sources,
+      'Enabled sources': analytics.enabledSources,
+      Downloads: analytics.totalDownloads,
+      'Cache size': `${fmt(analytics.cacheSizeMB)} MB`,
+      'Recent failed imports': analytics.recentFailures
     });
     content().innerHTML = `
       <h2>Analytics</h2>
-      <div class="card">
-        <button onclick="loadFeedMetadata()">Load Feed Metadata</button>
-        <button onclick="loadFeedValidation()">Run Feed Validation</button>
+      <div class="actions">
+        <button onclick="loadFeedMetadata()">Load metadata</button>
+        <button onclick="loadFeedValidation()">Run validation</button>
+        <button onclick="runDashboardImports()">Run imports</button>
       </div>
       <h3>Top Feeds</h3>
       ${table(analytics.topFeeds)}
-      <h3>Cached Feed Sizes</h3>
+      <h3>Cached Feeds</h3>
       ${table(analytics.feeds)}
-      <h3>Last Import</h3>
-      ${table(analytics.lastImport ? [analytics.lastImport] : [])}
+      <h3>Recent Imports</h3>
+      ${table(analytics.recentImports)}
+      <h3>Recent Failed Imports</h3>
+      ${table(analytics.recentFailedImports)}
       <div id="analytics-detail"></div>
     `;
   } catch (error) {
