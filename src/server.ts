@@ -1,9 +1,12 @@
+import 'express-async-errors';
 import cors from 'cors';
 import express from 'express';
+import helmet from 'helmet';
 import multer from 'multer';
 import { statsRoutes } from './routes/statsRoutes';
 import path from 'node:path';
 import { env } from './config/env';
+import { assertProductionSafeConfig } from './config/productionGuards';
 import { adminApi } from './routes/adminApi';
 import { rateLimit } from './middleware/rateLimit';
 import { requireExportToken } from './middleware/exportToken';
@@ -26,7 +29,9 @@ import { providerFeedKey } from './services/feedKeys';
 import { requestMetrics } from './monitoring/requestMetrics';
 import { runTrackedJob } from './jobs/jobRuns';
 import { requestContext } from './middleware/requestContext';
+import { cleanupUploadedFile, validateUploadedXml } from './services/uploadValidation';
 
+assertProductionSafeConfig();
 export const app = express();
 const upload = multer({
   dest: path.join(process.cwd(), 'uploads'),
@@ -43,6 +48,7 @@ if (env.TRUST_PROXY === 'true') {
   app.set('trust proxy', 1);
 }
 
+app.use(helmet());
 app.use(securityHeaders);
 app.use(requestContext);
 app.use(cors({
@@ -138,10 +144,18 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   res.json(results);
 });
 
-app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, res) => {
+app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Missing xmltv file upload field' });
-  const result = await runImport({ name: `Upload ${req.file.originalname}`, type: 'upload', url: req.file.path, priority: 30 });
-  res.json(result);
+
+  try {
+    await validateUploadedXml(req.file);
+    const result = await runImport({ name: `Upload ${req.file.originalname}`, type: 'upload', url: req.file.path, priority: 30 });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  } finally {
+    await cleanupUploadedFile(req.file);
+  }
 });
 
 app.post('/profiles', requireAdmin, async (req, res) => {
@@ -359,6 +373,33 @@ app.get('/coverage', requireAdmin, async (_req, res) => {
     programs,
     aliases,
     sources
+  });
+});
+
+app.use((
+  error: unknown,
+  _req: express.Request,
+  res: express.Response,
+  _next: express.NextFunction
+) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(400).json({
+      error: error.code === 'LIMIT_FILE_SIZE'
+        ? `Uploaded file exceeds ${env.UPLOAD_MAX_MB} MB limit.`
+        : 'Invalid multipart upload.'
+    });
+  }
+
+  if (error instanceof Error && error.message.startsWith('Uploaded XMLTV file')) {
+    return res.status(400).json({
+      error: error.message
+    });
+  }
+
+  console.error('Unhandled request error:', error);
+
+  return res.status(500).json({
+    error: 'Internal server error'
   });
 });
 
