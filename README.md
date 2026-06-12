@@ -73,6 +73,8 @@ EXPORT_FUTURE_DAYS=7
 ENABLE_DEBUG_ROUTES=false
 RUN_MIGRATIONS=false
 BACKUP_DIR=backups
+ENABLE_SCHEDULER=true
+FEED_CACHE_MAX_AGE_SECONDS=300
 ```
 
 Important variables:
@@ -99,6 +101,8 @@ Important variables:
 - `TMDB_API_KEY`: Optional programme enrichment key.
 - `RUN_MIGRATIONS`: Set to `true` in Docker deployments to run `prisma migrate deploy` before app start.
 - `BACKUP_DIR`: Directory used by database backup scripts.
+- `ENABLE_SCHEDULER`: Set to `false` on non-primary replicas.
+- `FEED_CACHE_MAX_AGE_SECONDS`: Cache-Control max-age for generated feed responses.
 
 ## Database Setup
 
@@ -249,15 +253,20 @@ Runtime monitoring is available at:
 
 ```text
 GET /monitoring/metrics
+GET /ready
 ```
 
 The response includes import status, channel/program counts, uptime, process
 memory, request totals, in-flight requests, status buckets, latency percentiles,
 and top routes by request count.
 
+`/ready` performs a lightweight database probe for load balancers and
+orchestrators.
+
 ## Discovery Endpoints
 
 ```text
+GET /ready
 GET /api/docs
 GET /api/discovery/manifest
 GET /api/discovery/countries
@@ -356,6 +365,10 @@ most consistent recovery point.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports.
+- In multi-replica deployments, run `ENABLE_SCHEDULER=true` on only one replica.
+- Generated feeds send `Cache-Control` using `FEED_CACHE_MAX_AGE_SECONDS`.
+- The built-in rate limiter and request metrics are process-local; use external
+  rate limiting and metrics aggregation when scaling horizontally.
 
 ## CI/CD
 

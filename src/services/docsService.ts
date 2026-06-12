@@ -12,6 +12,7 @@ export function buildApiDocs() {
     },
     endpoints: [
       { method: 'GET', path: '/health', description: 'Basic health check.' },
+      { method: 'GET', path: '/ready', description: 'Readiness check with database probe.' },
       { method: 'GET', path: '/api/docs', description: 'Machine-readable endpoint catalogue.' },
       { method: 'GET', path: '/manifest.json', description: 'Public feed manifest.' },
       { method: 'GET', path: '/api/discovery/manifest', description: 'Feed discovery manifest.' },

@@ -27,7 +27,9 @@ const schema = z.object({
   PROGRAM_RETENTION_DAYS: z.coerce.number().default(14),
   EXPORT_PAST_HOURS: z.coerce.number().default(12),
   EXPORT_FUTURE_DAYS: z.coerce.number().default(7),
-  ENABLE_DEBUG_ROUTES: z.string().default('false')
+  ENABLE_DEBUG_ROUTES: z.string().default('false'),
+  ENABLE_SCHEDULER: z.string().default('true'),
+  FEED_CACHE_MAX_AGE_SECONDS: z.coerce.number().default(300)
 });
 
 export const env = schema.parse(process.env);

@@ -71,6 +71,21 @@ app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+app.get('/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      ok: true,
+      database: true
+    });
+  } catch {
+    res.status(503).json({
+      ok: false,
+      database: false
+    });
+  }
+});
+
 app.get(
   '/manifest.json',
   async (_req, res) => {
@@ -204,14 +219,23 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
     'content-type',
     'application/gzip'
   );
+  setFeedCacheHeaders(res);
 
   res.send(gzip);
 });
+
+function setFeedCacheHeaders(res) {
+  res.setHeader(
+    'cache-control',
+    `public, max-age=${env.FEED_CACHE_MAX_AGE_SECONDS}`
+  );
+}
 
 function sendXml(
   res,
   xml
 ) {
+  setFeedCacheHeaders(res);
   res.setHeader(
     'content-type',
     'application/xml; charset=utf-8'
@@ -251,6 +275,7 @@ async function sendCachedCountryGzip(
     'content-type',
     'application/gzip'
   );
+  setFeedCacheHeaders(res);
 
   return res.send(gzip);
 }
@@ -280,7 +305,11 @@ app.get('/', (_req, res) => {
   `);
 });
 
-startImportScheduler();
+if (env.ENABLE_SCHEDULER === 'true') {
+  startImportScheduler();
+} else {
+  console.log('Import scheduler disabled');
+}
 
 if (env.ENABLE_DEBUG_ROUTES === 'true') {
   app.get('/debug/channels', requireAdmin, async (_req, res) => {
@@ -337,6 +366,27 @@ app.get('/coverage', requireAdmin, async (_req, res) => {
   });
 });
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
+});
+
+async function shutdown(signal: string) {
+  console.log(`Received ${signal}, shutting down`);
+
+  server.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
 });
