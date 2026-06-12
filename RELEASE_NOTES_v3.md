@@ -39,14 +39,14 @@ release-grade deployment paths.
 1. Pull the v3 release.
 2. Copy `.env.example` to `.env`.
 3. Configure `DATABASE_URL`, `ADMIN_TOKEN`, `BASE_URL`, and feed source settings.
-4. Run Prisma generation and schema sync.
+4. Run Prisma generation and production migrations.
 5. Run imports to populate channels, programmes, mappings, and cached feeds.
 6. Create export tokens before sharing protected feed URLs.
 
 ```bash
 npm ci
-npm run db:generate
-npm run db:push
+npx prisma generate
+npx prisma migrate deploy
 npm run import
 npm run build
 npm start
@@ -76,17 +76,24 @@ GET /provider/:id.xml.gz
 ```bash
 cp .env.example .env
 docker compose up --build -d
-docker compose exec xmltv npx prisma db push
+docker compose exec xmltv npx prisma migrate deploy
 docker compose logs -f xmltv
 ```
+
+`docker compose` sets `RUN_MIGRATIONS=true`, so the app container runs
+`npx prisma migrate deploy` before startup. `npm run db:push` is for local
+development only and is not the production release path.
 
 ## Final Checklist
 
 ```bash
+npm ci
+npx prisma migrate deploy
 npm run build
 npm run smoke:import
 npm start
 curl http://localhost:3000/health
+curl http://localhost:3000/ready
 curl http://localhost:3000/manifest.json
 curl http://localhost:3000/api/stats/dashboard
 ```

@@ -25,8 +25,8 @@ git clone https://github.com/sn45k58myn-dev/xmltv.git
 cd xmltv
 cp .env.example .env
 npm ci
-npm run db:generate
-npm run db:push
+npx prisma generate
+npx prisma migrate deploy
 npm run build
 npm start
 ```
@@ -110,22 +110,26 @@ Important variables:
 
 ## Database Setup
 
-For local PostgreSQL:
+For production or release-candidate PostgreSQL:
 
 ```bash
-npm run db:generate
-npm run db:push
+npx prisma generate
+npx prisma migrate deploy
 ```
 
-For Docker Compose PostgreSQL:
+For Docker Compose PostgreSQL, the app container can run migrations on startup
+when `RUN_MIGRATIONS=true`:
 
 ```bash
-docker compose up -d postgres
-npm run db:generate
-npm run db:push
+docker compose up --build -d
 ```
 
-The Prisma schema is in `prisma/schema.prisma`.
+For local development only, `npm run db:push` can sync an experimental schema
+without creating migration files. Do not use `db:push` as the production release
+path.
+
+The Prisma schema is in `prisma/schema.prisma`; production schema changes belong
+in `prisma/migrations/`.
 
 ## Imports
 
@@ -328,7 +332,8 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Apply the database schema:
+The compose file sets `RUN_MIGRATIONS=true`, so `npx prisma migrate deploy` runs
+before the app starts. To apply migrations manually:
 
 ```bash
 docker compose exec xmltv npx prisma migrate deploy
@@ -396,10 +401,13 @@ build dependency vulnerabilities are caught early.
 ## Final v3.0.0 Checklist
 
 ```bash
+npm ci
+npx prisma migrate deploy
 npm run build
 npm run smoke:import
 npm start
 curl http://localhost:3000/health
+curl http://localhost:3000/ready
 curl http://localhost:3000/manifest.json
 curl http://localhost:3000/api/stats/dashboard
 ```
