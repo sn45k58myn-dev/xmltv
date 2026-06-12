@@ -1,5 +1,6 @@
 import { getFeedMetadata } from './feedMetadata';
 import { validateCachedFeeds } from './feedValidation';
+import { prisma } from '../db/prisma';
 
 type FeedValidationRow = {
   feedKey: string;
@@ -86,7 +87,9 @@ function scoreFeed(
   };
 }
 
-export async function getFeedQuality() {
+export async function getFeedQuality(options: {
+  persistSnapshot?: boolean;
+} = {}) {
   const [metadata, validation] = await Promise.all([
     getFeedMetadata(),
     validateCachedFeeds()
@@ -106,7 +109,7 @@ export async function getFeedQuality() {
         feeds.reduce((sum, feed) => sum + feed.score, 0) / feeds.length
       ).toFixed(2));
 
-  return {
+  const result = {
     generatedAt: new Date().toISOString(),
     feedCount: feeds.length,
     averageScore,
@@ -114,4 +117,33 @@ export async function getFeedQuality() {
     invalidFeeds: feeds.filter((feed) => !feed.valid).length,
     feeds
   };
+
+  if (options.persistSnapshot && feeds.length) {
+    await prisma.feedQualitySnapshot.createMany({
+      data: feeds.map((feed) => ({
+        feedKey: feed.feedKey,
+        score: feed.score,
+        grade: feed.grade,
+        valid: feed.valid,
+        channels: feed.channels,
+        programs: feed.programs,
+        bytes: feed.bytes,
+        reasons: JSON.stringify(feed.reasons)
+      }))
+    });
+  }
+
+  return result;
+}
+
+export async function getFeedQualityHistory(limit = 100) {
+  return prisma.feedQualitySnapshot.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    },
+    take: Math.min(
+      Math.max(limit, 1),
+      1000
+    )
+  });
 }

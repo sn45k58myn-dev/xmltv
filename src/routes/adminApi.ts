@@ -9,7 +9,7 @@ import { mergeChannels } from '../premium/mergeEngine';
 import { getDashboardStats } from '../services/dashboardService';
 import { getFeedMetadata } from '../services/feedMetadata';
 import { validateCachedFeeds } from '../services/feedValidation';
-import { getFeedQuality } from '../services/feedQuality';
+import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
 
@@ -45,7 +45,14 @@ adminApi.get('/summary', async (_req, res) => {
 adminApi.get('/analytics', async (_req, res) => res.json(await getDashboardStats()));
 adminApi.get('/metadata', async (_req, res) => res.json(await getFeedMetadata()));
 adminApi.get('/validation', async (_req, res) => res.json(await validateCachedFeeds()));
-adminApi.get('/quality', async (_req, res) => res.json(await getFeedQuality()));
+adminApi.get('/quality', async (req, res) => res.json(await getFeedQuality({
+  persistSnapshot: req.query.snapshot === 'true'
+})));
+adminApi.get('/quality/history', async (req, res) => {
+  const limit = Number(req.query.limit ?? 100);
+
+  res.json(await getFeedQualityHistory(Number.isFinite(limit) ? limit : 100));
+});
 adminApi.get('/source-categories', async (_req, res) => res.json(await getSourceCategories()));
 adminApi.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 adminApi.post('/sources', async (req, res) => {

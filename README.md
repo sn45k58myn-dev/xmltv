@@ -256,7 +256,12 @@ Full validation parses XML and compressed XML feeds, so it is protected behind
 
 Feed quality scores combine validation status, channel/program counts, cache
 size, freshness, and download metadata. Scores are advisory and do not block
-feed serving.
+feed serving. Admin quality checks can persist snapshots for trend review:
+
+```text
+GET /api/admin/quality?snapshot=true
+GET /api/admin/quality/history
+```
 
 ## Export Tokens
 

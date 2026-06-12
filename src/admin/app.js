@@ -492,6 +492,8 @@ async function loadAnalytics() {
       <div class="actions">
         <button onclick="loadFeedMetadata()">Load metadata</button>
         <button onclick="loadFeedValidation()">Run validation</button>
+        <button onclick="loadFeedQuality()">Score quality</button>
+        <button onclick="loadFeedQualityHistory()">Quality history</button>
         <button onclick="runDashboardImports()">Run imports</button>
       </div>
       <h3>Top Feeds</h3>
@@ -567,6 +569,55 @@ async function loadFeedValidation() {
     target.innerHTML = `
       <h3>Feed Validation</h3>
       ${table(validation.feeds)}
+    `;
+  } catch (error) {
+    target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
+  }
+}
+
+async function loadFeedQuality() {
+  const target = document.getElementById('analytics-detail');
+  target.innerHTML = '<p class="muted">Scoring feed quality...</p>';
+
+  try {
+    const quality = await api('quality?snapshot=true');
+
+    target.innerHTML = `
+      <h3>Feed Quality</h3>
+      ${table([{
+        feedCount: quality.feedCount,
+        averageScore: quality.averageScore,
+        validFeeds: quality.validFeeds,
+        invalidFeeds: quality.invalidFeeds,
+        generatedAt: quality.generatedAt
+      }])}
+      ${table(quality.feeds)}
+    `;
+  } catch (error) {
+    target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
+  }
+}
+
+async function loadFeedQualityHistory() {
+  const target = document.getElementById('analytics-detail');
+  target.innerHTML = '<p class="muted">Loading quality history...</p>';
+
+  try {
+    const history = await api('quality/history');
+
+    target.innerHTML = `
+      <h3>Feed Quality History</h3>
+      ${table(history.map((row) => ({
+        createdAt: row.createdAt,
+        feedKey: row.feedKey,
+        score: row.score,
+        grade: row.grade,
+        valid: row.valid,
+        channels: row.channels,
+        programs: row.programs,
+        bytes: row.bytes,
+        reasons: row.reasons || '-'
+      })))}
     `;
   } catch (error) {
     target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
