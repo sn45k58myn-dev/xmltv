@@ -55,6 +55,14 @@ CUSTOM_XMLTV_URLS=https://example.com/guide.xml
 
 ADMIN_TOKEN=dev-admin-token
 PUBLIC_EXPORTS=false
+CORS_ORIGIN=*
+JSON_BODY_LIMIT=1mb
+UPLOAD_MAX_MB=200
+TRUST_PROXY=false
+SOURCE_FETCH_TIMEOUT_MS=60000
+SOURCE_FETCH_RETRIES=2
+SOURCE_RETRY_DELAY_MS=1000
+SOURCE_HEAD_TIMEOUT_MS=10000
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=120
 TMDB_API_KEY=
@@ -63,6 +71,10 @@ PROGRAM_RETENTION_DAYS=14
 EXPORT_PAST_HOURS=12
 EXPORT_FUTURE_DAYS=7
 ENABLE_DEBUG_ROUTES=false
+RUN_MIGRATIONS=false
+BACKUP_DIR=backups
+ENABLE_SCHEDULER=true
+FEED_CACHE_MAX_AGE_SECONDS=300
 ```
 
 Important variables:
@@ -73,12 +85,24 @@ Important variables:
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
 - `ADMIN_TOKEN`: Required for admin UI/API mutations and protected admin APIs.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
+- `CORS_ORIGIN`: `*` or a comma-separated list of allowed browser origins.
+- `JSON_BODY_LIMIT`: Maximum JSON request body size.
+- `UPLOAD_MAX_MB`: Maximum XMLTV upload size in megabytes.
+- `TRUST_PROXY`: Set to `true` when running behind a trusted reverse proxy.
+- `SOURCE_FETCH_TIMEOUT_MS`: Timeout for XMLTV source downloads.
+- `SOURCE_FETCH_RETRIES`: Retry count for transient XMLTV source download failures.
+- `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
+- `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: In-memory API rate limit.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
 - `EXPORT_FUTURE_DAYS`: Future programme window included in generated feeds.
 - `ENABLE_DEBUG_ROUTES`: Enables admin-protected debug routes when `true`.
 - `TMDB_API_KEY`: Optional programme enrichment key.
+- `RUN_MIGRATIONS`: Set to `true` in Docker deployments to run `prisma migrate deploy` before app start.
+- `BACKUP_DIR`: Directory used by database backup scripts.
+- `ENABLE_SCHEDULER`: Set to `false` on non-primary replicas.
+- `FEED_CACHE_MAX_AGE_SECONDS`: Cache-Control max-age for generated feed responses.
 
 ## Database Setup
 
@@ -123,6 +147,22 @@ curl -H "x-admin-token: dev-admin-token" \
 
 Admin upload and profile mutation routes require `x-admin-token`.
 
+URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
+`SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
+returns usable `ETag` or `Last-Modified` validators.
+
+## Job Runs
+
+The app records coarse job history in the `JobRun` table for scheduled imports,
+manual imports, and program retention. Source-level import details remain in the
+existing `ImportRun` table.
+
+```text
+GET /api/admin/jobs
+```
+
+The admin jobs endpoint requires `x-admin-token`.
+
 ## Metadata And Categories
 
 When source XMLTV files do not provide useful channel or programme categories,
@@ -156,10 +196,15 @@ Metadata and validation:
 ```bash
 curl http://localhost:3000/api/discovery/metadata
 curl http://localhost:3000/api/discovery/validation
+curl http://localhost:3000/api/discovery/quality
 ```
 
 Metadata includes total cache size, feed count, XML/GZip type, update time, and
 download counts where available.
+
+Feed quality scores combine validation status, channel/program counts, cache
+size, freshness, and download metadata. Scores are advisory and do not block
+feed serving.
 
 ## Export Tokens
 
@@ -202,15 +247,33 @@ Main admin views:
 
 The admin UI sends `x-admin-token` from the token input saved in local storage.
 
+## Observability
+
+Runtime monitoring is available at:
+
+```text
+GET /monitoring/metrics
+GET /ready
+```
+
+The response includes import status, channel/program counts, uptime, process
+memory, request totals, in-flight requests, status buckets, latency percentiles,
+and top routes by request count.
+
+`/ready` performs a lightweight database probe for load balancers and
+orchestrators.
+
 ## Discovery Endpoints
 
 ```text
+GET /ready
 GET /api/docs
 GET /api/discovery/manifest
 GET /api/discovery/countries
 GET /api/discovery/providers
 GET /api/discovery/metadata
 GET /api/discovery/validation
+GET /api/discovery/quality
 GET /api/stats/dashboard
 ```
 
@@ -258,7 +321,7 @@ docker compose up --build -d
 Apply the database schema:
 
 ```bash
-docker compose exec xmltv npx prisma db push
+docker compose exec xmltv npx prisma migrate deploy
 ```
 
 Follow logs:
@@ -268,8 +331,29 @@ docker compose logs -f xmltv
 ```
 
 The production image builds TypeScript, generates Prisma client files, prunes
-development dependencies, runs as the non-root `node` user, and exposes
-`/health`.
+development-only dependencies, can run migrations on start when
+`RUN_MIGRATIONS=true`, runs as the non-root `node` user, and exposes `/health`.
+
+## Backup And Recovery
+
+Database backups use `pg_dump` in custom format. The scripts require PostgreSQL
+client tools on the machine running the command.
+
+Create a backup:
+
+```bash
+npm run backup:db
+```
+
+Restore a backup:
+
+```bash
+npm run restore:db -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
+```
+
+Backups are written to `BACKUP_DIR`, defaulting to `backups/`, which is ignored
+by git. Stop writers or schedule backups during a quiet import window for the
+most consistent recovery point.
 
 ## Production Notes
 
@@ -277,8 +361,22 @@ development dependencies, runs as the non-root `node` user, and exposes
 - Use export tokens for feed consumers.
 - Keep `ENABLE_DEBUG_ROUTES=false` in production.
 - Rotate `ADMIN_TOKEN` before deployment.
+- Set `CORS_ORIGIN` to the public admin origin instead of `*` where possible.
+- Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports.
+- In multi-replica deployments, run `ENABLE_SCHEDULER=true` on only one replica.
+- Generated feeds send `Cache-Control` using `FEED_CACHE_MAX_AGE_SECONDS`.
+- The built-in rate limiter and request metrics are process-local; use external
+  rate limiting and metrics aggregation when scaling horizontally.
+
+## CI/CD
+
+GitHub Actions runs on pushes to `main`, pull requests, and manual dispatch. The
+workflow installs dependencies, generates Prisma client files, applies
+migrations with `prisma migrate deploy`, builds TypeScript, runs the smoke
+import, audits moderate vulnerabilities, and validates the Docker production
+image build.
 
 ## Final v3.0.0 Checklist
 

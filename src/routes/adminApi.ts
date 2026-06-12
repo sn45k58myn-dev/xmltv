@@ -9,6 +9,7 @@ import { mergeChannels } from '../premium/mergeEngine';
 import { getDashboardStats } from '../services/dashboardService';
 import { getFeedMetadata } from '../services/feedMetadata';
 import { validateCachedFeeds } from '../services/feedValidation';
+import { getFeedQuality } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 
 export const adminApi = Router();
@@ -23,11 +24,13 @@ adminApi.get('/summary', async (_req, res) => {
 adminApi.get('/analytics', async (_req, res) => res.json(await getDashboardStats()));
 adminApi.get('/metadata', async (_req, res) => res.json(await getFeedMetadata()));
 adminApi.get('/validation', async (_req, res) => res.json(await validateCachedFeeds()));
+adminApi.get('/quality', async (_req, res) => res.json(await getFeedQuality()));
 adminApi.get('/source-categories', async (_req, res) => res.json(await getSourceCategories()));
 adminApi.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 adminApi.post('/sources', async (req, res) => res.status(201).json(await prisma.source.create({ data: req.body })));
 adminApi.patch('/sources/:id', async (req, res) => res.json(await prisma.source.update({ where: { id: req.params.id }, data: req.body })));
 adminApi.get('/imports', async (_req, res) => res.json(await prisma.importRun.findMany({ include: { source: true }, orderBy: { startedAt: 'desc' }, take: 100 })));
+adminApi.get('/jobs', async (_req, res) => res.json(await prisma.jobRun.findMany({ orderBy: { startedAt: 'desc' }, take: 100 })));
 adminApi.get('/coverage', async (_req, res) => {
   const [
     channels,

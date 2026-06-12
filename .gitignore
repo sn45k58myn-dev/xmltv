@@ -10,3 +10,4 @@ data/*
 cache/
 *.xml
 *.xml.gz
+backups/

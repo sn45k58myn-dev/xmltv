@@ -12,6 +12,14 @@ const schema = z.object({
   CUSTOM_XMLTV_URLS: z.string().optional(),
   ADMIN_TOKEN: z.string().default('dev-admin-token'),
   PUBLIC_EXPORTS: z.string().default('false'),
+  CORS_ORIGIN: z.string().default('*'),
+  JSON_BODY_LIMIT: z.string().default('1mb'),
+  UPLOAD_MAX_MB: z.coerce.number().default(200),
+  TRUST_PROXY: z.string().default('false'),
+  SOURCE_FETCH_TIMEOUT_MS: z.coerce.number().default(60000),
+  SOURCE_FETCH_RETRIES: z.coerce.number().default(2),
+  SOURCE_RETRY_DELAY_MS: z.coerce.number().default(1000),
+  SOURCE_HEAD_TIMEOUT_MS: z.coerce.number().default(10000),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
   RATE_LIMIT_MAX: z.coerce.number().default(120),
   TMDB_API_KEY: z.string().optional(),
@@ -19,7 +27,9 @@ const schema = z.object({
   PROGRAM_RETENTION_DAYS: z.coerce.number().default(14),
   EXPORT_PAST_HOURS: z.coerce.number().default(12),
   EXPORT_FUTURE_DAYS: z.coerce.number().default(7),
-  ENABLE_DEBUG_ROUTES: z.string().default('false')
+  ENABLE_DEBUG_ROUTES: z.string().default('false'),
+  ENABLE_SCHEDULER: z.string().default('true'),
+  FEED_CACHE_MAX_AGE_SECONDS: z.coerce.number().default(300)
 });
 
 export const env = schema.parse(process.env);

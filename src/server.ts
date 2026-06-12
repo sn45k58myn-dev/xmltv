@@ -18,17 +18,45 @@ import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
 import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
 import { docsRoutes } from './routes/docsRoutes';
 import { requireAdmin } from './middleware/auth';
+import { securityHeaders } from './middleware/securityHeaders';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 import { buildManifest } from './services/manifestService';
 import { providerFeedKey } from './services/feedKeys';
+import { requestMetrics } from './monitoring/requestMetrics';
+import { runTrackedJob } from './jobs/jobRuns';
 
 const app = express();
-const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
+const upload = multer({
+  dest: path.join(process.cwd(), 'uploads'),
+  limits: {
+    fileSize: env.UPLOAD_MAX_MB * 1024 * 1024
+  }
+});
+const corsOrigins = env.CORS_ORIGIN
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
-app.use(express.json());
+if (env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
+
+app.use(securityHeaders);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('CORS origin not allowed'));
+  }
+}));
+app.use(express.json({
+  limit: env.JSON_BODY_LIMIT
+}));
 app.use(rateLimit);
+app.use(requestMetrics);
 
 app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
@@ -43,6 +71,21 @@ app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
+app.get('/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      ok: true,
+      database: true
+    });
+  } catch {
+    res.status(503).json({
+      ok: false,
+      database: false
+    });
+  }
+});
+
 app.get(
   '/manifest.json',
   async (_req, res) => {
@@ -55,27 +98,40 @@ app.get(
 app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
-  const sources = await prisma.source.findMany({
-    where: {
-      enabled: true
+  const results = await runTrackedJob(
+    'manual-imports',
+    'manual',
+    async () => {
+      const sources = await prisma.source.findMany({
+        where: {
+          enabled: true
+        },
+        orderBy: {
+          priority: 'asc'
+        }
+      });
+
+      const importResults = [];
+
+      for (const source of sources) {
+        importResults.push(
+          await runImport({
+            name: source.name,
+            type: source.type,
+            url: source.url ?? undefined,
+            priority: source.priority
+          })
+        );
+      }
+
+      return importResults;
     },
-    orderBy: {
-      priority: 'asc'
+    (importResults) => {
+      const failed = importResults.filter((result) => result.status === 'failed').length;
+
+      return `Imported ${importResults.length - failed}, failed ${failed}`;
     }
-  });
-
-  const results = [];
-
-  for (const source of sources) {
-    results.push(
-      await runImport({
-        name: source.name,
-        type: source.type,
-        url: source.url ?? undefined,
-        priority: source.priority
-      })
-    );
-  }
+  );
 
   res.json(results);
 });
@@ -163,14 +219,23 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
     'content-type',
     'application/gzip'
   );
+  setFeedCacheHeaders(res);
 
   res.send(gzip);
 });
+
+function setFeedCacheHeaders(res) {
+  res.setHeader(
+    'cache-control',
+    `public, max-age=${env.FEED_CACHE_MAX_AGE_SECONDS}`
+  );
+}
 
 function sendXml(
   res,
   xml
 ) {
+  setFeedCacheHeaders(res);
   res.setHeader(
     'content-type',
     'application/xml; charset=utf-8'
@@ -210,6 +275,7 @@ async function sendCachedCountryGzip(
     'content-type',
     'application/gzip'
   );
+  setFeedCacheHeaders(res);
 
   return res.send(gzip);
 }
@@ -239,7 +305,11 @@ app.get('/', (_req, res) => {
   `);
 });
 
-startImportScheduler();
+if (env.ENABLE_SCHEDULER === 'true') {
+  startImportScheduler();
+} else {
+  console.log('Import scheduler disabled');
+}
 
 if (env.ENABLE_DEBUG_ROUTES === 'true') {
   app.get('/debug/channels', requireAdmin, async (_req, res) => {
@@ -296,6 +366,27 @@ app.get('/coverage', requireAdmin, async (_req, res) => {
   });
 });
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
+});
+
+async function shutdown(signal: string) {
+  console.log(`Received ${signal}, shutting down`);
+
+  server.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    process.exit(1);
+  }, 10000).unref();
+}
+
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
+});
+
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
 });

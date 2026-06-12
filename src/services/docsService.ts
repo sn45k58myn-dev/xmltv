@@ -12,6 +12,7 @@ export function buildApiDocs() {
     },
     endpoints: [
       { method: 'GET', path: '/health', description: 'Basic health check.' },
+      { method: 'GET', path: '/ready', description: 'Readiness check with database probe.' },
       { method: 'GET', path: '/api/docs', description: 'Machine-readable endpoint catalogue.' },
       { method: 'GET', path: '/manifest.json', description: 'Public feed manifest.' },
       { method: 'GET', path: '/api/discovery/manifest', description: 'Feed discovery manifest.' },
@@ -19,6 +20,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/discovery/providers', description: 'Provider feed discovery from mappings.' },
       { method: 'GET', path: '/api/discovery/metadata', description: 'Cache and feed metadata.' },
       { method: 'GET', path: '/api/discovery/validation', description: 'Cached feed validation summary.' },
+      { method: 'GET', path: '/api/discovery/quality', description: 'Cached feed quality scores.' },
       { method: 'GET', path: '/country/:country.xml', description: 'Cached country XMLTV feed.' },
       { method: 'GET', path: '/country/:country.xml.gz', description: 'Cached compressed country XMLTV feed.' },
       { method: 'GET', path: '/sports.xml', description: 'Dynamic sports category XMLTV feed.' },
@@ -31,6 +33,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
       { method: 'GET', path: '/api/admin/validation', description: 'Admin feed validation details.' },
+      { method: 'GET', path: '/api/admin/quality', description: 'Admin feed quality details.' },
       { method: 'GET', path: '/api/admin/metadata', description: 'Admin feed metadata details.' }
     ]
   };
