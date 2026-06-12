@@ -332,6 +332,14 @@ development dependencies, runs as the non-root `node` user, and exposes
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports.
 
+## CI/CD
+
+GitHub Actions runs on pushes to `main`, pull requests, and manual dispatch. The
+workflow installs dependencies, generates Prisma client files, applies
+migrations with `prisma migrate deploy`, builds TypeScript, runs the smoke
+import, audits moderate vulnerabilities, and validates the Docker production
+image build.
+
 ## Final v3.0.0 Checklist
 
 ```bash
