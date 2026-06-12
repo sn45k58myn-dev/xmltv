@@ -9,6 +9,8 @@ const schema = z.object({
   SCHEDULES_DIRECT_PASSWORD: z.string().optional(),
   SCHEDULES_DIRECT_COUNTRY: z.string().default('GBR'),
   SCHEDULES_DIRECT_LINEUP: z.string().optional(),
+  SCHEDULES_DIRECT_DAYS: z.coerce.number().default(7),
+  SCHEDULES_DIRECT_BASE_URL: z.string().default('https://json.schedulesdirect.org/20141201'),
   CUSTOM_XMLTV_URLS: z.string().optional(),
   ADMIN_TOKEN: z.string().default('dev-admin-token'),
   PUBLIC_EXPORTS: z.string().default('false'),
