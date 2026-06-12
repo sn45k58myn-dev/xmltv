@@ -59,6 +59,10 @@ CORS_ORIGIN=*
 JSON_BODY_LIMIT=1mb
 UPLOAD_MAX_MB=200
 TRUST_PROXY=false
+SOURCE_FETCH_TIMEOUT_MS=60000
+SOURCE_FETCH_RETRIES=2
+SOURCE_RETRY_DELAY_MS=1000
+SOURCE_HEAD_TIMEOUT_MS=10000
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=120
 TMDB_API_KEY=
@@ -81,6 +85,10 @@ Important variables:
 - `JSON_BODY_LIMIT`: Maximum JSON request body size.
 - `UPLOAD_MAX_MB`: Maximum XMLTV upload size in megabytes.
 - `TRUST_PROXY`: Set to `true` when running behind a trusted reverse proxy.
+- `SOURCE_FETCH_TIMEOUT_MS`: Timeout for XMLTV source downloads.
+- `SOURCE_FETCH_RETRIES`: Retry count for transient XMLTV source download failures.
+- `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
+- `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: In-memory API rate limit.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
@@ -130,6 +138,10 @@ curl -H "x-admin-token: dev-admin-token" \
 ```
 
 Admin upload and profile mutation routes require `x-admin-token`.
+
+URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
+`SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
+returns usable `ETag` or `Last-Modified` validators.
 
 ## Metadata And Categories
 
