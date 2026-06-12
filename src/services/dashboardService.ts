@@ -12,6 +12,8 @@ export async function getDashboardStats() {
     downloads,
     feedSizes,
     lastImport,
+    recentImports,
+    recentFailedImports,
     recentFailures
   ] = await Promise.all([
     prisma.channel.count(),
@@ -32,6 +34,27 @@ export async function getDashboardStats() {
       include: {
         source: true
       }
+    }),
+    prisma.importRun.findMany({
+      orderBy: {
+        startedAt: 'desc'
+      },
+      include: {
+        source: true
+      },
+      take: 20
+    }),
+    prisma.importRun.findMany({
+      where: {
+        status: 'failed'
+      },
+      orderBy: {
+        startedAt: 'desc'
+      },
+      include: {
+        source: true
+      },
+      take: 10
     }),
     prisma.importRun.count({
       where: {
@@ -64,6 +87,26 @@ export async function getDashboardStats() {
     recentFailures,
     topFeeds: downloads.slice(0, 10),
     feeds: feedSizes,
+    recentImports: recentImports.map((run) => ({
+      id: run.id,
+      source: run.source.name,
+      status: run.status,
+      channelsSeen: run.channelsSeen,
+      programsSeen: run.programsSeen,
+      channelsCreated: run.channelsCreated,
+      programsCreated: run.programsCreated,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      errors: run.errors
+    })),
+    recentFailedImports: recentFailedImports.map((run) => ({
+      id: run.id,
+      source: run.source.name,
+      status: run.status,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      errors: run.errors
+    })),
     lastImport,
     lastImportStatus: lastImport?.status,
     lastImportAt: lastImport?.finishedAt ?? lastImport?.startedAt
