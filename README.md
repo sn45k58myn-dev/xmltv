@@ -373,10 +373,15 @@ most consistent recovery point.
 ## CI/CD
 
 GitHub Actions runs on pushes to `main`, pull requests, and manual dispatch. The
-workflow installs dependencies, generates Prisma client files, applies
-migrations with `prisma migrate deploy`, builds TypeScript, runs the smoke
-import, audits moderate vulnerabilities, and validates the Docker production
-image build.
+workflow installs dependencies with `npm ci`, generates Prisma client files with
+`npx prisma generate`, applies migrations with `npx prisma migrate deploy`,
+verifies `migrate deploy` against a fresh PostgreSQL schema, builds TypeScript,
+runs the smoke import, audits moderate vulnerabilities, and validates the Docker
+production image build.
+
+The v3 release currently has no moderate, high, or critical `npm audit`
+findings. CI keeps `npm audit --audit-level=moderate` blocking so runtime and
+build dependency vulnerabilities are caught early.
 
 ## Final v3.0.0 Checklist
 
