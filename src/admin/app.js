@@ -2,17 +2,65 @@ const tokenInput = () => document.getElementById('token');
 const content = () => document.getElementById('content');
 const cardsEl = () => document.getElementById('cards');
 
-tokenInput().value = localStorage.adminToken || '';
+let currentAdminToken = readStoredAdminToken();
+
+tokenInput().value = currentAdminToken;
+
+function readStoredAdminToken() {
+  try {
+    return localStorage.getItem('adminToken') || localStorage.adminToken || readCookie('adminToken');
+  } catch {
+    return readCookie('adminToken');
+  }
+}
+
+function storeAdminToken(token) {
+  currentAdminToken = token;
+
+  try {
+    localStorage.setItem('adminToken', token);
+    localStorage.adminToken = token;
+  } catch {
+    // Keep the token for the current page session if browser storage is blocked.
+  }
+
+  writeCookie('adminToken', token);
+}
+
+function adminToken() {
+  return tokenInput().value.trim() || currentAdminToken;
+}
+
+function readCookie(name) {
+  const prefix = `${name}=`;
+  const cookie = document.cookie
+    .split(';')
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(prefix));
+
+  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : '';
+}
+
+function writeCookie(name, value) {
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/admin; max-age=31536000; SameSite=Lax`;
+}
 
 function saveToken() {
-  localStorage.adminToken = tokenInput().value.trim();
-  tokenInput().value = localStorage.adminToken;
+  const token = tokenInput().value.trim();
+
+  if (!token) {
+    showAuthRequired();
+    return;
+  }
+
+  storeAdminToken(token);
+  tokenInput().value = token;
   showNotice('Admin token saved.');
   loadDashboard();
 }
 
 function hasAdminToken() {
-  return Boolean(tokenInput().value.trim());
+  return Boolean(adminToken());
 }
 
 function showAuthRequired() {
@@ -34,7 +82,7 @@ async function api(path, opts = {}) {
     ...opts,
     headers: {
       'content-type': 'application/json',
-      'x-admin-token': tokenInput().value.trim(),
+      'x-admin-token': adminToken(),
       ...opts.headers
     }
   });
@@ -68,7 +116,7 @@ function showNotice(message) {
 function showError(error) {
   const message = error.message || String(error);
 
-  if (message.includes('Admin token required')) {
+  if (message.includes('Admin token required. Enter your admin token')) {
     showAuthRequired();
     return;
   }
@@ -147,7 +195,7 @@ async function fetchJson(path, opts = {}) {
     ...opts,
     headers: {
       'content-type': 'application/json',
-      'x-admin-token': tokenInput().value.trim(),
+      'x-admin-token': adminToken(),
       ...opts.headers
     }
   });
