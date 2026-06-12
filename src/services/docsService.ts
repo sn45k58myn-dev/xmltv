@@ -25,6 +25,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/movies.xml', description: 'Dynamic movies category XMLTV feed.' },
       { method: 'GET', path: '/profile/:id.xml', description: 'Dynamic export profile XMLTV feed.' },
       { method: 'GET', path: '/provider/:id.xml', description: 'Dynamic provider XMLTV feed.' },
+      { method: 'GET', path: '/provider/:id.xml.gz', description: 'Cached compressed provider XMLTV feed.' },
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
       { method: 'GET', path: '/api/admin/validation', description: 'Admin feed validation details.' },

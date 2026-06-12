@@ -21,6 +21,7 @@ import { requireAdmin } from './middleware/auth';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 import { buildManifest } from './services/manifestService';
+import { providerFeedKey } from './services/feedKeys';
 
 const app = express();
 const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
@@ -95,23 +96,7 @@ app.get(
   requireExportToken,
   async (req, res) => {
     const country = req.params.country.toUpperCase();
-
-    const xml = await getCachedFeed(country);
-
-    if (!xml) {
-      return res.status(404).send('Feed not generated');
-    }
-
-    await recordFeedDownload(
-      `${country}.xml`
-    );
-
-    res.setHeader(
-      'content-type',
-      'application/xml; charset=utf-8'
-    );
-
-    res.send(xml);
+    return sendCachedCountryXml(res, country);
   }
 );
 
@@ -120,48 +105,58 @@ app.get(
   requireExportToken,
   async (req, res) => {
     const country = req.params.country.toUpperCase();
-
-    const gzip = await getCachedFeedGzip(country);
-
-    if (!gzip) {
-      return res.status(404).send('Feed not generated');
-    }
-
-    await recordFeedDownload(
-      `${country}.xml.gz`
-    );
-
-    res.setHeader(
-      'content-type',
-      'application/gzip'
-    );
-
-    res.send(gzip);
+    return sendCachedCountryGzip(res, country);
   }
 );
 
 // Legacy compatibility routes
 
-app.get('/uk.xml', (_req, res) =>
-  res.redirect('/country/GB.xml')
+app.get('/uk.xml', requireExportToken, (_req, res) =>
+  sendCachedCountryXml(res, 'GB')
 );
 
-app.get('/uk.xml.gz', (_req, res) =>
-  res.redirect('/country/GB.xml.gz')
+app.get('/uk.xml.gz', requireExportToken, (_req, res) =>
+  sendCachedCountryGzip(res, 'GB')
 );
 
-app.get('/us.xml', (_req, res) =>
-  res.redirect('/country/US.xml')
+app.get('/us.xml', requireExportToken, (_req, res) =>
+  sendCachedCountryXml(res, 'US')
 );
 
-app.get('/us.xml.gz', (_req, res) =>
-  res.redirect('/country/US.xml.gz')
+app.get('/us.xml.gz', requireExportToken, (_req, res) =>
+  sendCachedCountryGzip(res, 'US')
 );
 
 app.get('/sports.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('sports')));
 app.get('/movies.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('movies')));
 app.get('/profile/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProfile(req.params.id)));
-app.get('/provider/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProvider(req.params.id)));
+app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
+  const key = providerFeedKey(req.params.id);
+  const cached = await getCachedFeed(key);
+  const xml = cached ?? await exportProvider(req.params.id);
+
+  await recordFeedDownload(`${key}.xml`);
+
+  sendXml(res, xml);
+});
+
+app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
+  const key = providerFeedKey(req.params.id);
+  const gzip = await getCachedFeedGzip(key);
+
+  if (!gzip) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  await recordFeedDownload(`${key}.xml.gz`);
+
+  res.setHeader(
+    'content-type',
+    'application/gzip'
+  );
+
+  res.send(gzip);
+});
 
 function sendXml(
   res,
@@ -173,6 +168,41 @@ function sendXml(
   );
 
   res.send(xml);
+}
+
+async function sendCachedCountryXml(
+  res,
+  country: string
+) {
+  const xml = await getCachedFeed(country);
+
+  if (!xml) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  await recordFeedDownload(`${country}.xml`);
+
+  return sendXml(res, xml);
+}
+
+async function sendCachedCountryGzip(
+  res,
+  country: string
+) {
+  const gzip = await getCachedFeedGzip(country);
+
+  if (!gzip) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  await recordFeedDownload(`${country}.xml.gz`);
+
+  res.setHeader(
+    'content-type',
+    'application/gzip'
+  );
+
+  return res.send(gzip);
 }
 
 app.get('/', (_req, res) => {

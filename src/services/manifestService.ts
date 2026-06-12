@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma';
 import { appInfo } from '../config/appInfo';
+import { providerFeedKey } from './feedKeys';
 
 export async function getCountryFeeds() {
   const rows = await prisma.channel.groupBy({
@@ -37,9 +38,11 @@ export async function getProviderFeeds() {
   });
 
   return rows.map((row) => ({
+    feedKey: providerFeedKey(row.providerId),
     providerId: row.providerId,
     channels: row._count,
-    xml: `/provider/${row.providerId}.xml`
+    xml: `/provider/${row.providerId}.xml`,
+    gzip: `/provider/${row.providerId}.xml.gz`
   }));
 }
 

@@ -1,12 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { exportCountry } from '../exports/exportService';
+import { exportCountry, exportProvider } from '../exports/exportService';
 import { prisma } from '../db/prisma';
 import {
   setCachedFeed,
   setCachedFeedGzip
 } from './cacheService';
 import { compressXml } from './gzipService';
+import { providerFeedKey } from './feedKeys';
 
 const CACHE_DIR = path.join(
   process.cwd(),
@@ -55,6 +56,31 @@ export async function rebuildFeeds() {
 
     await setCachedFeedGzip(
       country,
+      await compressXml(xml)
+    );
+  }
+
+  const providers = await prisma.mapping.groupBy({
+    by: ['providerId'],
+    orderBy: {
+      providerId: 'asc'
+    }
+  });
+
+  for (const provider of providers) {
+    const key = providerFeedKey(provider.providerId);
+
+    console.log(`Building provider feed for ${provider.providerId}`);
+
+    const xml = await exportProvider(provider.providerId);
+
+    await setCachedFeed(
+      key,
+      xml
+    );
+
+    await setCachedFeedGzip(
+      key,
       await compressXml(xml)
     );
   }
