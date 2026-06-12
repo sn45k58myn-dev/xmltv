@@ -64,6 +64,9 @@ SOURCE_FETCH_TIMEOUT_MS=60000
 SOURCE_FETCH_RETRIES=2
 SOURCE_RETRY_DELAY_MS=1000
 SOURCE_HEAD_TIMEOUT_MS=10000
+SOURCE_FAILURE_BACKOFF_MINUTES=30
+IMPORT_TIMEOUT_MS=1800000
+SCHEDULER_LOCK_TTL_MS=3600000
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=120
 TMDB_API_KEY=
@@ -98,6 +101,9 @@ Important variables:
 - `SOURCE_FETCH_RETRIES`: Retry count for transient XMLTV source download failures.
 - `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
 - `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.
+- `SOURCE_FAILURE_BACKOFF_MINUTES`: Scheduler skips a source for this long after its latest failed health check.
+- `IMPORT_TIMEOUT_MS`: Maximum wall-clock time for one scheduled source import.
+- `SCHEDULER_LOCK_TTL_MS`: Database job lock TTL for scheduled imports and retention jobs.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: In-memory API rate limit.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
@@ -165,6 +171,11 @@ success or failure.
 URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
 `SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
 returns usable `ETag` or `Last-Modified` validators.
+
+Scheduled imports use database-backed job locks so only one scheduler owner runs
+the import or retention job at a time. A recent failed source health check causes
+the scheduler to skip that source until `SOURCE_FAILURE_BACKOFF_MINUTES` has
+elapsed. Each scheduled source import is also guarded by `IMPORT_TIMEOUT_MS`.
 
 ## Job Runs
 
@@ -403,7 +414,9 @@ point.
 - Set `CORS_ORIGIN` to the public admin origin instead of `*` where possible.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
-- Rebuild cached feeds after source or mapping changes by running imports.
+- Rebuild cached feeds after source or mapping changes by running imports. Feed
+  cache writes are atomic; old cache files remain available until replacements
+  are fully written.
 - In multi-container or multi-replica deployments, run `ENABLE_SCHEDULER=true`
   on only one scheduler owner and set it to `false` everywhere else.
 - Generated feeds send `Cache-Control` using `FEED_CACHE_MAX_AGE_SECONDS`.
