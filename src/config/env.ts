@@ -27,6 +27,8 @@ const schema = z.object({
   SCHEDULER_LOCK_TTL_MS: z.coerce.number().default(3600000),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
   RATE_LIMIT_MAX: z.coerce.number().default(120),
+  RATE_LIMIT_STORE: z.enum(['memory', 'redis']).default('memory'),
+  REDIS_URL: z.string().optional(),
   TMDB_API_KEY: z.string().optional(),
   PREMIUM_ENABLED: z.string().default('true'),
   PROGRAM_RETENTION_DAYS: z.coerce.number().default(14),

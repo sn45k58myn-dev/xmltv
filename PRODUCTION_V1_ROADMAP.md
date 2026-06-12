@@ -25,6 +25,7 @@ audit logging, and production deployment documentation.
 - Backup verification command for disposable restore-check databases
 - Hardened Compose defaults: restart policy, readiness healthcheck, dropped
   capabilities, no-new-privileges, and `/tmp` tmpfs
+- Optional Redis-backed API rate limiting for multi-replica deployments
 
 ## Current Production Baseline
 
@@ -61,7 +62,6 @@ Deployment requirements:
 
 ## Remaining Production Enhancements
 
-- Optional Redis-backed distributed rate limiting for multi-replica deployments
 - Optional Redis-backed cache metadata for larger installations
 - Dedicated worker process or queue for long-running imports
 - More complete feed quality scoring and historical quality trends
