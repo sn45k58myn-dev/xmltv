@@ -26,6 +26,7 @@ audit logging, and production deployment documentation.
 - Hardened Compose defaults: restart policy, readiness healthcheck, dropped
   capabilities, no-new-privileges, and `/tmp` tmpfs
 - Optional Redis-backed API rate limiting for multi-replica deployments
+- Persistent feed quality snapshots with admin quality history
 
 ## Current Production Baseline
 
@@ -64,7 +65,6 @@ Deployment requirements:
 
 - Optional Redis-backed cache metadata for larger installations
 - Dedicated worker process or queue for long-running imports
-- More complete feed quality scoring and historical quality trends
 - Backup automation examples for hosted PostgreSQL providers
 - Load testing guidance and large-feed performance benchmarks
 

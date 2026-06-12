@@ -217,3 +217,19 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([entityType, createdAt])
 }
+
+model FeedQualitySnapshot {
+  id        String   @id @default(cuid())
+  feedKey   String
+  score     Int
+  grade     String
+  valid     Boolean
+  channels  Int      @default(0)
+  programs  Int      @default(0)
+  bytes     Int      @default(0)
+  reasons   String?
+  createdAt DateTime @default(now())
+
+  @@index([feedKey, createdAt])
+  @@index([grade, createdAt])
+}
