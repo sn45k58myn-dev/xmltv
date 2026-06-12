@@ -89,19 +89,120 @@ async function load(name) {
   if (name === 'sources') return loadSourcesUI();
   if (name === 'export-tokens') return loadTokensUI();
   if (name === 'profiles') return loadProfilesUI();
+  if (name === 'summary') return loadDashboard();
 
   try {
     const data = await api(name);
 
-    if (name === 'summary') {
-      cards(data);
-      content().innerHTML = '<h2>Dashboard</h2><p class="muted">System summary loaded.</p>';
-      return;
-    }
-
     content().innerHTML = `<h2>${escapeHtml(name)}</h2>${table(Array.isArray(data) ? data : data.items || [data])}`;
   } catch (error) {
     showError(error);
+  }
+}
+
+async function fetchJson(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: {
+      'content-type': 'application/json',
+      'x-admin-token': tokenInput().value,
+      ...opts.headers
+    }
+  });
+
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+
+  return res.json();
+}
+
+async function loadDashboard() {
+  cardsEl().innerHTML = '';
+  content().innerHTML = '<p class="muted">Loading dashboard...</p>';
+
+  try {
+    const [
+      dashboard,
+      downloads,
+      feedSizes,
+      imports,
+      health
+    ] = await Promise.all([
+      fetchJson('/api/stats/dashboard'),
+      fetchJson('/api/stats/downloads'),
+      fetchJson('/api/stats/feeds'),
+      fetchJson('/api/stats/imports'),
+      fetchJson('/api/source-health')
+    ]);
+
+    cards({
+      channels: dashboard.channels,
+      programs: dashboard.programs,
+      sources: dashboard.sources,
+      enabledSources: dashboard.enabledSources,
+      downloads: dashboard.totalDownloads,
+      cacheMB: dashboard.cacheSizeMB,
+      failedImports24h: dashboard.recentFailures,
+      lastImport: dashboard.lastImportStatus || 'none'
+    });
+    content().innerHTML = `
+      <h2>Dashboard</h2>
+      <div class="card">
+        <button onclick="loadDashboardMetadata()">Metadata</button>
+        <button onclick="loadDashboardValidation()">Validation</button>
+      </div>
+      <h3>Downloads</h3>
+      ${table(downloads.slice(0, 20))}
+      <h3>Feed Sizes</h3>
+      ${table(feedSizes)}
+      <h3>Recent Imports</h3>
+      ${table(imports.slice(0, 20))}
+      <h3>Source Health</h3>
+      ${table(health.slice(0, 20))}
+      <div id="dashboard-detail"></div>
+    `;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function loadDashboardMetadata() {
+  const target = document.getElementById('dashboard-detail');
+  target.innerHTML = '<p class="muted">Loading metadata...</p>';
+
+  try {
+    const metadata = await api('metadata');
+    target.innerHTML = `
+      <h3>Metadata</h3>
+      <p class="muted">Total cache: ${fmt(metadata.totalCacheMegabytes ?? 0)} MB</p>
+      ${table(metadata.cachedFeeds)}
+      <h3>Country Coverage</h3>
+      ${table(metadata.countries)}
+    `;
+  } catch (error) {
+    target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
+  }
+}
+
+async function loadDashboardValidation() {
+  const target = document.getElementById('dashboard-detail');
+  target.innerHTML = '<p class="muted">Running validation...</p>';
+
+  try {
+    const validation = await api('validation');
+    target.innerHTML = `
+      <h3>Validation</h3>
+      ${table([{
+        valid: validation.valid,
+        checked: validation.checked,
+        invalid: validation.invalid,
+        generatedAt: validation.generatedAt
+      }])}
+      ${table(validation.feeds)}
+    `;
+  } catch (error) {
+    target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
   }
 }
 
