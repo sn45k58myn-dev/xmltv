@@ -6,7 +6,7 @@ const suffixes = ['hd', 'fhd', 'uhd', '4k', 'plus', '+1', 'uk', 'us'];
 
 export function generateAliasCandidates(name: string): string[] {
   const base = name.replace(/\s+/g, ' ').trim();
-  const stripped = base.replace(/(HD|FHD|UHD|4K|UK|US)/gi, '').replace(/\s+/g, ' ').trim();
+  const stripped = base.replace(/\b(HD|FHD|UHD|4K|UK|US)\b/gi, '').replace(/\s+/g, ' ').trim();
   return Array.from(new Set([
     base,
     stripped,

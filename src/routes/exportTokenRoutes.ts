@@ -25,7 +25,7 @@ exportTokenRoutes.post('/', async (req, res) => {
       }
     });
     res.status(201).json(newToken);
-  } catch (error) {
+  } catch (_error) {
     res.status(400).json({ error: 'Failed to create export token' });
   }
 });
@@ -36,7 +36,7 @@ exportTokenRoutes.delete('/:id', async (req, res) => {
       where: { id: req.params.id }
     });
     res.status(204).end();
-  } catch (error) {
+  } catch (_error) {
     res.status(400).json({ error: 'Failed to delete export token' });
   }
 });

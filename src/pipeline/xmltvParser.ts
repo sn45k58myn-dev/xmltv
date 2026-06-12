@@ -6,7 +6,7 @@ export interface ParsedXmltv {
 }
 
 export async function parseXmltvFile(filePath: string): Promise<ParsedXmltv> {
-  const xml = fs.readFileSync(filePath, 'utf8');
+  const _xml = fs.readFileSync(filePath, 'utf8');
 
   return {
     channels: [],

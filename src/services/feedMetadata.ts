@@ -26,6 +26,13 @@ type CachedFeedMetadata = {
   lastDownloaded?: string;
 };
 
+type CountryProgramRow = {
+  country: string;
+  programs: bigint | number | null;
+  firstProgramStart: Date | null;
+  lastProgramStop: Date | null;
+};
+
 function feedKind(file: string) {
   if (file.endsWith('.xml.gz')) return 'gzip';
   if (file.endsWith('.xml')) return 'xml';
@@ -63,12 +70,7 @@ async function getCountryMetadata(): Promise<CountryMetadata[]> {
         country: 'asc'
       }
     }),
-    prisma.$queryRaw<Array<{
-    country: string;
-    programs: bigint | number | null;
-    firstProgramStart: Date | null;
-    lastProgramStop: Date | null;
-  }>>`
+    prisma.$queryRaw<CountryProgramRow[]>`
     SELECT
       c.country AS "country",
       COUNT(p.id) AS "programs",

@@ -63,7 +63,7 @@ export async function sourceChanged(
     }
 
     return changed;
-  } catch (error) {
+  } catch (_error) {
     console.warn(
       `Unable to check source freshness, importing anyway`
     );

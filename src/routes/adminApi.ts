@@ -15,6 +15,26 @@ import { getSourceCategories } from '../services/sourceCategoryService';
 export const adminApi = Router();
 adminApi.use(requireAdmin);
 
+type CoverageChannelRow = {
+  id: string;
+  displayName: string;
+  country: string | null;
+  category: string | null;
+};
+
+type CoverageProgramGroupRow = {
+  channelId: string;
+  _count: {
+    _all: number;
+  };
+  _min: {
+    start: Date | null;
+  };
+  _max: {
+    stop: Date | null;
+  };
+};
+
 adminApi.get('/summary', async (_req, res) => {
   const [sources, channels, programs, aliases, profiles, runs, tokens] = await Promise.all([
     prisma.source.count(), prisma.channel.count(), prisma.program.count(), prisma.alias.count(), prisma.exportProfile.count(), prisma.importRun.count(), prisma.exportToken.count()
@@ -76,11 +96,13 @@ adminApi.get('/coverage', async (_req, res) => {
       }
     })
   ]);
+  const typedChannels: CoverageChannelRow[] = channels;
+  const typedProgramStats: CoverageProgramGroupRow[] = programStats;
   const statsByChannel = new Map(
-    programStats.map((row) => [row.channelId, row])
+    typedProgramStats.map((row) => [row.channelId, row])
   );
 
-  res.json(channels.map((channel) => {
+  res.json(typedChannels.map((channel) => {
     const stats = statsByChannel.get(channel.id);
 
     return {

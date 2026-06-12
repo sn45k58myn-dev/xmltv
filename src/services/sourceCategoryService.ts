@@ -8,6 +8,21 @@ type SourceCategoryRow = {
   programs: number;
 };
 
+type SourceCategoryGroupRow = {
+  sourceId: string | null;
+  category: string | null;
+  _count: {
+    _all: number;
+  };
+};
+
+type UncategorizedSourceGroupRow = {
+  sourceId: string | null;
+  _count: {
+    _all: number;
+  };
+};
+
 export async function getSourceCategories() {
   const [
     sources,
@@ -63,10 +78,12 @@ export async function getSourceCategories() {
     })
   ]);
 
+  const typedCategoryRows: SourceCategoryGroupRow[] = categoryRows;
+  const typedUncategorizedRows: UncategorizedSourceGroupRow[] = uncategorizedRows;
   const sourcesById = new Map(
     sources.map((source) => [source.id, source])
   );
-  const rows: SourceCategoryRow[] = categoryRows.flatMap((row) => {
+  const rows: SourceCategoryRow[] = typedCategoryRows.flatMap((row) => {
     if (!row.sourceId) return [];
 
     const source = sourcesById.get(row.sourceId);
@@ -80,7 +97,7 @@ export async function getSourceCategories() {
     }];
   });
 
-  for (const row of uncategorizedRows) {
+  for (const row of typedUncategorizedRows) {
     if (!row.sourceId) continue;
 
     const source = sourcesById.get(row.sourceId);
