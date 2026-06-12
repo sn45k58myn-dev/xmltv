@@ -41,7 +41,9 @@ Use the `ADMIN_TOKEN` value from `.env` in the admin UI token field.
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and adjust values for your machine or deployment.
+Copy `.env.example` to `.env` for local development, or
+`.env.production.example` to `.env` for production, then adjust values for your
+machine or deployment.
 
 ```env
 DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public"
@@ -369,7 +371,7 @@ Legacy redirects:
 
 ## Docker Usage
 
-Start the full stack:
+Start the full stack for local or single-host production testing:
 
 ```bash
 cp .env.example .env
@@ -392,6 +394,79 @@ docker compose logs -f xmltv
 The production image builds TypeScript, generates Prisma client files, prunes
 development-only dependencies, can run migrations on start when
 `RUN_MIGRATIONS=true`, runs as the non-root `node` user, and exposes `/health`.
+
+## Production Deployment
+
+Use `.env.production.example` as the deployment template:
+
+```bash
+cp .env.production.example .env
+```
+
+Before starting production, set:
+
+- `DATABASE_URL` to the production PostgreSQL database.
+- `ADMIN_TOKEN` to a long random value.
+- `BASE_URL` and `CORS_ORIGIN` to the public HTTPS origin.
+- `PUBLIC_EXPORTS=false` unless feeds are intentionally public.
+- `TRUST_PROXY=true` only when the app is behind a trusted reverse proxy.
+
+Recommended deployment shape:
+
+```text
+HTTPS reverse proxy -> xmltv container -> PostgreSQL
+```
+
+The reverse proxy should terminate HTTPS, forward `x-forwarded-*` headers, and
+proxy `/admin`, `/api`, generated feed paths, `/health`, `/ready`, and
+`/manifest.json` to the app container. Keep secrets in the platform secret store
+or an unreadable-by-users env file; do not bake `.env` into images.
+
+Persistent volumes:
+
+```text
+PostgreSQL data
+cache/
+data/
+uploads/
+backups/ or external backup storage
+```
+
+For schema changes, run:
+
+```bash
+npm ci
+npx prisma generate
+npx prisma migrate deploy
+npm run build
+```
+
+Docker Compose can run migrations at container start with `RUN_MIGRATIONS=true`,
+but clustered deployments should prefer one release job or one startup replica
+running migrations before scaling the app. Prisma uses advisory locking for
+`migrate deploy`, but deployments should still avoid racing many replicas
+through migrations at once.
+
+Multi-container scheduler rule:
+
+```text
+ENABLE_SCHEDULER=true   on one scheduler owner
+ENABLE_SCHEDULER=false  on all other app replicas
+```
+
+The scheduler also uses database job locks, but a single scheduler owner keeps
+operations predictable and avoids unnecessary wakeups.
+
+Health checks:
+
+```bash
+curl -f https://xmltv.example.com/health
+curl -f https://xmltv.example.com/ready
+```
+
+`/health` confirms the HTTP process is alive. `/ready` performs a lightweight
+database probe and should be used for readiness checks and load balancer
+rotation.
 
 ## Backup And Recovery
 
@@ -419,6 +494,19 @@ This runs `scripts/restore-postgres.js`, which calls `pg_restore --clean
 `DATABASE_URL` before running it. `BACKUP_DIR` is ignored by git. Stop writers or
 schedule backups during a quiet import window for the most consistent recovery
 point.
+
+Verify restore into a disposable database before trusting a backup:
+
+```bash
+createdb xmltv_restore_check
+DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
+  npm run restore:db -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
+DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
+  npx prisma migrate deploy
+DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public" \
+  node -e 'const {PrismaClient}=require("@prisma/client"); const p=new PrismaClient(); p.channel.count().then((count)=>{ console.log({channels: count}); return p.$disconnect(); })'
+dropdb xmltv_restore_check
+```
 
 ## Production Notes
 
@@ -479,9 +567,3 @@ git push origin v3.0.0
 
 If `v3.0.0` already exists, verify it points at the intended final release commit
 before moving it.
-
-## Schedules Direct
-
-Schedules Direct is scaffolded as a source type. The login/token and lineup
-conversion should be completed in `src/sources/fetchers.ts`, returning XMLTV
-text into the existing parser and import pipeline.
