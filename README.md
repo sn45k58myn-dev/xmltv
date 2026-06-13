@@ -434,7 +434,8 @@ GET /ready
 channel/program counts, uptime, process memory, request totals, in-flight
 requests, status buckets, latency percentiles, and top routes by request count.
 Set `MONITORING_TOKEN` in production if these endpoints are reachable outside a
-trusted private network.
+trusted private network. The Admin UI Monitoring view has a separate monitoring
+token field and sends it as `x-monitoring-token`.
 
 `/ready` performs a lightweight database probe for load balancers and
 orchestrators.

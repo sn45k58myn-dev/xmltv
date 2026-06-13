@@ -3,6 +3,7 @@ const content = () => document.getElementById('content');
 const cardsEl = () => document.getElementById('cards');
 
 let currentAdminToken = readStoredAdminToken();
+let currentMonitoringToken = readStoredMonitoringToken();
 
 tokenInput().value = currentAdminToken;
 
@@ -40,8 +41,45 @@ function clearStoredAdminToken() {
   writeCookie('adminToken', '', 0);
 }
 
+function readStoredMonitoringToken() {
+  try {
+    return localStorage.getItem('monitoringToken') || readCookie('monitoringToken');
+  } catch {
+    return readCookie('monitoringToken');
+  }
+}
+
+function storeMonitoringToken(token) {
+  currentMonitoringToken = token;
+
+  try {
+    localStorage.setItem('monitoringToken', token);
+  } catch {
+    // Keep the token for the current page session if browser storage is blocked.
+  }
+
+  writeCookie('monitoringToken', token);
+}
+
+function clearMonitoringToken() {
+  currentMonitoringToken = '';
+
+  try {
+    localStorage.removeItem('monitoringToken');
+  } catch {
+    // Storage may be blocked; clearing the in-page token still helps.
+  }
+
+  writeCookie('monitoringToken', '', 0);
+  loadMonitoring();
+}
+
 function adminToken() {
   return tokenInput().value.trim() || currentAdminToken;
+}
+
+function monitoringToken() {
+  return document.getElementById('monitoring-token')?.value.trim() || currentMonitoringToken;
 }
 
 function readCookie(name) {
@@ -890,7 +928,12 @@ async function loadMonitoring() {
   cardsEl().innerHTML = '';
 
   try {
-    const res = await fetch('/monitoring/metrics');
+    const headers = monitoringToken()
+      ? { 'x-monitoring-token': monitoringToken() }
+      : {};
+    const res = await fetch('/monitoring/metrics', {
+      headers
+    });
 
     if (!res.ok) throw new Error(await res.text());
 
@@ -905,14 +948,41 @@ async function loadMonitoring() {
     });
     content().innerHTML = `
       <h2>Monitoring</h2>
+      <div class="card">
+        <form data-submit-action="save-monitoring-token">
+          <label>Monitoring token <input type="password" id="monitoring-token" value="${escapeHtml(currentMonitoringToken)}" autocomplete="off"></label>
+          <div class="inline">
+            <button type="submit">Save monitoring token</button>
+            <button type="button" data-action="clear-monitoring-token">Clear monitoring token</button>
+          </div>
+        </form>
+      </div>
       <h3>Latest Import</h3>
       ${table(metrics.latestRun ? [metrics.latestRun] : [])}
       <h3>Memory</h3>
       ${table([metrics.memory || {}])}
     `;
   } catch (error) {
-    showError(error);
+    content().innerHTML = `
+      <h2>Monitoring</h2>
+      <div class="card">
+        <form data-submit-action="save-monitoring-token">
+          <label>Monitoring token <input type="password" id="monitoring-token" value="${escapeHtml(currentMonitoringToken)}" autocomplete="off"></label>
+          <div class="inline">
+            <button type="submit">Save monitoring token</button>
+            <button type="button" data-action="clear-monitoring-token">Clear monitoring token</button>
+          </div>
+        </form>
+      </div>
+      <p class="error">${escapeHtml(error.message)}</p>
+    `;
   }
+}
+
+function saveMonitoringToken(event) {
+  event.preventDefault();
+  storeMonitoringToken(document.getElementById('monitoring-token').value.trim());
+  loadMonitoring();
 }
 
 document.addEventListener('click', (event) => {
@@ -932,6 +1002,7 @@ document.addEventListener('click', (event) => {
   if (action === 'generate-aliases') return generateAliases();
   if (action === 'audit-log') return loadAuditLog();
   if (action === 'monitoring') return loadMonitoring();
+  if (action === 'clear-monitoring-token') return clearMonitoringToken();
   if (action === 'dashboard-metadata') return loadDashboardMetadata();
   if (action === 'dashboard-validation') return loadDashboardValidation();
   if (action === 'dashboard-imports') return runDashboardImports();
@@ -959,6 +1030,7 @@ document.addEventListener('submit', (event) => {
   if (action === 'create-profile') return createProfile(event);
   if (action === 'merge-channels') return mergeChannelsSubmit(event);
   if (action === 'generate-aliases') return generateAliasesSubmit(event);
+  if (action === 'save-monitoring-token') return saveMonitoringToken(event);
 });
 
 load('summary');
