@@ -328,8 +328,19 @@ adminApi.post('/channels/merge', requireAdmin, async (req, res) => {
 });
 adminApi.post('/aliases/generate', requireAdmin, async (req, res) => {
   const data = parseAdminPayload(aliasGenerateSchema, req.body);
+  const result = await autoGenerateAliases(data.channelId);
 
-  res.json(await autoGenerateAliases(data.channelId));
+  await recordAuditEvent(req, {
+    action: 'channel.alias.generate',
+    entityType: 'Channel',
+    entityId: data.channelId ?? null,
+    metadata: {
+      channels: result.channels,
+      aliasesCreated: result.aliasesCreated
+    }
+  });
+
+  res.json(result);
 });
 adminApi.post('/aliases', requireAdmin, async (req, res) => {
   const data = parseAdminPayload(aliasCreateSchema, req.body);
@@ -430,14 +441,45 @@ adminApi.post('/tokens', requireAdmin, async (req, res) => {
 
   res.status(201).json(maskExportToken(token));
 });
-adminApi.post('/enrich/tmdb/:programId', requireAdmin, async (req, res) => res.json(await enrichProgramWithTmdb(req.params.programId)));
+adminApi.post('/enrich/tmdb/:programId', requireAdmin, async (req, res) => {
+  const result = await enrichProgramWithTmdb(req.params.programId);
+
+  await recordAuditEvent(req, {
+    action: 'program.enrich.tmdb',
+    entityType: 'Program',
+    entityId: req.params.programId
+  });
+
+  res.json(result);
+});
 adminApi.post('/enrich/channel/:channelId/assets', requireAdmin, async (req, res) => {
   const data = parseAdminPayload(channelAssetsSchema, req.body);
+  const result = await enrichChannelAssets(req.params.channelId, data.logo, data.image);
 
-  res.json(await enrichChannelAssets(req.params.channelId, data.logo, data.image));
+  await recordAuditEvent(req, {
+    action: 'channel.assets.enrich',
+    entityType: 'Channel',
+    entityId: req.params.channelId,
+    metadata: {
+      hasLogo: Boolean(data.logo),
+      hasImage: Boolean(data.image)
+    }
+  });
+
+  res.json(result);
 });
 adminApi.post('/catchup/:programId', requireAdmin, async (req, res) => {
   const data = parseAdminPayload(catchupSchema, req.body);
+  const result = await attachCatchupMetadata(req.params.programId, data.catchupUrl, data.catchupDays);
 
-  res.json(await attachCatchupMetadata(req.params.programId, data.catchupUrl, data.catchupDays));
+  await recordAuditEvent(req, {
+    action: 'program.catchup.attach',
+    entityType: 'Program',
+    entityId: req.params.programId,
+    metadata: {
+      catchupDays: data.catchupDays
+    }
+  });
+
+  res.json(result);
 });

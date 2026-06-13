@@ -342,6 +342,29 @@ describe('server API', () => {
     expect(response.body.error).toContain('Export token required');
   });
 
+  it('rejects invalid country feed route params', async () => {
+    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
+      id: 'token-1',
+      name: 'Client',
+      token: 'valid-token',
+      profileId: null,
+      providerId: null,
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-12T12:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.exportToken.update).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/country/GB1.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('Invalid country code');
+  });
+
   it('rejects protected feeds when the export token is invalid', async () => {
     vi.mocked(prisma.exportToken.findUnique).mockResolvedValue(null);
 
@@ -406,6 +429,7 @@ describe('server API', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers['cache-control']).toBe('private, max-age=300');
+    expect(response.headers.etag).toMatch(/^".+"$/);
     expect(response.headers.vary).toContain('x-export-token');
     expect(recordFeedDownload).toHaveBeenCalledWith('GB.xml');
   });

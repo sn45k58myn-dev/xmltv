@@ -141,8 +141,8 @@ Important variables:
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: API rate limit window and request cap.
 - `RATE_LIMIT_STORE`: `memory` for local/single process, or `redis` for shared multi-replica rate limiting.
 - `REDIS_URL`: Redis connection URL used when Redis-backed features are enabled.
-- `MONITORING_TOKEN`: Optional token required for `/monitoring/metrics` and
-  `/monitoring/prometheus`. Send it with `x-monitoring-token` or
+- `MONITORING_TOKEN`: Token required for `/monitoring/metrics` and
+  `/monitoring/prometheus` in production. Send it with `x-monitoring-token` or
   `Authorization: Bearer <token>`.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `AUDIT_LOG_RETENTION_DAYS`: Removes audit log rows older than this many days.
@@ -455,9 +455,8 @@ GET /ready
 0.0.4 text metrics for scraping. The metrics include import status,
 channel/program counts, uptime, process memory, request totals, in-flight
 requests, status buckets, latency percentiles, and top routes by request count.
-Set `MONITORING_TOKEN` in production if these endpoints are reachable outside a
-trusted private network. The Admin UI Monitoring view has a separate monitoring
-token field and sends it as `x-monitoring-token`.
+Set `MONITORING_TOKEN` in production. The Admin UI Monitoring view has a
+separate monitoring token field and sends it as `x-monitoring-token`.
 
 `/ready` performs lightweight database and cache writeability probes for load
 balancers and orchestrators.

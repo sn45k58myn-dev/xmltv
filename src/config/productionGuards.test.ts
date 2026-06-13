@@ -10,6 +10,7 @@ async function loadGuardWithEnv(env: Record<string, string | undefined>) {
     'BASE_URL',
     'CORS_ORIGIN',
     'DATABASE_URL',
+    'MONITORING_TOKEN',
     'RATE_LIMIT_STORE',
     'CACHE_METADATA_STORE',
     'JOB_QUEUE_BACKEND',
@@ -34,6 +35,7 @@ describe('assertProductionSafeConfig', () => {
     delete process.env.BASE_URL;
     delete process.env.CORS_ORIGIN;
     delete process.env.DATABASE_URL;
+    delete process.env.MONITORING_TOKEN;
     delete process.env.RATE_LIMIT_STORE;
     delete process.env.CACHE_METADATA_STORE;
     delete process.env.JOB_QUEUE_BACKEND;
@@ -64,6 +66,7 @@ describe('assertProductionSafeConfig', () => {
       ADMIN_TOKEN: safeAdminToken,
       BASE_URL: 'https://xmltv.example.com',
       CORS_ORIGIN: 'https://xmltv.example.com',
+      MONITORING_TOKEN: 'monitoring-token-with-32-chars',
       DATABASE_URL: 'postgresql://xmltv:xmltv@localhost:5432/xmltv'
     });
 
@@ -74,6 +77,7 @@ describe('assertProductionSafeConfig', () => {
     const { assertProductionSafeConfig } = await loadGuardWithEnv({
       NODE_ENV: 'production',
       ADMIN_TOKEN: safeAdminToken,
+      MONITORING_TOKEN: 'monitoring-token-with-32-chars',
       ALLOW_ADMIN_QUERY_TOKEN: 'true',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
     });
@@ -91,11 +95,24 @@ describe('assertProductionSafeConfig', () => {
     expect(() => assertProductionSafeConfig()).toThrow('ADMIN_TOKEN shorter');
   });
 
+  it('rejects missing monitoring tokens in production', async () => {
+    const { assertProductionSafeConfig } = await loadGuardWithEnv({
+      NODE_ENV: 'production',
+      ADMIN_TOKEN: safeAdminToken,
+      BASE_URL: 'https://xmltv.example.com',
+      CORS_ORIGIN: 'https://xmltv.example.com',
+      DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
+    });
+
+    expect(() => assertProductionSafeConfig()).toThrow('MONITORING_TOKEN');
+  });
+
   it('rejects wildcard CORS in production', async () => {
     const { assertProductionSafeConfig } = await loadGuardWithEnv({
       NODE_ENV: 'production',
       ADMIN_TOKEN: safeAdminToken,
       CORS_ORIGIN: '*',
+      MONITORING_TOKEN: 'monitoring-token-with-32-chars',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
     });
 
@@ -108,6 +125,7 @@ describe('assertProductionSafeConfig', () => {
       ADMIN_TOKEN: safeAdminToken,
       BASE_URL: 'http://xmltv.example.com',
       CORS_ORIGIN: 'https://xmltv.example.com',
+      MONITORING_TOKEN: 'monitoring-token-with-32-chars',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
     });
 
@@ -120,6 +138,7 @@ describe('assertProductionSafeConfig', () => {
       ADMIN_TOKEN: safeAdminToken,
       BASE_URL: 'https://xmltv.example.com',
       CORS_ORIGIN: 'https://xmltv.example.com',
+      MONITORING_TOKEN: 'monitoring-token-with-32-chars',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv',
       JOB_QUEUE_BACKEND: 'bullmq'
     });
@@ -133,6 +152,7 @@ describe('assertProductionSafeConfig', () => {
       ADMIN_TOKEN: safeAdminToken,
       BASE_URL: 'https://xmltv.example.com',
       CORS_ORIGIN: 'https://xmltv.example.com',
+      MONITORING_TOKEN: 'monitoring-token-with-32-chars',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv',
       JOB_QUEUE_BACKEND: 'bullmq',
       REDIS_URL: 'redis://redis:6379'

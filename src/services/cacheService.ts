@@ -7,6 +7,21 @@ const CACHE_DIR = path.join(
   process.cwd(),
   'cache'
 );
+const SAFE_CACHE_KEY = /^[A-Za-z0-9_.-]+$/;
+
+function cachePath(
+  name: string,
+  extension: '.xml' | '.xml.gz'
+) {
+  if (!SAFE_CACHE_KEY.test(name)) {
+    throw new Error(`Invalid cache feed key: ${name}`);
+  }
+
+  return path.join(
+    CACHE_DIR,
+    `${name}${extension}`
+  );
+}
 
 async function ensureCacheDir() {
   await fs.mkdir(CACHE_DIR, {
@@ -60,10 +75,7 @@ export async function getCachedFeed(
 ): Promise<string | null> {
   try {
     return await fs.readFile(
-      path.join(
-        CACHE_DIR,
-        `${name}.xml`
-      ),
+      cachePath(name, '.xml'),
       'utf8'
     );
   } catch {
@@ -75,13 +87,11 @@ export async function setCachedFeed(
   name: string,
   xml: string
 ) {
-  const file = `${name}.xml`;
+  const filePath = cachePath(name, '.xml');
+  const file = path.basename(filePath);
 
   await atomicWrite(
-    path.join(
-      CACHE_DIR,
-      file
-    ),
+    filePath,
     xml,
     'utf8'
   );
@@ -95,13 +105,11 @@ export async function setCachedFeedGzip(
   name: string,
   data: Buffer
 ) {
-  const file = `${name}.xml.gz`;
+  const filePath = cachePath(name, '.xml.gz');
+  const file = path.basename(filePath);
 
   await atomicWrite(
-    path.join(
-      CACHE_DIR,
-      file
-    ),
+    filePath,
     data
   );
   await recordCacheMetadata(
@@ -115,10 +123,7 @@ export async function getCachedFeedGzip(
 ): Promise<Buffer | null> {
   try {
     return await fs.readFile(
-      path.join(
-        CACHE_DIR,
-        `${name}.xml.gz`
-      )
+      cachePath(name, '.xml.gz')
     );
   } catch {
     return null;

@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { assertCacheDirectoryWritable, getCachedFeed, setCachedFeed, setCachedFeedGzip } from './cacheService';
+import { assertCacheDirectoryWritable, getCachedFeed, getCachedFeedGzip, setCachedFeed, setCachedFeedGzip } from './cacheService';
 
 const cacheDir = path.join(
   process.cwd(),
@@ -36,5 +36,12 @@ describe('cacheService', () => {
 
   it('checks cache directory writability', async () => {
     await expect(assertCacheDirectoryWritable()).resolves.toBeUndefined();
+  });
+
+  it('rejects unsafe cache keys before file access', async () => {
+    await expect(setCachedFeed('../escape', '<tv />')).rejects.toThrow('Invalid cache feed key');
+    await expect(setCachedFeedGzip('bad/name', Buffer.from('gzip'))).rejects.toThrow('Invalid cache feed key');
+    await expect(getCachedFeed('../escape')).resolves.toBeNull();
+    await expect(getCachedFeedGzip('bad/name')).resolves.toBeNull();
   });
 });

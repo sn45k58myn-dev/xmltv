@@ -20,6 +20,10 @@ export function assertProductionSafeConfig() {
     throw new Error(`Refusing production startup with ADMIN_TOKEN shorter than ${MIN_PRODUCTION_ADMIN_TOKEN_LENGTH} characters.`);
   }
 
+  if (!env.MONITORING_TOKEN?.trim()) {
+    throw new Error('Refusing production startup without MONITORING_TOKEN.');
+  }
+
   if (env.ALLOW_ADMIN_QUERY_TOKEN === 'true') {
     throw new Error('Refusing production startup with ALLOW_ADMIN_QUERY_TOKEN enabled.');
   }

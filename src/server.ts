@@ -6,6 +6,7 @@ import multer from 'multer';
 import { ZodError } from 'zod';
 import { statsRoutes } from './routes/statsRoutes';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { env } from './config/env';
 import { assertProductionSafeConfig } from './config/productionGuards';
 import { adminApi } from './routes/adminApi';
@@ -42,6 +43,7 @@ import { parseProfileCreatePayload } from './utils/adminPayloads';
 import { boundedLimit } from './utils/limits';
 import { enqueueBullJob, startBullJobWorker } from './jobs/bullQueue';
 import { closeRedisClient } from './services/redisClient';
+import { normalizeCountryParam, safeRouteId } from './utils/routeParams';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -257,8 +259,13 @@ app.get(
   '/country/:country.xml',
   requireExportToken,
   async (req, res) => {
-    const country = req.params.country.toUpperCase();
-    return sendCachedCountryXml(res, country);
+    try {
+      return sendCachedCountryXml(res, normalizeCountryParam(req.params.country));
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : 'Invalid country code.'
+      });
+    }
   }
 );
 
@@ -266,8 +273,13 @@ app.get(
   '/country/:country.xml.gz',
   requireExportToken,
   async (req, res) => {
-    const country = req.params.country.toUpperCase();
-    return sendCachedCountryGzip(res, country);
+    try {
+      return sendCachedCountryGzip(res, normalizeCountryParam(req.params.country));
+    } catch (error) {
+      return res.status(400).json({
+        error: error instanceof Error ? error.message : 'Invalid country code.'
+      });
+    }
   }
 );
 
@@ -298,13 +310,33 @@ app.get('/movies.xml', requireExportToken, async (_req, res) => {
   sendXml(res, await exportCategory('movies'));
 });
 app.get('/profile/:id.xml', requireExportToken, async (req, res) => {
-  await recordFeedDownload(`profile_${req.params.id}.xml`);
-  sendXml(res, await exportProfile(req.params.id));
+  let profileId: string;
+
+  try {
+    profileId = safeRouteId(req.params.id);
+  } catch (error) {
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid route id.'
+    });
+  }
+
+  await recordFeedDownload(`profile_${profileId}.xml`);
+  sendXml(res, await exportProfile(profileId));
 });
 app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
-  const key = providerFeedKey(req.params.id);
+  let providerId: string;
+
+  try {
+    providerId = safeRouteId(req.params.id);
+  } catch (error) {
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid route id.'
+    });
+  }
+
+  const key = providerFeedKey(providerId);
   const cached = await getCachedFeed(key);
-  const xml = cached ?? await exportProvider(req.params.id);
+  const xml = cached ?? await exportProvider(providerId);
 
   await recordFeedDownload(`${key}.xml`);
 
@@ -312,7 +344,17 @@ app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
 });
 
 app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
-  const key = providerFeedKey(req.params.id);
+  let providerId: string;
+
+  try {
+    providerId = safeRouteId(req.params.id);
+  } catch (error) {
+    return res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid route id.'
+    });
+  }
+
+  const key = providerFeedKey(providerId);
   const gzip = await getCachedFeedGzip(key);
 
   if (!gzip) {
@@ -325,6 +367,7 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
     'content-type',
     'application/gzip'
   );
+  setEntityTag(res, gzip);
   setFeedCacheHeaders(res);
 
   res.send(gzip);
@@ -345,11 +388,24 @@ function setFeedCacheHeaders(res) {
   }
 }
 
+function setEntityTag(
+  res,
+  body: string | Buffer
+) {
+  const hash = crypto
+    .createHash('sha256')
+    .update(body)
+    .digest('base64url');
+
+  res.setHeader('etag', `"${hash}"`);
+}
+
 function sendXml(
   res,
   xml
 ) {
   setFeedCacheHeaders(res);
+  setEntityTag(res, xml);
   res.setHeader(
     'content-type',
     'application/xml; charset=utf-8'
@@ -389,6 +445,7 @@ async function sendCachedCountryGzip(
     'content-type',
     'application/gzip'
   );
+  setEntityTag(res, gzip);
   setFeedCacheHeaders(res);
 
   return res.send(gzip);
