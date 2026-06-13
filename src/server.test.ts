@@ -183,6 +183,28 @@ describe('server API', () => {
     }));
   });
 
+  it('protects detailed stats routes', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/api/stats/imports');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('bounds authenticated stats import limits', async () => {
+    vi.mocked(prisma.importRun.findMany).mockResolvedValue([]);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/stats/imports?limit=50000')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(prisma.importRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 500
+    }));
+  });
+
   it('protects source health details', async () => {
     const app = await loadApp();
     const response = await request(app).get('/api/source-health');

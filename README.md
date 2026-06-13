@@ -103,18 +103,21 @@ Important variables:
 - `NODE_ENV`: Set to `production` for deployed runtime safety checks.
 - `PORT`: HTTP port exposed by the app.
 - `BASE_URL`: Public URL shown in startup logs and docs.
+  Production startup refuses non-HTTPS `BASE_URL`.
 - `SCHEDULES_DIRECT_USERNAME` and `SCHEDULES_DIRECT_PASSWORD`: Optional SD-JSON credentials.
 - `SCHEDULES_DIRECT_LINEUP`: Optional lineup id. If omitted, the first account lineup is used.
 - `SCHEDULES_DIRECT_DAYS`: Number of schedule days to request from SD-JSON.
 - `SCHEDULES_DIRECT_BASE_URL`: SD-JSON API base URL.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
+  Production startup requires at least 32 characters.
 - `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
   `?adminToken=`. Keep `false` in production because query credentials can leak
   through URLs, logs, and browser history. Production startup refuses to run
   when this is enabled.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
 - `CORS_ORIGIN`: `*` or a comma-separated list of allowed browser origins.
+  Production startup refuses wildcard `*`; set explicit HTTPS admin/API origins.
 - `JSON_BODY_LIMIT`: Maximum JSON request body size.
 - `UPLOAD_MAX_MB`: Maximum XMLTV upload size in megabytes.
 - `TRUST_PROXY`: Set to `true` when running behind a trusted reverse proxy.
@@ -715,6 +718,9 @@ load tests, large-feed scenarios, and baseline recording guidance.
   responses.
 - Admin and management API responses send `Cache-Control: no-store`.
 - Source health history is protected by admin/viewer authentication.
+- Detailed stats routes such as `/api/stats/imports`, `/api/stats/downloads`,
+  `/api/stats/top-feeds`, and `/api/stats/feeds` require admin/viewer
+  authentication.
 - Set `REDIS_URL` whenever `JOB_QUEUE_BACKEND=bullmq`,
   `RATE_LIMIT_STORE=redis`, or `CACHE_METADATA_STORE=redis`; production startup
   fails fast when Redis-backed features are enabled without it.

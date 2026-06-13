@@ -7,6 +7,8 @@ async function loadGuardWithEnv(env: Record<string, string | undefined>) {
     'NODE_ENV',
     'ADMIN_TOKEN',
     'ALLOW_ADMIN_QUERY_TOKEN',
+    'BASE_URL',
+    'CORS_ORIGIN',
     'DATABASE_URL',
     'RATE_LIMIT_STORE',
     'CACHE_METADATA_STORE',
@@ -22,11 +24,15 @@ async function loadGuardWithEnv(env: Record<string, string | undefined>) {
 }
 
 describe('assertProductionSafeConfig', () => {
+  const safeAdminToken = 'safe-production-token-with-32-chars';
+
   afterEach(() => {
     vi.resetModules();
     delete process.env.NODE_ENV;
     delete process.env.ADMIN_TOKEN;
     delete process.env.ALLOW_ADMIN_QUERY_TOKEN;
+    delete process.env.BASE_URL;
+    delete process.env.CORS_ORIGIN;
     delete process.env.DATABASE_URL;
     delete process.env.RATE_LIMIT_STORE;
     delete process.env.CACHE_METADATA_STORE;
@@ -55,7 +61,9 @@ describe('assertProductionSafeConfig', () => {
   it('rejects local database URLs in production', async () => {
     const { assertProductionSafeConfig } = await loadGuardWithEnv({
       NODE_ENV: 'production',
-      ADMIN_TOKEN: 'safe-production-token',
+      ADMIN_TOKEN: safeAdminToken,
+      BASE_URL: 'https://xmltv.example.com',
+      CORS_ORIGIN: 'https://xmltv.example.com',
       DATABASE_URL: 'postgresql://xmltv:xmltv@localhost:5432/xmltv'
     });
 
@@ -65,7 +73,7 @@ describe('assertProductionSafeConfig', () => {
   it('rejects admin query tokens in production', async () => {
     const { assertProductionSafeConfig } = await loadGuardWithEnv({
       NODE_ENV: 'production',
-      ADMIN_TOKEN: 'safe-production-token',
+      ADMIN_TOKEN: safeAdminToken,
       ALLOW_ADMIN_QUERY_TOKEN: 'true',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
     });
@@ -73,10 +81,45 @@ describe('assertProductionSafeConfig', () => {
     expect(() => assertProductionSafeConfig()).toThrow('ALLOW_ADMIN_QUERY_TOKEN');
   });
 
+  it('rejects short admin tokens in production', async () => {
+    const { assertProductionSafeConfig } = await loadGuardWithEnv({
+      NODE_ENV: 'production',
+      ADMIN_TOKEN: 'short-token',
+      DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
+    });
+
+    expect(() => assertProductionSafeConfig()).toThrow('ADMIN_TOKEN shorter');
+  });
+
+  it('rejects wildcard CORS in production', async () => {
+    const { assertProductionSafeConfig } = await loadGuardWithEnv({
+      NODE_ENV: 'production',
+      ADMIN_TOKEN: safeAdminToken,
+      CORS_ORIGIN: '*',
+      DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
+    });
+
+    expect(() => assertProductionSafeConfig()).toThrow('wildcard CORS_ORIGIN');
+  });
+
+  it('rejects non-HTTPS base URLs in production', async () => {
+    const { assertProductionSafeConfig } = await loadGuardWithEnv({
+      NODE_ENV: 'production',
+      ADMIN_TOKEN: safeAdminToken,
+      BASE_URL: 'http://xmltv.example.com',
+      CORS_ORIGIN: 'https://xmltv.example.com',
+      DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
+    });
+
+    expect(() => assertProductionSafeConfig()).toThrow('non-HTTPS BASE_URL');
+  });
+
   it('rejects Redis-backed production features without REDIS_URL', async () => {
     const { assertProductionSafeConfig } = await loadGuardWithEnv({
       NODE_ENV: 'production',
-      ADMIN_TOKEN: 'safe-production-token',
+      ADMIN_TOKEN: safeAdminToken,
+      BASE_URL: 'https://xmltv.example.com',
+      CORS_ORIGIN: 'https://xmltv.example.com',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv',
       JOB_QUEUE_BACKEND: 'bullmq'
     });
@@ -87,7 +130,9 @@ describe('assertProductionSafeConfig', () => {
   it('allows Redis-backed production features with REDIS_URL', async () => {
     const { assertProductionSafeConfig } = await loadGuardWithEnv({
       NODE_ENV: 'production',
-      ADMIN_TOKEN: 'safe-production-token',
+      ADMIN_TOKEN: safeAdminToken,
+      BASE_URL: 'https://xmltv.example.com',
+      CORS_ORIGIN: 'https://xmltv.example.com',
       DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv',
       JOB_QUEUE_BACKEND: 'bullmq',
       REDIS_URL: 'redis://redis:6379'

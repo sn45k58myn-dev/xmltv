@@ -3,8 +3,12 @@ import { prisma } from '../db/prisma';
 import { getFeedDownloads } from '../services/downloadMetrics';
 import { getFeedSizes } from '../services/feedMetrics';
 import { getDashboardStats } from '../services/dashboardService';
+import { requireRole } from '../middleware/auth';
+import { noStore } from '../middleware/noStore';
+import { boundedLimit } from '../utils/limits';
 
 export const statsRoutes = Router();
+const requireViewer = requireRole(['admin', 'operator', 'viewer']);
 
 statsRoutes.get('/', async (_req, res) => {
   const [
@@ -40,7 +44,7 @@ statsRoutes.get('/dashboard', async (_req, res) => {
   );
 });
 
-statsRoutes.get('/top-feeds', async (_req, res) => {
+statsRoutes.get('/top-feeds', noStore, requireViewer, async (_req, res) => {
   const downloads =
     await getFeedDownloads(20);
 
@@ -49,25 +53,28 @@ statsRoutes.get('/top-feeds', async (_req, res) => {
   );
 });
 
-statsRoutes.get('/feeds', async (_req, res) => {
+statsRoutes.get('/feeds', noStore, requireViewer, async (_req, res) => {
   res.json(
     await getFeedSizes()
   );
 });
 
-statsRoutes.get('/imports', async (_req, res) => {
+statsRoutes.get('/imports', noStore, requireViewer, async (req, res) => {
   const runs =
     await prisma.importRun.findMany({
       orderBy: {
         startedAt: 'desc'
       },
-      take: 50
+      take: boundedLimit(req.query.limit, {
+        defaultValue: 50,
+        max: 500
+      })
     });
 
   res.json(runs);
 });
 
-statsRoutes.get('/downloads', async (req, res) => {
+statsRoutes.get('/downloads', noStore, requireViewer, async (req, res) => {
   res.json(
     await getFeedDownloads(Number(req.query.limit))
   );

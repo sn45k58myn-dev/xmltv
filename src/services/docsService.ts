@@ -33,6 +33,8 @@ export function buildApiDocs() {
       { method: 'POST', path: '/imports/upload', description: 'Admin-protected XMLTV upload. Requires x-admin-token.' },
       { method: 'POST', path: '/profiles', description: 'Admin-protected export profile creation. Requires x-admin-token.' },
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },
+      { method: 'GET', path: '/api/stats/imports', description: 'Admin/viewer import run stats. Requires x-admin-token or API key.' },
+      { method: 'GET', path: '/api/stats/downloads', description: 'Admin/viewer feed download stats. Requires x-admin-token or API key.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
       { method: 'POST', path: '/api/admin/imports/run', description: 'Admin manual import trigger. Runs inline by default or enqueues when IMPORT_RUN_MODE=queue.' },
       { method: 'GET', path: '/api/admin/jobs', description: 'Admin job run history.' },

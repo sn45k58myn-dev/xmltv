@@ -5,6 +5,7 @@ const LOCAL_DATABASE_PATTERNS = [
   /localhost/i,
   /127\.0\.0\.1/
 ];
+const MIN_PRODUCTION_ADMIN_TOKEN_LENGTH = 32;
 
 export function assertProductionSafeConfig() {
   if (process.env.NODE_ENV !== 'production') {
@@ -15,8 +16,20 @@ export function assertProductionSafeConfig() {
     throw new Error('Refusing production startup with missing or default ADMIN_TOKEN.');
   }
 
+  if (env.ADMIN_TOKEN.length < MIN_PRODUCTION_ADMIN_TOKEN_LENGTH) {
+    throw new Error(`Refusing production startup with ADMIN_TOKEN shorter than ${MIN_PRODUCTION_ADMIN_TOKEN_LENGTH} characters.`);
+  }
+
   if (env.ALLOW_ADMIN_QUERY_TOKEN === 'true') {
     throw new Error('Refusing production startup with ALLOW_ADMIN_QUERY_TOKEN enabled.');
+  }
+
+  if (env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).includes('*')) {
+    throw new Error('Refusing production startup with wildcard CORS_ORIGIN.');
+  }
+
+  if (!env.BASE_URL.startsWith('https://')) {
+    throw new Error('Refusing production startup with non-HTTPS BASE_URL.');
   }
 
   if (LOCAL_DATABASE_PATTERNS.some((pattern) => pattern.test(env.DATABASE_URL))) {

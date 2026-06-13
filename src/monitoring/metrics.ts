@@ -1,6 +1,7 @@
 
 import { prisma } from '../db/prisma';
 import { getRequestMetrics } from './requestMetrics';
+import { getFeedSizes } from '../services/feedMetrics';
 
 export async function systemMetrics() {
   const [
@@ -12,7 +13,8 @@ export async function systemMetrics() {
     queueStatusRows,
     totalFeedDownloads,
     topFeeds,
-    latestQualitySnapshot
+    latestQualitySnapshot,
+    feedSizes
   ] = await Promise.all([
     prisma.importRun.findFirst({ include: { source: true }, orderBy: { startedAt: 'desc' } }),
     prisma.importRun.count({ where: { status: 'failed' } }),
@@ -45,7 +47,8 @@ export async function systemMetrics() {
       orderBy: {
         createdAt: 'desc'
       }
-    })
+    }),
+    getFeedSizes()
   ]);
   const importStatuses = Object.fromEntries(
     importStatusRows.map((row) => [row.status, row._count._all])
@@ -64,6 +67,8 @@ export async function systemMetrics() {
     queueStatuses,
     totalFeedDownloads: totalFeedDownloads._sum.downloads ?? 0,
     topFeeds,
+    feedCount: feedSizes.length,
+    totalCacheBytes: feedSizes.reduce((sum, feed) => sum + feed.bytes, 0),
     latestQualitySnapshot,
     uptimeSeconds: process.uptime(),
     memory: process.memoryUsage(),
@@ -116,6 +121,12 @@ export async function prometheusMetrics() {
     ...metrics.topFeeds.map((feed) =>
       metricLine('xmltv_feed_downloads_by_feed', feed.downloads, { feed: feed.feedKey })
     ),
+    '# HELP xmltv_cached_feeds Number of cached feed files.',
+    '# TYPE xmltv_cached_feeds gauge',
+    metricLine('xmltv_cached_feeds', metrics.feedCount),
+    '# HELP xmltv_cache_bytes Total bytes used by cached feed files.',
+    '# TYPE xmltv_cache_bytes gauge',
+    metricLine('xmltv_cache_bytes', metrics.totalCacheBytes),
     '# HELP xmltv_latest_feed_quality_score Latest persisted feed quality score.',
     '# TYPE xmltv_latest_feed_quality_score gauge',
     metricLine(
@@ -143,6 +154,11 @@ export async function prometheusMetrics() {
     '# HELP xmltv_http_errors_total HTTP 5xx responses handled by this process.',
     '# TYPE xmltv_http_errors_total counter',
     metricLine('xmltv_http_errors_total', metrics.requests.totalErrors),
+    '# HELP xmltv_http_responses_total HTTP responses handled by status bucket.',
+    '# TYPE xmltv_http_responses_total counter',
+    ...Object.entries(metrics.requests.statusBuckets).map(([status, count]) =>
+      metricLine('xmltv_http_responses_total', Number(count), { status })
+    ),
     '# HELP xmltv_http_latency_ms Recent HTTP latency percentiles in milliseconds.',
     '# TYPE xmltv_http_latency_ms gauge',
     metricLine('xmltv_http_latency_ms', metrics.requests.latency.p50Ms, { quantile: '0.50' }),
