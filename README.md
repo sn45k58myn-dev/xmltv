@@ -412,6 +412,8 @@ Create keys with one of these roles:
 Source, channel, alias, profile, token, API-key, enrichment, catch-up, and audit
 log endpoints remain admin-only. Viewer keys cannot persist feed quality
 snapshots with `snapshot=true`.
+PATCH endpoints reject empty update bodies so audit logs only record actual
+requested changes.
 
 The raw key is returned only once from `POST /api/admin/api-keys`. The database
 stores a SHA-256 hash plus a short prefix for identification. Revocation marks a

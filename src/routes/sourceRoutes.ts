@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
 import { recordAuditEvent } from '../services/auditLog';
-import { parseAdminPayload, parseSourceCreatePayload, sourceUpdateSchema } from '../utils/adminPayloads';
+import { parseNonEmptyAdminPayload, parseSourceCreatePayload, sourceUpdateSchema } from '../utils/adminPayloads';
 
 export const sourceRoutes = Router();
 sourceRoutes.use(requireAdmin);
@@ -35,7 +35,7 @@ sourceRoutes.post('/', async (req, res) => {
 });
 
 sourceRoutes.put('/:id', async (req, res) => {
-  const data = parseAdminPayload(
+  const data = parseNonEmptyAdminPayload(
     sourceUpdateSchema,
     req.body
   );

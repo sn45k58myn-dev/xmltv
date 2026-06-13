@@ -152,3 +152,25 @@ export function parseAdminPayload<T>(
 ): T {
   return schema.parse(value);
 }
+
+export function parseNonEmptyAdminPayload<T extends Record<string, unknown>>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  value: unknown
+): T {
+  const parsed = parseAdminPayload(
+    schema,
+    value
+  );
+
+  if (Object.keys(parsed).length === 0) {
+    throw new z.ZodError([
+      {
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: 'At least one update field is required.'
+      }
+    ]);
+  }
+
+  return parsed;
+}

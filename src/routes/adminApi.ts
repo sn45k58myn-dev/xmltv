@@ -25,6 +25,7 @@ import {
   exportTokenCreateSchema,
   parseAdminPayload,
   parseApiKeyCreatePayload,
+  parseNonEmptyAdminPayload,
   parseProfileCreatePayload,
   parseSourceCreatePayload,
   profileUpdateSchema,
@@ -101,7 +102,7 @@ adminApi.post('/sources', requireAdmin, async (req, res) => {
   res.status(201).json(source);
 });
 adminApi.patch('/sources/:id', requireAdmin, async (req, res) => {
-  const data = parseAdminPayload(sourceUpdateSchema, req.body);
+  const data = parseNonEmptyAdminPayload(sourceUpdateSchema, req.body);
   const source = await prisma.source.update({ where: { id: req.params.id }, data });
 
   await recordAuditEvent(req, {
@@ -155,7 +156,7 @@ adminApi.post('/api-keys', requireAdmin, async (req, res) => {
   });
 });
 adminApi.patch('/api-keys/:id', requireAdmin, async (req, res) => {
-  const data = parseAdminPayload(apiKeyUpdateSchema, req.body);
+  const data = parseNonEmptyAdminPayload(apiKeyUpdateSchema, req.body);
   const apiKey = await prisma.apiKey.update({
     where: {
       id: req.params.id
@@ -268,7 +269,7 @@ adminApi.get('/coverage', requireViewer, async (_req, res) => {
 });
 adminApi.get('/channels', requireViewer, async (_req, res) => res.json(await prisma.channel.findMany({ include: { aliases: true, mappings: true }, orderBy: { displayName: 'asc' }, take: 500 })));
 adminApi.patch('/channels/:id', requireAdmin, async (req, res) => {
-  const data = parseAdminPayload(channelUpdateSchema, req.body);
+  const data = parseNonEmptyAdminPayload(channelUpdateSchema, req.body);
   const channel = await prisma.channel.update({ where: { id: req.params.id }, data });
 
   await recordAuditEvent(req, {
@@ -357,7 +358,7 @@ adminApi.post('/profiles', requireAdmin, async (req, res) => {
   res.status(201).json(profile);
 });
 adminApi.patch('/profiles/:id', requireAdmin, async (req, res) => {
-  const data = parseAdminPayload(profileUpdateSchema, req.body);
+  const data = parseNonEmptyAdminPayload(profileUpdateSchema, req.body);
   const profile = await prisma.exportProfile.update({ where: { id: req.params.id }, data });
 
   await recordAuditEvent(req, {

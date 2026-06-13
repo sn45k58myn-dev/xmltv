@@ -533,4 +533,17 @@ describe('server API', () => {
       })
     }));
   });
+
+  it('rejects empty update payloads on admin lifecycle routes', async () => {
+    const app = await loadApp();
+    const response = await request(app)
+      .patch('/api/admin/api-keys/api-key-1')
+      .set('x-admin-token', 'test-admin-token')
+      .send({});
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid request payload.');
+    expect(response.body.issues[0].message).toContain('At least one update field');
+    expect(prisma.apiKey.update).not.toHaveBeenCalled();
+  });
 });

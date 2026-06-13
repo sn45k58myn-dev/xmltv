@@ -5,7 +5,8 @@ import { maskExportToken, recordAuditEvent } from '../services/auditLog';
 import {
   exportTokenUpdateSchema,
   legacyExportTokenCreateSchema,
-  parseAdminPayload
+  parseAdminPayload,
+  parseNonEmptyAdminPayload
 } from '../utils/adminPayloads';
 
 export const exportTokenRoutes = Router();
@@ -49,7 +50,7 @@ exportTokenRoutes.post('/', async (req, res) => {
 });
 
 exportTokenRoutes.patch('/:id', async (req, res) => {
-  const data = parseAdminPayload(exportTokenUpdateSchema, req.body);
+  const data = parseNonEmptyAdminPayload(exportTokenUpdateSchema, req.body);
 
   try {
     const token = await prisma.exportToken.update({
