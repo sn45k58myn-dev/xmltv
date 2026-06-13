@@ -49,6 +49,32 @@ export const apiKeyCreateSchema = z.object({
   role: z.enum(['admin', 'operator', 'viewer']).default('viewer')
 }).strict();
 
+export const channelMergeSchema = z.object({
+  targetChannelId: z.string().trim().min(1),
+  channelIdsToMerge: z.array(z.string().trim().min(1)).min(1)
+}).strict();
+
+export const aliasGenerateSchema = z.object({
+  channelId: z.string().trim().min(1)
+}).strict();
+
+export const exportTokenCreateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  profileId: nullableString,
+  providerId: nullableString,
+  active: z.boolean().optional()
+}).strict();
+
+export const channelAssetsSchema = z.object({
+  logo: nullableString,
+  image: nullableString
+}).strict();
+
+export const catchupSchema = z.object({
+  catchupUrl: z.string().trim().url().nullable().optional(),
+  catchupDays: z.coerce.number().int().positive().nullable().optional()
+}).strict();
+
 type SourceCreatePayload = {
   name: string;
   type: string;

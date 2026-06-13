@@ -34,6 +34,7 @@ vi.mock('./db/prisma', () => ({
       count: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      create: vi.fn(),
       update: vi.fn()
     },
     auditLog: {
@@ -226,6 +227,35 @@ describe('server API', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Invalid request payload.');
     expect(prisma.source.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects unexpected export token payload fields', async () => {
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/api/admin/tokens')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        name: 'Token',
+        token: 'caller-supplied-token'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid request payload.');
+    expect(prisma.exportToken.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid channel merge payloads', async () => {
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/api/admin/channels/merge')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        targetChannelId: 'channel-1',
+        channelIdsToMerge: 'channel-2'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid request payload.');
   });
 
   it('returns admin audit events for valid admin tokens', async () => {

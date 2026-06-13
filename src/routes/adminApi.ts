@@ -15,7 +15,12 @@ import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/a
 import { createApiKey, maskApiKey } from '../services/apiKeys';
 import {
   aliasCreateSchema,
+  aliasGenerateSchema,
+  catchupSchema,
+  channelAssetsSchema,
+  channelMergeSchema,
   channelUpdateSchema,
+  exportTokenCreateSchema,
   parseAdminPayload,
   parseApiKeyCreatePayload,
   parseProfileCreatePayload,
@@ -238,20 +243,25 @@ adminApi.patch('/channels/:id', async (req, res) => {
   res.json(channel);
 });
 adminApi.post('/channels/merge', async (req, res) => {
-  const result = await mergeChannels(req.body.targetChannelId, req.body.channelIdsToMerge);
+  const data = parseAdminPayload(channelMergeSchema, req.body);
+  const result = await mergeChannels(data.targetChannelId, data.channelIdsToMerge);
 
   await recordAuditEvent(req, {
     action: 'channel.merge',
     entityType: 'Channel',
-    entityId: req.body.targetChannelId,
+    entityId: data.targetChannelId,
     metadata: {
-      channelIdsToMerge: req.body.channelIdsToMerge
+      channelIdsToMerge: data.channelIdsToMerge
     }
   });
 
   res.json(result);
 });
-adminApi.post('/aliases/generate', async (req, res) => res.json(await autoGenerateAliases(req.body.channelId)));
+adminApi.post('/aliases/generate', async (req, res) => {
+  const data = parseAdminPayload(aliasGenerateSchema, req.body);
+
+  res.json(await autoGenerateAliases(data.channelId));
+});
 adminApi.post('/aliases', async (req, res) => {
   const data = parseAdminPayload(aliasCreateSchema, req.body);
   const alias = await prisma.alias.create({
@@ -327,7 +337,16 @@ adminApi.get('/tokens', async (_req, res) => {
   res.json(tokens.map(maskExportToken));
 });
 adminApi.post('/tokens', async (req, res) => {
-  const token = await prisma.exportToken.create({ data: { name: req.body.name ?? 'Export token', profileId: req.body.profileId, providerId: req.body.providerId, token: crypto.randomBytes(24).toString('hex') } });
+  const data = parseAdminPayload(exportTokenCreateSchema, req.body);
+  const token = await prisma.exportToken.create({
+    data: {
+      name: data.name ?? 'Export token',
+      profileId: data.profileId,
+      providerId: data.providerId,
+      active: data.active ?? true,
+      token: crypto.randomBytes(24).toString('hex')
+    }
+  });
 
   await recordAuditEvent(req, {
     action: 'exportToken.create',
@@ -343,5 +362,13 @@ adminApi.post('/tokens', async (req, res) => {
   res.status(201).json(maskExportToken(token));
 });
 adminApi.post('/enrich/tmdb/:programId', async (req, res) => res.json(await enrichProgramWithTmdb(req.params.programId)));
-adminApi.post('/enrich/channel/:channelId/assets', async (req, res) => res.json(await enrichChannelAssets(req.params.channelId, req.body.logo, req.body.image)));
-adminApi.post('/catchup/:programId', async (req, res) => res.json(await attachCatchupMetadata(req.params.programId, req.body.catchupUrl, req.body.catchupDays)));
+adminApi.post('/enrich/channel/:channelId/assets', async (req, res) => {
+  const data = parseAdminPayload(channelAssetsSchema, req.body);
+
+  res.json(await enrichChannelAssets(req.params.channelId, data.logo, data.image));
+});
+adminApi.post('/catchup/:programId', async (req, res) => {
+  const data = parseAdminPayload(catchupSchema, req.body);
+
+  res.json(await attachCatchupMetadata(req.params.programId, data.catchupUrl, data.catchupDays));
+});
