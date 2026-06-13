@@ -472,9 +472,11 @@ app.use((
 export async function startServer() {
   await assertCacheDirectoryWritable();
 
-  if (env.ENABLE_SCHEDULER === 'true') {
-    startImportScheduler();
-  } else {
+  const closeScheduler = env.ENABLE_SCHEDULER === 'true'
+    ? startImportScheduler()
+    : undefined;
+
+  if (env.ENABLE_SCHEDULER !== 'true') {
     console.log('Import scheduler disabled');
   }
 
@@ -491,6 +493,7 @@ export async function startServer() {
     console.log(`Received ${signal}, shutting down`);
 
     server.close(async () => {
+      await closeScheduler?.();
       await closeBullWorker?.();
       await closeJobWorker?.();
       await prisma.$disconnect();

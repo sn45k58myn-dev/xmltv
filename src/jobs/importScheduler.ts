@@ -10,9 +10,10 @@ import { runOperationalRetention, summarizeOperationalRetention } from './operat
 
 export function startImportScheduler() {
   console.log('Import scheduler started');
+  const tasks: Array<{ stop: () => void }> = [];
 
   // Daily imports at 03:00
-  cron.schedule('0 3 * * *', async () => {
+  tasks.push(cron.schedule('0 3 * * *', async () => {
     const lock = await acquireJobLock(
       'scheduled-imports',
       env.SCHEDULER_LOCK_TTL_MS
@@ -96,10 +97,10 @@ export function startImportScheduler() {
     } finally {
       await lock.release();
     }
-  });
+  }));
 
   // Daily retention cleanup at 04:00
-  cron.schedule('0 4 * * *', async () => {
+  tasks.push(cron.schedule('0 4 * * *', async () => {
     const lock = await acquireJobLock(
       'program-retention',
       env.SCHEDULER_LOCK_TTL_MS
@@ -138,10 +139,10 @@ export function startImportScheduler() {
     } finally {
       await lock.release();
     }
-  });
+  }));
 
   // Daily operational retention cleanup at 04:30
-  cron.schedule('30 4 * * *', async () => {
+  tasks.push(cron.schedule('30 4 * * *', async () => {
     const lock = await acquireJobLock(
       'operational-retention',
       env.SCHEDULER_LOCK_TTL_MS
@@ -180,5 +181,11 @@ export function startImportScheduler() {
     } finally {
       await lock.release();
     }
-  });
+  }));
+
+  return async () => {
+    for (const task of tasks) {
+      task.stop();
+    }
+  };
 }
