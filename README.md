@@ -214,6 +214,10 @@ Run imports from the admin UI:
 Admin UI -> Dashboard -> Run imports
 ```
 
+Deleting a source through the admin API disables it instead of removing the row,
+preserving import history and source health records for audits. Re-enable it by
+updating the source `enabled` field.
+
 Upload a local XMLTV file:
 
 ```bash

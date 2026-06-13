@@ -55,17 +55,21 @@ sourceRoutes.put('/:id', async (req, res) => {
 });
 
 sourceRoutes.delete('/:id', async (req, res) => {
-  const source = await prisma.source.delete({
-    where: { id: req.params.id }
+  const source = await prisma.source.update({
+    where: { id: req.params.id },
+    data: {
+      enabled: false
+    }
   });
 
   await recordAuditEvent(req, {
-    action: 'source.delete',
+    action: 'source.disable',
     entityType: 'Source',
     entityId: source.id,
     metadata: {
       name: source.name,
-      type: source.type
+      type: source.type,
+      reason: 'delete route requested'
     }
   });
 

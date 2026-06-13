@@ -9,7 +9,8 @@ vi.mock('./db/prisma', () => ({
     source: {
       findMany: vi.fn(),
       count: vi.fn(),
-      create: vi.fn()
+      create: vi.fn(),
+      update: vi.fn()
     },
     channel: {
       findMany: vi.fn(),
@@ -272,6 +273,43 @@ describe('server API', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Invalid request payload.');
     expect(prisma.source.create).not.toHaveBeenCalled();
+  });
+
+  it('disables sources instead of hard deleting them', async () => {
+    vi.mocked(prisma.source.update).mockResolvedValue({
+      id: 'source-1',
+      name: 'Provider',
+      type: 'url',
+      enabled: false,
+      url: 'https://example.com/feed.xml',
+      priority: 1,
+      mergeWeight: 1,
+      createdAt: new Date('2026-06-12T12:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T12:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .delete('/api/sources/source-1')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(204);
+    expect(prisma.source.update).toHaveBeenCalledWith({
+      where: {
+        id: 'source-1'
+      },
+      data: {
+        enabled: false
+      }
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'source.disable',
+        entityType: 'Source',
+        entityId: 'source-1'
+      })
+    }));
   });
 
   it('rejects unexpected export token payload fields', async () => {
