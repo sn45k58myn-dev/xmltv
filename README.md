@@ -447,7 +447,9 @@ Every HTTP response includes an `x-request-id` header. If an upstream proxy send
 requests are written as structured JSON logs with the request id, method, path,
 status code, duration, client IP, and user agent so production logs can be
 searched by request id. JSON error responses include the same `requestId` for
-client-to-log correlation.
+client-to-log correlation. Sensitive query parameters containing tokens, keys,
+secrets, passwords, or authorization values are redacted before the path is
+written to logs.
 
 Prometheus output includes process health, channel/program counts, HTTP request
 latency, import run counts by status, queue depth by status, total feed

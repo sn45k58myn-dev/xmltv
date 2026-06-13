@@ -11,6 +11,40 @@ function getRequestId(req: Request) {
   return crypto.randomUUID();
 }
 
+function isSensitiveQueryKey(key: string) {
+  const normalized = key.toLowerCase();
+
+  return (
+    normalized === 'authorization' ||
+    normalized.includes('token') ||
+    normalized.includes('key') ||
+    normalized.includes('secret') ||
+    normalized.includes('password')
+  );
+}
+
+export function sanitizeRequestPath(originalUrl: string) {
+  const queryStart = originalUrl.indexOf('?');
+
+  if (queryStart === -1) {
+    return originalUrl;
+  }
+
+  const path = originalUrl.slice(0, queryStart);
+  const query = originalUrl.slice(queryStart + 1);
+  const params = new URLSearchParams(query);
+
+  for (const key of Array.from(params.keys())) {
+    if (isSensitiveQueryKey(key)) {
+      params.set(key, 'REDACTED');
+    }
+  }
+
+  const sanitizedQuery = params.toString();
+
+  return sanitizedQuery ? `${path}?${sanitizedQuery}` : path;
+}
+
 export function requestContext(
   req: Request,
   res: Response,
@@ -33,7 +67,7 @@ export function requestContext(
       event: 'http_request',
       requestId,
       method: req.method,
-      path: req.originalUrl,
+      path: sanitizeRequestPath(req.originalUrl),
       statusCode: res.statusCode,
       durationMs: Number(durationMs.toFixed(2)),
       ip: req.ip,
