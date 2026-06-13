@@ -1,11 +1,14 @@
 import axios from 'axios';
 import { env } from '../config/env';
+import { assertSourceUrlAllowed } from '../sources/sourceUrl';
 import { getSourceCache, updateSourceCache } from './sourceCache';
 
 export async function sourceChanged(
   sourceId: string,
   url: string
 ): Promise<boolean> {
+  assertSourceUrlAllowed(url);
+
   try {
     const cache = await getSourceCache(sourceId);
 
