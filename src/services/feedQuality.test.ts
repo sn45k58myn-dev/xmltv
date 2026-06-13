@@ -97,4 +97,22 @@ describe('feedQuality', () => {
       take: 10
     });
   });
+
+  it('bounds invalid and excessive feed quality history limits', async () => {
+    await getFeedQualityHistory(Number.NaN);
+    await getFeedQualityHistory(50000);
+
+    expect(prisma.feedQualitySnapshot.findMany).toHaveBeenNthCalledWith(1, {
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 100
+    });
+    expect(prisma.feedQualitySnapshot.findMany).toHaveBeenNthCalledWith(2, {
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 1000
+    });
+  });
 });

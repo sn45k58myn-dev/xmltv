@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { prisma } from '../db/prisma';
+import { boundedLimit } from '../utils/limits';
 
 type AuditEvent = {
   action: string;
@@ -58,9 +59,9 @@ export async function getAuditEvents(limit = 100) {
     orderBy: {
       createdAt: 'desc'
     },
-    take: Math.min(
-      Math.max(limit, 1),
-      500
-    )
+    take: boundedLimit(limit, {
+      defaultValue: 100,
+      max: 500
+    })
   });
 }

@@ -1,6 +1,7 @@
 import { getFeedMetadata } from './feedMetadata';
 import { validateCachedFeeds } from './feedValidation';
 import { prisma } from '../db/prisma';
+import { boundedLimit } from '../utils/limits';
 
 type FeedValidationRow = {
   feedKey: string;
@@ -141,9 +142,9 @@ export async function getFeedQualityHistory(limit = 100) {
     orderBy: {
       createdAt: 'desc'
     },
-    take: Math.min(
-      Math.max(limit, 1),
-      1000
-    )
+    take: boundedLimit(limit, {
+      defaultValue: 100,
+      max: 1000
+    })
   });
 }

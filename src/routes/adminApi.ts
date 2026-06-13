@@ -13,6 +13,7 @@ import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
 import { createApiKey, maskApiKey } from '../services/apiKeys';
+import { boundedLimit } from '../utils/limits';
 import {
   aliasCreateSchema,
   aliasGenerateSchema,
@@ -75,9 +76,10 @@ adminApi.get('/quality', requireViewer, async (req, res) => {
   }));
 });
 adminApi.get('/quality/history', requireViewer, async (req, res) => {
-  const limit = Number(req.query.limit ?? 100);
-
-  res.json(await getFeedQualityHistory(Number.isFinite(limit) ? limit : 100));
+  res.json(await getFeedQualityHistory(boundedLimit(req.query.limit, {
+    defaultValue: 100,
+    max: 1000
+  })));
 });
 adminApi.get('/source-categories', requireViewer, async (_req, res) => res.json(await getSourceCategories()));
 adminApi.get('/sources', requireViewer, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
@@ -114,9 +116,10 @@ adminApi.get('/imports', requireViewer, async (_req, res) => res.json(await pris
 adminApi.get('/jobs', requireViewer, async (_req, res) => res.json(await prisma.jobRun.findMany({ orderBy: { startedAt: 'desc' }, take: 100 })));
 adminApi.get('/queue', requireViewer, async (_req, res) => res.json(await prisma.jobQueue.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })));
 adminApi.get('/audit', requireAdmin, async (req, res) => {
-  const limit = Number(req.query.limit ?? 100);
-
-  res.json(await getAuditEvents(Number.isFinite(limit) ? limit : 100));
+  res.json(await getAuditEvents(boundedLimit(req.query.limit, {
+    defaultValue: 100,
+    max: 500
+  })));
 });
 adminApi.get('/api-keys', requireAdmin, async (_req, res) => {
   const apiKeys = await prisma.apiKey.findMany({
