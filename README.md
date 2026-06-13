@@ -681,6 +681,9 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Rotate `ADMIN_TOKEN` before deployment and do not use `dev-admin-token`.
 - Set `CORS_ORIGIN` to the public admin origin instead of `*` where possible.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
+- Set `REDIS_URL` whenever `JOB_QUEUE_BACKEND=bullmq`,
+  `RATE_LIMIT_STORE=redis`, or `CACHE_METADATA_STORE=redis`; production startup
+  fails fast when Redis-backed features are enabled without it.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports. Feed
   cache writes are atomic; old cache files remain available until replacements
