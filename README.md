@@ -123,6 +123,10 @@ Important variables:
 - `RATE_LIMIT_STORE`: `memory` for local/single process, or `redis` for shared multi-replica rate limiting.
 - `REDIS_URL`: Redis connection URL used when Redis-backed features are enabled.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
+- `AUDIT_LOG_RETENTION_DAYS`: Removes audit log rows older than this many days.
+- `JOB_RUN_RETENTION_DAYS`: Removes job run history older than this many days.
+- `JOB_QUEUE_RETENTION_DAYS`: Removes completed or failed queue jobs older than this many days.
+- `FEED_QUALITY_RETENTION_DAYS`: Removes feed quality snapshots older than this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
 - `EXPORT_FUTURE_DAYS`: Future programme window included in generated feeds.
 - `ENABLE_DEBUG_ROUTES`: Enables admin-protected debug routes when `true`.
@@ -235,6 +239,11 @@ Scheduled imports use database-backed job locks so only one scheduler owner runs
 the import or retention job at a time. A recent failed source health check causes
 the scheduler to skip that source until `SOURCE_FAILURE_BACKOFF_MINUTES` has
 elapsed. Each scheduled source import is also guarded by `IMPORT_TIMEOUT_MS`.
+
+Operational retention runs daily after programme retention. It prunes old audit
+logs, job runs, completed queue jobs, and feed quality snapshots according to
+the retention env vars. Pending or running queue jobs are never removed by
+retention.
 
 ## Job Runs
 

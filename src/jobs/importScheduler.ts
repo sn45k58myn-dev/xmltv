@@ -6,6 +6,7 @@ import { runProgramRetention } from './programRetention';
 import { finishJobRun, startJobRun } from './jobRuns';
 import { acquireJobLock } from './jobLock';
 import { shouldBackoffSource, withImportTimeout } from '../services/sourceReliability';
+import { runOperationalRetention, summarizeOperationalRetention } from './operationalRetention';
 
 export function startImportScheduler() {
   console.log('Import scheduler started');
@@ -125,6 +126,48 @@ export function startImportScheduler() {
     } catch (err) {
       console.error(
         'Program retention failed',
+        err
+      );
+
+      await finishJobRun(
+        job.id,
+        'failed',
+        undefined,
+        err
+      );
+    } finally {
+      await lock.release();
+    }
+  });
+
+  // Daily operational retention cleanup at 04:30
+  cron.schedule('30 4 * * *', async () => {
+    const lock = await acquireJobLock(
+      'operational-retention',
+      env.SCHEDULER_LOCK_TTL_MS
+    );
+
+    if (!lock) {
+      console.log('Operational retention already locked, skipping schedule');
+      return;
+    }
+
+    const job = await startJobRun(
+      'operational-retention',
+      'cron'
+    );
+
+    try {
+      const result = await runOperationalRetention();
+
+      await finishJobRun(
+        job.id,
+        'success',
+        summarizeOperationalRetention(result)
+      );
+    } catch (err) {
+      console.error(
+        'Operational retention failed',
         err
       );
 
