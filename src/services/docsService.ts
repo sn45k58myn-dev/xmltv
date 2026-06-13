@@ -21,7 +21,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/discovery/providers', description: 'Provider feed discovery from mappings.' },
       { method: 'GET', path: '/api/discovery/metadata', description: 'Cache and feed metadata.' },
       { method: 'GET', path: '/api/discovery/validation', description: 'Lightweight public cached feed validation summary. Full validation is admin-only.' },
-      { method: 'GET', path: '/api/discovery/quality', description: 'Cached feed quality scores.' },
+      { method: 'GET', path: '/api/discovery/quality', description: 'Lightweight public feed quality summary from persisted snapshots. Full quality scoring is admin-only.' },
       { method: 'GET', path: '/country/:country.xml', description: 'Cached country XMLTV feed.' },
       { method: 'GET', path: '/country/:country.xml.gz', description: 'Cached compressed country XMLTV feed.' },
       { method: 'GET', path: '/sports.xml', description: 'Dynamic sports category XMLTV feed.' },

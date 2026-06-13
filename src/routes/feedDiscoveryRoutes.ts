@@ -7,7 +7,7 @@ import {
 } from '../services/manifestService';
 import { getFeedMetadata } from '../services/feedMetadata';
 import { getValidationSummary } from '../services/feedValidation';
-import { getFeedQuality } from '../services/feedQuality';
+import { getFeedQualitySummary } from '../services/feedQuality';
 
 export const feedDiscoveryRoutes = Router();
 
@@ -52,7 +52,7 @@ feedDiscoveryRoutes.get(
 feedDiscoveryRoutes.get(
   '/quality',
   async (_req, res) => {
-    res.json(await getFeedQuality());
+    res.json(await getFeedQualitySummary());
   }
 );
 

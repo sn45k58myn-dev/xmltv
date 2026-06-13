@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../db/prisma';
-import { getFeedQuality, getFeedQualityHistory } from './feedQuality';
+import { getFeedQuality, getFeedQualityHistory, getFeedQualitySummary } from './feedQuality';
 
 vi.mock('../db/prisma', () => ({
   prisma: {
@@ -95,6 +95,73 @@ describe('feedQuality', () => {
         createdAt: 'desc'
       },
       take: 10
+    });
+  });
+
+  it('summarizes latest persisted quality snapshots for public discovery', async () => {
+    vi.mocked(prisma.feedQualitySnapshot.findMany).mockResolvedValue([
+      {
+        id: 'snapshot-new',
+        feedKey: 'GB.xml',
+        score: 91,
+        grade: 'A',
+        valid: true,
+        channels: 10,
+        programs: 100,
+        bytes: 2048,
+        reasons: '[]',
+        createdAt: new Date('2026-06-13T12:00:00.000Z')
+      },
+      {
+        id: 'snapshot-old',
+        feedKey: 'GB.xml',
+        score: 70,
+        grade: 'C',
+        valid: true,
+        channels: 8,
+        programs: 90,
+        bytes: 1024,
+        reasons: '["old"]',
+        createdAt: new Date('2026-06-12T12:00:00.000Z')
+      },
+      {
+        id: 'snapshot-us',
+        feedKey: 'US.xml',
+        score: 50,
+        grade: 'D',
+        valid: false,
+        channels: 0,
+        programs: 0,
+        bytes: 10,
+        reasons: '["invalid XMLTV"]',
+        createdAt: new Date('2026-06-13T11:00:00.000Z')
+      }
+    ] as any);
+
+    const summary = await getFeedQualitySummary();
+
+    expect(summary).toMatchObject({
+      snapshotOnly: true,
+      feedCount: 2,
+      averageScore: 70.5,
+      validFeeds: 1,
+      invalidFeeds: 1
+    });
+    expect(summary.feeds).toEqual([
+      expect.objectContaining({
+        feedKey: 'GB.xml',
+        score: 91
+      }),
+      expect.objectContaining({
+        feedKey: 'US.xml',
+        reasons: ['invalid XMLTV']
+      })
+    ]);
+    expect(prisma.feedQualitySnapshot.findMany).toHaveBeenCalledWith({
+      orderBy: {
+        createdAt: 'desc'
+      },
+      take: 1000
     });
   });
 

@@ -41,17 +41,21 @@ export async function recordAuditEvent(
   req: Request,
   event: AuditEvent
 ) {
-  await prisma.auditLog.create({
-    data: {
-      action: event.action,
-      entityType: event.entityType,
-      entityId: event.entityId ?? undefined,
-      actor: actorFromRequest(req),
-      metadata: event.metadata === undefined
-        ? undefined
-        : JSON.stringify(event.metadata)
-    }
-  });
+  try {
+    await prisma.auditLog.create({
+      data: {
+        action: event.action,
+        entityType: event.entityType,
+        entityId: event.entityId ?? undefined,
+        actor: actorFromRequest(req),
+        metadata: event.metadata === undefined
+          ? undefined
+          : JSON.stringify(event.metadata)
+      }
+    });
+  } catch (error) {
+    console.error(`Unable to record audit event ${event.action}:`, error);
+  }
 }
 
 export async function getAuditEvents(limit = 100) {

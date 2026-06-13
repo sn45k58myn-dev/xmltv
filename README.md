@@ -330,8 +330,10 @@ Full validation parses XML and compressed XML feeds, so it is protected behind
 `VALIDATION_TIMEOUT_MS`.
 
 Feed quality scores combine validation status, channel/program counts, cache
-size, freshness, and download metadata. Scores are advisory and do not block
-feed serving. Admin quality checks can persist snapshots for trend review:
+size, freshness, and download metadata. Public discovery quality reads the latest
+persisted snapshots only, so it stays lightweight under polling. Scores are
+advisory and do not block feed serving. Admin quality checks parse cached feeds
+and can persist snapshots for trend review:
 
 ```text
 GET /api/admin/quality?snapshot=true

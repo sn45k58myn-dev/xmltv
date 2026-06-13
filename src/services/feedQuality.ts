@@ -137,6 +137,66 @@ export async function getFeedQuality(options: {
   return result;
 }
 
+function parseReasons(reasons: string | null | undefined) {
+  if (!reasons) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(reasons);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getFeedQualitySummary(limit = 1000) {
+  const snapshots = await prisma.feedQualitySnapshot.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    },
+    take: boundedLimit(limit, {
+      defaultValue: 1000,
+      max: 5000
+    })
+  });
+  const latestByFeed = new Map<string, typeof snapshots[number]>();
+
+  for (const snapshot of snapshots) {
+    if (!latestByFeed.has(snapshot.feedKey)) {
+      latestByFeed.set(snapshot.feedKey, snapshot);
+    }
+  }
+
+  const feeds = Array.from(latestByFeed.values()).map((snapshot) => ({
+    feedKey: snapshot.feedKey,
+    score: snapshot.score,
+    grade: snapshot.grade,
+    valid: snapshot.valid,
+    channels: snapshot.channels,
+    programs: snapshot.programs,
+    bytes: snapshot.bytes,
+    reasons: parseReasons(snapshot.reasons),
+    createdAt: snapshot.createdAt
+  }));
+  const averageScore = feeds.length === 0
+    ? 0
+    : Number((
+        feeds.reduce((sum, feed) => sum + feed.score, 0) / feeds.length
+      ).toFixed(2));
+
+  return {
+    generatedAt: new Date().toISOString(),
+    snapshotOnly: true,
+    latestSnapshotAt: feeds[0]?.createdAt ?? null,
+    feedCount: feeds.length,
+    averageScore,
+    validFeeds: feeds.filter((feed) => feed.valid).length,
+    invalidFeeds: feeds.filter((feed) => !feed.valid).length,
+    feeds
+  };
+}
+
 export async function getFeedQualityHistory(limit = 100) {
   return prisma.feedQualitySnapshot.findMany({
     orderBy: {

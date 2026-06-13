@@ -3,6 +3,15 @@ import { env } from '../config/env';
 import { getFeedDownloads } from './downloadMetrics';
 import { getFeedSizes } from './feedMetrics';
 
+function sourceName(run: {
+  source?: {
+    name?: string | null;
+  } | null;
+  sourceId?: string | null;
+}) {
+  return run.source?.name ?? run.sourceId ?? 'Unknown source';
+}
+
 export async function getDashboardStats() {
   const [
     channels,
@@ -94,7 +103,7 @@ export async function getDashboardStats() {
     feeds: feedSizes,
     recentImports: recentImports.map((run) => ({
       id: run.id,
-      source: run.source.name,
+      source: sourceName(run),
       status: run.status,
       channelsSeen: run.channelsSeen,
       programsSeen: run.programsSeen,
@@ -106,7 +115,7 @@ export async function getDashboardStats() {
     })),
     recentFailedImports: recentFailedImports.map((run) => ({
       id: run.id,
-      source: run.source.name,
+      source: sourceName(run),
       status: run.status,
       startedAt: run.startedAt,
       finishedAt: run.finishedAt,
