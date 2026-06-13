@@ -3,12 +3,56 @@ import { prisma } from '../db/prisma';
 import { getRequestMetrics } from './requestMetrics';
 
 export async function systemMetrics() {
-  const [latestRun, failedRuns, channels, programs] = await Promise.all([
+  const [
+    latestRun,
+    failedRuns,
+    channels,
+    programs,
+    importStatusRows,
+    queueStatusRows,
+    totalFeedDownloads,
+    topFeeds,
+    latestQualitySnapshot
+  ] = await Promise.all([
     prisma.importRun.findFirst({ include: { source: true }, orderBy: { startedAt: 'desc' } }),
     prisma.importRun.count({ where: { status: 'failed' } }),
     prisma.channel.count(),
-    prisma.program.count()
+    prisma.program.count(),
+    prisma.importRun.groupBy({
+      by: ['status'],
+      _count: {
+        _all: true
+      }
+    }),
+    prisma.jobQueue.groupBy({
+      by: ['status'],
+      _count: {
+        _all: true
+      }
+    }),
+    prisma.feedDownload.aggregate({
+      _sum: {
+        downloads: true
+      }
+    }),
+    prisma.feedDownload.findMany({
+      orderBy: {
+        downloads: 'desc'
+      },
+      take: 10
+    }),
+    prisma.feedQualitySnapshot.findFirst({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
   ]);
+  const importStatuses = Object.fromEntries(
+    importStatusRows.map((row) => [row.status, row._count._all])
+  );
+  const queueStatuses = Object.fromEntries(
+    queueStatusRows.map((row) => [row.status, row._count._all])
+  );
 
   return {
     ok: true,
@@ -16,6 +60,11 @@ export async function systemMetrics() {
     failedRuns,
     channels,
     programs,
+    importStatuses,
+    queueStatuses,
+    totalFeedDownloads: totalFeedDownloads._sum.downloads ?? 0,
+    topFeeds,
+    latestQualitySnapshot,
     uptimeSeconds: process.uptime(),
     memory: process.memoryUsage(),
     requests: getRequestMetrics()
@@ -49,6 +98,34 @@ export async function prometheusMetrics() {
     '# HELP xmltv_import_failed_runs_total Number of failed import runs.',
     '# TYPE xmltv_import_failed_runs_total gauge',
     metricLine('xmltv_import_failed_runs_total', metrics.failedRuns),
+    '# HELP xmltv_import_runs_total Import runs by status.',
+    '# TYPE xmltv_import_runs_total gauge',
+    ...Object.entries(metrics.importStatuses).map(([status, count]) =>
+      metricLine('xmltv_import_runs_total', Number(count), { status })
+    ),
+    '# HELP xmltv_job_queue_jobs Queue jobs by status.',
+    '# TYPE xmltv_job_queue_jobs gauge',
+    ...Object.entries(metrics.queueStatuses).map(([status, count]) =>
+      metricLine('xmltv_job_queue_jobs', Number(count), { status })
+    ),
+    '# HELP xmltv_feed_downloads_total Total generated feed downloads.',
+    '# TYPE xmltv_feed_downloads_total counter',
+    metricLine('xmltv_feed_downloads_total', metrics.totalFeedDownloads),
+    '# HELP xmltv_feed_downloads_by_feed Generated feed downloads by feed key.',
+    '# TYPE xmltv_feed_downloads_by_feed counter',
+    ...metrics.topFeeds.map((feed) =>
+      metricLine('xmltv_feed_downloads_by_feed', feed.downloads, { feed: feed.feedKey })
+    ),
+    '# HELP xmltv_latest_feed_quality_score Latest persisted feed quality score.',
+    '# TYPE xmltv_latest_feed_quality_score gauge',
+    metricLine(
+      'xmltv_latest_feed_quality_score',
+      metrics.latestQualitySnapshot?.score ?? 0,
+      {
+        feed: metrics.latestQualitySnapshot?.feedKey ?? 'none',
+        grade: metrics.latestQualitySnapshot?.grade ?? 'none'
+      }
+    ),
     '# HELP xmltv_process_uptime_seconds Node.js process uptime.',
     '# TYPE xmltv_process_uptime_seconds gauge',
     metricLine('xmltv_process_uptime_seconds', metrics.uptimeSeconds),

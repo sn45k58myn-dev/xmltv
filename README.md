@@ -408,6 +408,10 @@ requests are written as structured JSON logs with the request id, method, path,
 status code, duration, client IP, and user agent so production logs can be
 searched by request id.
 
+Prometheus output includes process health, channel/program counts, HTTP request
+latency, import run counts by status, queue depth by status, total feed
+downloads, top feed downloads, and the latest persisted feed quality score.
+
 The dashboard response includes `cacheWarning` and `cacheWarningThresholdMB`.
 Set `CACHE_WARNING_MB` to match the storage budget for the deployment.
 
