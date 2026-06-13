@@ -339,6 +339,9 @@ GET /api/admin/quality/history
 ## Export Tokens
 
 Generated feed routes are protected unless `PUBLIC_EXPORTS=true`.
+When feeds are protected, feed responses use private cache headers and vary on
+`x-export-token` so shared proxies do not treat token-protected guides as public
+cache entries.
 
 When `PUBLIC_EXPORTS=false`, pass an active export token using either:
 

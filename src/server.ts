@@ -307,10 +307,18 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
 });
 
 function setFeedCacheHeaders(res) {
+  const cacheScope = env.PUBLIC_EXPORTS === 'true'
+    ? 'public'
+    : 'private';
+
   res.setHeader(
     'cache-control',
-    `public, max-age=${env.FEED_CACHE_MAX_AGE_SECONDS}`
+    `${cacheScope}, max-age=${env.FEED_CACHE_MAX_AGE_SECONDS}`
   );
+
+  if (env.PUBLIC_EXPORTS !== 'true') {
+    res.vary('x-export-token');
+  }
 }
 
 function sendXml(

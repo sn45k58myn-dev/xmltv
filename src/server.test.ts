@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from './db/prisma';
+import { getCachedFeed } from './services/cacheService';
+import { recordFeedDownload } from './services/downloadMetrics';
 
 vi.mock('./db/prisma', () => ({
   prisma: {
@@ -49,6 +51,16 @@ vi.mock('./db/prisma', () => ({
       create: vi.fn()
     }
   }
+}));
+
+vi.mock('./services/cacheService', () => ({
+  assertCacheDirectoryWritable: vi.fn(),
+  getCachedFeed: vi.fn(),
+  getCachedFeedGzip: vi.fn()
+}));
+
+vi.mock('./services/downloadMetrics', () => ({
+  recordFeedDownload: vi.fn()
 }));
 
 async function loadApp() {
@@ -236,6 +248,33 @@ describe('server API', () => {
 
     expect(response.status).toBe(401);
     expect(response.body.error).toContain('Invalid or inactive export token');
+  });
+
+  it('marks protected feed responses as private cache entries', async () => {
+    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
+      id: 'token-1',
+      name: 'Client',
+      token: 'valid-token',
+      profileId: null,
+      providerId: null,
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-12T12:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.exportToken.update).mockResolvedValue({} as any);
+    vi.mocked(getCachedFeed).mockResolvedValue('<tv></tv>');
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/country/GB.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('private, max-age=300');
+    expect(response.headers.vary).toContain('x-export-token');
+    expect(recordFeedDownload).toHaveBeenCalledWith('GB.xml');
   });
 
   it('rejects obviously non-XML uploads before import processing', async () => {
