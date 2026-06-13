@@ -1,8 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { assertSourceUrlAllowed } from './sourceUrl';
+import dns from 'node:dns/promises';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { assertResolvedSourceUrlAllowed, assertSourceUrlAllowed } from './sourceUrl';
+
+vi.mock('node:dns/promises', () => ({
+  default: {
+    lookup: vi.fn()
+  }
+}));
 
 describe('assertSourceUrlAllowed', () => {
   afterEach(() => {
+    vi.clearAllMocks();
     delete process.env.NODE_ENV;
   });
 
@@ -30,5 +38,18 @@ describe('assertSourceUrlAllowed', () => {
     expect(() => assertSourceUrlAllowed('http://192.168.1.10/guide.xml')).toThrow('private network');
     expect(() => assertSourceUrlAllowed('http://172.16.0.5/guide.xml')).toThrow('private network');
     expect(() => assertSourceUrlAllowed('http://169.254.169.254/latest/meta-data')).toThrow('private network');
+  });
+
+  it('rejects production hostnames that resolve to private addresses', async () => {
+    process.env.NODE_ENV = 'production';
+    vi.mocked(dns.lookup).mockResolvedValue([
+      {
+        address: '10.0.0.5',
+        family: 4
+      }
+    ] as any);
+
+    await expect(assertResolvedSourceUrlAllowed('http://feeds.example.com/guide.xml'))
+      .rejects.toThrow('private network');
   });
 });

@@ -712,8 +712,8 @@ load tests, large-feed scenarios, and baseline recording guidance.
   cache writes are atomic; old cache files remain available until replacements
   are fully written.
 - Source downloads only accept `http` and `https` URLs. In production mode,
-  obvious localhost and private-network source URLs are refused before freshness
-  checks or feed downloads run.
+  localhost/private-network source URLs and hostnames resolving to private
+  addresses are refused before freshness checks or feed downloads run.
 - In multi-container or multi-replica deployments, run `ENABLE_SCHEDULER=true`
   on only one scheduler owner and set it to `false` everywhere else.
 - Generated feeds send `Cache-Control` using `FEED_CACHE_MAX_AGE_SECONDS`.

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { env } from '../config/env';
 import { SourceDefinition } from '../models/xmltv';
 import { fetchSchedulesDirectXmltv } from './schedulesDirect';
-import { assertSourceUrlAllowed } from './sourceUrl';
+import { assertResolvedSourceUrlAllowed } from './sourceUrl';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,7 +24,7 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
   }
 
   if (!source.url) throw new Error(`Source ${source.name} missing URL`);
-  assertSourceUrlAllowed(source.url);
+  await assertResolvedSourceUrlAllowed(source.url);
 
   let lastError: unknown;
 
