@@ -14,10 +14,29 @@ function rateLimitKey(req: Request) {
 
 function setRateLimitHeaders(
   res: Response,
-  count: number
+  count: number,
+  resetAt: number
 ) {
   res.setHeader('x-rate-limit-limit', String(env.RATE_LIMIT_MAX));
   res.setHeader('x-rate-limit-remaining', String(Math.max(0, env.RATE_LIMIT_MAX - count)));
+  res.setHeader('x-rate-limit-reset', new Date(resetAt).toISOString());
+}
+
+function sendRateLimitExceeded(
+  res: Response,
+  resetAt: number
+) {
+  const retryAfterSeconds = Math.max(
+    1,
+    Math.ceil((resetAt - Date.now()) / 1000)
+  );
+
+  res.setHeader('retry-after', String(retryAfterSeconds));
+
+  return res.status(429).json({
+    error: 'Rate limit exceeded',
+    retryAfterSeconds
+  });
 }
 
 function pruneExpiredBuckets(now: number) {
@@ -48,8 +67,8 @@ function memoryRateLimit(
   if (now > bucket.resetAt) { bucket.count = 0; bucket.resetAt = now + env.RATE_LIMIT_WINDOW_MS; }
   bucket.count += 1;
   buckets.set(key, bucket);
-  setRateLimitHeaders(res, bucket.count);
-  if (bucket.count > env.RATE_LIMIT_MAX) return res.status(429).json({ error: 'Rate limit exceeded' });
+  setRateLimitHeaders(res, bucket.count, bucket.resetAt);
+  if (bucket.count > env.RATE_LIMIT_MAX) return sendRateLimitExceeded(res, bucket.resetAt);
   next();
 }
 
@@ -66,17 +85,16 @@ async function redisRateLimit(
 
   const redisKey = `rate-limit:${key}`;
   const count = await redis.incr(redisKey);
+  const resetAt = Date.now() + env.RATE_LIMIT_WINDOW_MS;
 
   if (count === 1) {
     await redis.pExpire(redisKey, env.RATE_LIMIT_WINDOW_MS);
   }
 
-  setRateLimitHeaders(res, count);
+  setRateLimitHeaders(res, count, resetAt);
 
   if (count > env.RATE_LIMIT_MAX) {
-    return res.status(429).json({
-      error: 'Rate limit exceeded'
-    });
+    return sendRateLimitExceeded(res, resetAt);
   }
 
   return next();

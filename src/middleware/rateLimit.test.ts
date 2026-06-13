@@ -59,6 +59,36 @@ describe('rateLimit', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(secondRes.status).toHaveBeenCalledWith(429);
+    expect(secondRes.setHeader).toHaveBeenCalledWith(
+      'retry-after',
+      expect.any(String)
+    );
+    expect(secondRes.json).toHaveBeenCalledWith({
+      error: 'Rate limit exceeded',
+      retryAfterSeconds: expect.any(Number)
+    });
+  });
+
+  it('emits rate limit reset headers', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));
+
+    const { rateLimit } = await loadRateLimiter({
+      RATE_LIMIT_STORE: 'memory',
+      RATE_LIMIT_MAX: '10',
+      RATE_LIMIT_WINDOW_MS: '60000'
+    });
+    const res = responseMock();
+    const next = vi.fn() as NextFunction;
+
+    rateLimit(requestMock('headers-ip'), res, next);
+
+    expect(res.setHeader).toHaveBeenCalledWith('x-rate-limit-limit', '10');
+    expect(res.setHeader).toHaveBeenCalledWith('x-rate-limit-remaining', '9');
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'x-rate-limit-reset',
+      '2026-06-13T12:01:00.000Z'
+    );
   });
 
   it('prunes expired in-memory buckets in long-running processes', async () => {

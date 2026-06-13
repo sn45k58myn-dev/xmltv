@@ -718,7 +718,9 @@ load tests, large-feed scenarios, and baseline recording guidance.
   generated cache files when the warning is present.
 - The built-in rate limiter and request metrics are process-local; use external
   metrics aggregation when scaling horizontally. Set `RATE_LIMIT_STORE=redis`
-  and `REDIS_URL` to share API rate limits across app replicas.
+  and `REDIS_URL` to share API rate limits across app replicas. Rate-limited
+  responses include `Retry-After`, `x-rate-limit-limit`,
+  `x-rate-limit-remaining`, and `x-rate-limit-reset` headers for client backoff.
 - For large cache directories or multiple app replicas, set
   `CACHE_METADATA_STORE=redis` and `REDIS_URL` so metadata reads can use the
   shared cache metadata index populated by cache writes/imports.
