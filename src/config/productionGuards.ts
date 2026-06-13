@@ -15,6 +15,10 @@ export function assertProductionSafeConfig() {
     throw new Error('Refusing production startup with missing or default ADMIN_TOKEN.');
   }
 
+  if (env.ALLOW_ADMIN_QUERY_TOKEN === 'true') {
+    throw new Error('Refusing production startup with ALLOW_ADMIN_QUERY_TOKEN enabled.');
+  }
+
   if (LOCAL_DATABASE_PATTERNS.some((pattern) => pattern.test(env.DATABASE_URL))) {
     throw new Error('Refusing production startup with local or development DATABASE_URL.');
   }

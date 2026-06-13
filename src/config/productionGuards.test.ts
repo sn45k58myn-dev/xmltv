@@ -6,6 +6,7 @@ async function loadGuardWithEnv(env: Record<string, string | undefined>) {
   for (const key of [
     'NODE_ENV',
     'ADMIN_TOKEN',
+    'ALLOW_ADMIN_QUERY_TOKEN',
     'DATABASE_URL',
     'RATE_LIMIT_STORE',
     'CACHE_METADATA_STORE',
@@ -25,6 +26,7 @@ describe('assertProductionSafeConfig', () => {
     vi.resetModules();
     delete process.env.NODE_ENV;
     delete process.env.ADMIN_TOKEN;
+    delete process.env.ALLOW_ADMIN_QUERY_TOKEN;
     delete process.env.DATABASE_URL;
     delete process.env.RATE_LIMIT_STORE;
     delete process.env.CACHE_METADATA_STORE;
@@ -58,6 +60,17 @@ describe('assertProductionSafeConfig', () => {
     });
 
     expect(() => assertProductionSafeConfig()).toThrow('development DATABASE_URL');
+  });
+
+  it('rejects admin query tokens in production', async () => {
+    const { assertProductionSafeConfig } = await loadGuardWithEnv({
+      NODE_ENV: 'production',
+      ADMIN_TOKEN: 'safe-production-token',
+      ALLOW_ADMIN_QUERY_TOKEN: 'true',
+      DATABASE_URL: 'postgresql://xmltv:xmltv@db.example.com:5432/xmltv'
+    });
+
+    expect(() => assertProductionSafeConfig()).toThrow('ALLOW_ADMIN_QUERY_TOKEN');
   });
 
   it('rejects Redis-backed production features without REDIS_URL', async () => {

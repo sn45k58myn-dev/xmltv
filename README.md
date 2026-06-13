@@ -109,7 +109,8 @@ Important variables:
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
 - `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
   `?adminToken=`. Keep `false` in production because query credentials can leak
-  through URLs, logs, and browser history.
+  through URLs, logs, and browser history. Production startup refuses to run
+  when this is enabled.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
 - `CORS_ORIGIN`: `*` or a comma-separated list of allowed browser origins.
 - `JSON_BODY_LIMIT`: Maximum JSON request body size.
@@ -573,6 +574,8 @@ Before starting production, set:
 - `DATABASE_URL` to the production PostgreSQL database.
 - `ADMIN_TOKEN` to a long random value.
 - `BASE_URL` and `CORS_ORIGIN` to the public HTTPS origin.
+- `ALLOW_ADMIN_QUERY_TOKEN=false`; production startup refuses query-string
+  admin credentials.
 - `PUBLIC_EXPORTS=false` unless feeds are intentionally public.
 - `TRUST_PROXY=true` only when the app is behind a trusted reverse proxy.
 
@@ -686,8 +689,9 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Keep `PUBLIC_EXPORTS=false` unless feeds should be public.
 - Use export tokens for feed consumers.
 - Keep `ENABLE_DEBUG_ROUTES=false` in production.
-- Set `NODE_ENV=production`; startup refuses the default `ADMIN_TOKEN` and
-  local development database URLs in production mode.
+- Set `NODE_ENV=production`; startup refuses the default `ADMIN_TOKEN`,
+  query-string admin tokens, and local development database URLs in production
+  mode.
 - Rotate `ADMIN_TOKEN` before deployment and do not use `dev-admin-token`.
 - Set `CORS_ORIGIN` to the public admin origin instead of `*` where possible.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
