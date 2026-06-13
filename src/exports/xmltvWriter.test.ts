@@ -41,4 +41,29 @@ describe('writeXmltv', () => {
       </tv>"
     `);
   });
+
+  it('writes aliases as additional display names without duplicating the primary name', () => {
+    const xml = writeXmltv([
+      {
+        xmltvId: 'provider.101',
+        displayName: 'News One',
+        logo: null,
+        icon: null,
+        image: null,
+        aliases: [
+          {
+            value: 'News 1'
+          },
+          {
+            value: 'news one'
+          }
+        ],
+        programs: []
+      }
+    ] as any);
+
+    expect(xml).toContain('<display-name>News One</display-name>');
+    expect(xml).toContain('<display-name>News 1</display-name>');
+    expect(xml.match(/<display-name>/g)).toHaveLength(2);
+  });
 });

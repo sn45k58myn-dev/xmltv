@@ -29,6 +29,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/profile/:id.xml', description: 'Dynamic export profile XMLTV feed.' },
       { method: 'GET', path: '/provider/:id.xml', description: 'Dynamic provider XMLTV feed.' },
       { method: 'GET', path: '/provider/:id.xml.gz', description: 'Cached compressed provider XMLTV feed.' },
+      { method: 'GET', path: '/provider/:id.xml?token=<export-token>', description: 'Jellyfin/Xtream-friendly provider guide. Provider mappings emit provider channel ids for guide matching.' },
       { method: 'POST', path: '/imports/upload', description: 'Admin-protected XMLTV upload. Requires x-admin-token.' },
       { method: 'POST', path: '/profiles', description: 'Admin-protected export profile creation. Requires x-admin-token.' },
       { method: 'GET', path: '/api/stats/dashboard', description: 'Dashboard analytics summary.' },

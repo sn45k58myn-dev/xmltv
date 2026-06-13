@@ -448,6 +448,31 @@ Legacy redirects:
 /us.xml -> /country/US.xml
 ```
 
+## Jellyfin Live TV Setup
+
+Jellyfin needs a tuner playlist/source and an XMLTV guide URL. This app provides
+the XMLTV guide. If `PUBLIC_EXPORTS=false`, create an export token first and
+append it to the guide URL because Jellyfin cannot send `x-export-token` headers
+for guide refreshes.
+
+Guide URLs:
+
+```text
+http://YOUR-SERVER:3001/country/GB.xml?token=YOUR_EXPORT_TOKEN
+http://YOUR-SERVER:3001/country/US.xml?token=YOUR_EXPORT_TOKEN
+http://YOUR-SERVER:3001/provider/jellyextreme.xml?token=YOUR_EXPORT_TOKEN
+```
+
+Use the host or LAN IP reachable from Jellyfin. If Jellyfin runs in Docker,
+`localhost` points at the Jellyfin container, not this app.
+
+For Xtream/M3U tuners, the tuner channel `tvg-id` values must match the XMLTV
+`<channel id="">` values. Provider XMLTV exports now write mapped
+`providerChannelId` values as XMLTV ids, so use `/provider/:id.xml` when you
+have mappings for that tuner provider. Country exports use the imported XMLTV
+ids and include channel aliases as extra `<display-name>` values to improve
+Jellyfin matching.
+
 ## Docker Usage
 
 Start the full stack for local or single-host production testing:
