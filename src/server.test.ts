@@ -75,6 +75,13 @@ describe('server API', () => {
     expect(response.body).toEqual({ ok: true });
   });
 
+  it('does not expose the Express powered-by header', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/health');
+
+    expect(response.headers['x-powered-by']).toBeUndefined();
+  });
+
   it('serves the root page without inline styles', async () => {
     const app = await loadApp();
     const response = await request(app).get('/');

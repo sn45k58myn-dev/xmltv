@@ -43,6 +43,8 @@ import { closeRedisClient } from './services/redisClient';
 
 assertProductionSafeConfig();
 export const app = express();
+app.disable('x-powered-by');
+
 const upload = multer({
   dest: path.join(process.cwd(), 'uploads'),
   limits: {
