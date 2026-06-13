@@ -559,6 +559,9 @@ dropdb xmltv_restore_check
 See [docs/backup-automation.md](docs/backup-automation.md) for cron, systemd,
 Docker Compose, hosted PostgreSQL, retention, and restore-drill examples.
 
+See [docs/load-testing.md](docs/load-testing.md) for local feed benchmarks, k6
+load tests, large-feed scenarios, and baseline recording guidance.
+
 ## Production Notes
 
 - Keep `PUBLIC_EXPORTS=false` unless feeds should be public.
