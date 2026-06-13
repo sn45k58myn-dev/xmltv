@@ -419,7 +419,8 @@ Every HTTP response includes an `x-request-id` header. If an upstream proxy send
 `x-request-id`, the app preserves it; otherwise it generates a UUID. Completed
 requests are written as structured JSON logs with the request id, method, path,
 status code, duration, client IP, and user agent so production logs can be
-searched by request id.
+searched by request id. JSON error responses include the same `requestId` for
+client-to-log correlation.
 
 Prometheus output includes process health, channel/program counts, HTTP request
 latency, import run counts by status, queue depth by status, total feed

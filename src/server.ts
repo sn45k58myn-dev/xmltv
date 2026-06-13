@@ -427,12 +427,15 @@ app.get('/coverage', requireAdmin, async (_req, res) => {
 
 app.use((
   error: unknown,
-  _req: express.Request,
+  req: express.Request,
   res: express.Response,
   _next: express.NextFunction
 ) => {
+  const requestId = req.requestId;
+
   if (error instanceof multer.MulterError) {
     return res.status(400).json({
+      requestId,
       error: error.code === 'LIMIT_FILE_SIZE'
         ? `Uploaded file exceeds ${env.UPLOAD_MAX_MB} MB limit.`
         : 'Invalid multipart upload.'
@@ -441,12 +444,14 @@ app.use((
 
   if (error instanceof Error && error.message.startsWith('Uploaded XMLTV file')) {
     return res.status(400).json({
+      requestId,
       error: error.message
     });
   }
 
   if (error instanceof ZodError) {
     return res.status(400).json({
+      requestId,
       error: 'Invalid request payload.',
       issues: error.issues.map((issue) => ({
         path: issue.path.join('.'),
@@ -458,6 +463,7 @@ app.use((
   console.error('Unhandled request error:', error);
 
   return res.status(500).json({
+    requestId,
     error: 'Internal server error'
   });
 });

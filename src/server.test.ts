@@ -250,9 +250,11 @@ describe('server API', () => {
       .set('x-admin-token', 'test-admin-token');
 
     expect(response.status).toBe(500);
-    expect(response.body).toEqual({
+    expect(response.body).toMatchObject({
+      requestId: expect.any(String),
       error: 'Internal server error'
     });
+    expect(response.headers['x-request-id']).toBe(response.body.requestId);
     expect(response.text).not.toContain('database secret details');
   });
 
