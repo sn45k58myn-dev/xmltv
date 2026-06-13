@@ -206,6 +206,8 @@ run at least one worker process with `ENABLE_WORKER=true`. The API returns `202`
 with a queued job id. By default workers claim pending jobs from PostgreSQL.
 The scheduler, built-in PostgreSQL worker, BullMQ worker, and shared Redis
 client stop cleanly during graceful process shutdown.
+Queue producers only accept known job types and reject payloads larger than
+64KB before writing to PostgreSQL or Redis.
 
 ```bash
 # web/API process

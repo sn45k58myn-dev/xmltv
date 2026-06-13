@@ -36,6 +36,11 @@ vi.mock('node:fs/promises', () => ({
       size: 2048,
       mtime: new Date()
     }),
+    lstat: vi.fn().mockResolvedValue({
+      size: 2048,
+      isFile: () => true
+    }),
+    realpath: vi.fn().mockImplementation((value) => Promise.resolve(value)),
     readFile: vi.fn().mockResolvedValue(`
       <tv>
         <channel id="gb.one"><display-name>GB One</display-name></channel>

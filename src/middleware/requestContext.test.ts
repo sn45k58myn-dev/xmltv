@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeRequestPath } from './requestContext';
+import { normalizeRequestId, sanitizeRequestPath } from './requestContext';
 
 describe('sanitizeRequestPath', () => {
   it('leaves paths without query strings unchanged', () => {
@@ -16,5 +16,16 @@ describe('sanitizeRequestPath', () => {
     expect(
       sanitizeRequestPath('/api/admin/summary?adminToken=secret&apiKey=abc')
     ).toBe('/api/admin/summary?adminToken=REDACTED&apiKey=REDACTED');
+  });
+});
+
+describe('normalizeRequestId', () => {
+  it('keeps safe caller-provided request IDs', () => {
+    expect(normalizeRequestId('request-123:edge_1')).toBe('request-123:edge_1');
+  });
+
+  it('rejects unsafe or oversized caller-provided request IDs', () => {
+    expect(normalizeRequestId('bad\r\nx-injected: 1')).toBeUndefined();
+    expect(normalizeRequestId('x'.repeat(129))).toBeUndefined();
   });
 });

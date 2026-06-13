@@ -3,6 +3,7 @@ import type { ConnectionOptions, JobsOptions } from 'bullmq';
 import { env } from '../config/env';
 import { runTrackedJob } from './jobRuns';
 import { runEnabledImports, summarizeImportResults } from './importWork';
+import { assertJobPayloadSize, assertKnownJobType } from './jobTypes';
 
 const QUEUE_NAME = 'xmltv-jobs';
 
@@ -41,6 +42,9 @@ export async function enqueueBullJob(
   payload?: unknown,
   options: JobsOptions = {}
 ) {
+  assertKnownJobType(type);
+  assertJobPayloadSize(payload);
+
   const job = await getQueue().add(
     type,
     payload ?? {},

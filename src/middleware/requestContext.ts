@@ -1,11 +1,21 @@
 import crypto from 'node:crypto';
 import { NextFunction, Request, Response } from 'express';
 
-function getRequestId(req: Request) {
-  const header = req.header('x-request-id');
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
-  if (header?.trim()) {
-    return header.trim().slice(0, 128);
+export function normalizeRequestId(value?: string) {
+  const trimmed = value?.trim();
+
+  return trimmed && SAFE_REQUEST_ID.test(trimmed)
+    ? trimmed
+    : undefined;
+}
+
+function getRequestId(req: Request) {
+  const header = normalizeRequestId(req.header('x-request-id'));
+
+  if (header) {
+    return header;
   }
 
   return crypto.randomUUID();

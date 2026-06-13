@@ -38,6 +38,10 @@ describe('assertSourceUrlAllowed', () => {
     expect(() => assertSourceUrlAllowed('http://192.168.1.10/guide.xml')).toThrow('private network');
     expect(() => assertSourceUrlAllowed('http://172.16.0.5/guide.xml')).toThrow('private network');
     expect(() => assertSourceUrlAllowed('http://169.254.169.254/latest/meta-data')).toThrow('private network');
+    expect(() => assertSourceUrlAllowed('http://100.64.0.1/guide.xml')).toThrow('private network');
+    expect(() => assertSourceUrlAllowed('http://198.18.0.1/guide.xml')).toThrow('private network');
+    expect(() => assertSourceUrlAllowed('http://224.0.0.1/guide.xml')).toThrow('private network');
+    expect(() => assertSourceUrlAllowed('http://[::ffff:127.0.0.1]/guide.xml')).toThrow('private network');
   });
 
   it('rejects production hostnames that resolve to private addresses', async () => {

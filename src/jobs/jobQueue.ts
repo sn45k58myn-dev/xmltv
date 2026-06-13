@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { JobQueue } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../db/prisma';
+import { assertKnownJobType, serializeJobPayload } from './jobTypes';
 
 type QueuedJobStatus = 'pending' | 'running' | 'success' | 'failed';
 
@@ -13,10 +14,12 @@ export async function enqueueJob(
     runAfter?: Date;
   } = {}
 ) {
+  assertKnownJobType(type);
+
   return prisma.jobQueue.create({
     data: {
       type,
-      payload: payload == null ? undefined : JSON.stringify(payload),
+      payload: serializeJobPayload(payload),
       maxAttempts: options.maxAttempts ?? 3,
       runAfter: options.runAfter ?? new Date()
     }

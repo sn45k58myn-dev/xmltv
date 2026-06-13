@@ -1,17 +1,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gunzip } from 'node:zlib';
-import { promisify } from 'node:util';
 import { env } from '../config/env';
 import { parseXmltv } from '../pipeline/parseXmltv';
 import { validateXmltv } from '../pipeline/validateXmltv';
 import { getFeedMetadata } from './feedMetadata';
 
-const gunzipAsync = promisify(gunzip);
 const CACHE_DIR = path.join(
   process.cwd(),
   'cache'
 );
+const SAFE_FEED_FILE = /^[A-Za-z0-9_.-]+\.xml(\.gz)?$/;
 
 function assertWithinTimeout(
   started: number,
@@ -24,12 +23,75 @@ function assertWithinTimeout(
   }
 }
 
+function gunzipLimited(
+  data: Buffer,
+  maxBytes: number
+) {
+  return new Promise<Buffer>((resolve, reject) => {
+    gunzip(
+      data,
+      {
+        maxOutputLength: maxBytes
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(result);
+      }
+    );
+  });
+}
+
+async function resolveCacheFeed(
+  file: string
+) {
+  if (!SAFE_FEED_FILE.test(file)) {
+    throw new Error(`Invalid cache feed filename: ${file}`);
+  }
+
+  const fullPath = path.join(
+    CACHE_DIR,
+    file
+  );
+  const [
+    cacheRealPath,
+    stat
+  ] = await Promise.all([
+    fs.realpath(CACHE_DIR),
+    fs.lstat(fullPath)
+  ]);
+
+  if (!stat.isFile()) {
+    throw new Error(`Cache feed is not a regular file: ${file}`);
+  }
+
+  const fileRealPath = await fs.realpath(fullPath);
+  const relativePath = path.relative(
+    cacheRealPath,
+    fileRealPath
+  );
+
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    throw new Error(`Cache feed resolves outside cache directory: ${file}`);
+  }
+
+  return {
+    fullPath,
+    stat
+  };
+}
+
 async function readFeed(
   file: string,
   started: number
 ) {
-  const fullPath = path.join(CACHE_DIR, file);
-  const stat = await fs.stat(fullPath);
+  const {
+    fullPath,
+    stat
+  } = await resolveCacheFeed(file);
   const maxBytes = env.VALIDATION_MAX_FEED_MB * 1024 * 1024;
 
   if (stat.size > maxBytes) {
@@ -42,8 +104,20 @@ async function readFeed(
   assertWithinTimeout(started, file);
 
   if (file.endsWith('.gz')) {
-    const xml = (await gunzipAsync(data)).toString('utf8');
+    const xml = (await gunzipLimited(
+      data,
+      maxBytes
+    )).toString('utf8');
     assertWithinTimeout(started, file);
+
+    if (Buffer.byteLength(
+      xml,
+      'utf8'
+    ) > maxBytes) {
+      throw new Error(
+        `Feed exceeds decompressed validation size limit of ${env.VALIDATION_MAX_FEED_MB}MB`
+      );
+    }
 
     return xml;
   }

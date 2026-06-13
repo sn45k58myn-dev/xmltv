@@ -69,6 +69,23 @@ describe('jobQueue', () => {
     });
   });
 
+  it('rejects unknown queued job types before writing to the database', async () => {
+    await expect(enqueueJob('unknown-job')).rejects.toThrow('Unknown queued job type');
+
+    expect(prisma.jobQueue.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized queued job payloads before writing to the database', async () => {
+    await expect(enqueueJob(
+      'manual-imports',
+      {
+        data: 'x'.repeat(70 * 1024)
+      }
+    )).rejects.toThrow('Queued job payload exceeds');
+
+    expect(prisma.jobQueue.create).not.toHaveBeenCalled();
+  });
+
   it('claims the next available job with a worker lock', async () => {
     vi.mocked(prisma.$queryRaw).mockResolvedValue([job] as any);
 
