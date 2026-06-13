@@ -1,5 +1,6 @@
 require('dotenv/config');
 
+const { existsSync, statSync } = require('node:fs');
 const { spawn } = require('node:child_process');
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -15,6 +16,11 @@ if (!backupFile) {
   process.exit(1);
 }
 
+if (!existsSync(backupFile) || !statSync(backupFile).isFile()) {
+  console.error(`Backup file not found: ${backupFile}`);
+  process.exit(1);
+}
+
 const child = spawn('pg_restore', [
   '--clean',
   '--if-exists',
@@ -24,6 +30,11 @@ const child = spawn('pg_restore', [
 ], {
   stdio: 'inherit',
   shell: process.platform === 'win32'
+});
+
+child.on('error', (error) => {
+  console.error(`Unable to start pg_restore: ${error.message}`);
+  process.exit(1);
 });
 
 child.on('exit', (code) => {

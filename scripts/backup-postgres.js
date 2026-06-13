@@ -28,6 +28,11 @@ const child = spawn('pg_dump', [
   shell: process.platform === 'win32'
 });
 
+child.on('error', (error) => {
+  console.error(`Unable to start pg_dump: ${error.message}`);
+  process.exit(1);
+});
+
 child.on('exit', (code) => {
   if (code === 0) {
     console.log(file);

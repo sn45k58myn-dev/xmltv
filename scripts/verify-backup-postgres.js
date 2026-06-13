@@ -1,5 +1,6 @@
 require('dotenv/config');
 
+const { existsSync, statSync } = require('node:fs');
 const { spawn } = require('node:child_process');
 
 const backupFile = process.argv[2];
@@ -7,6 +8,11 @@ const verifyDatabaseUrl = process.env.VERIFY_DATABASE_URL;
 
 if (!backupFile) {
   console.error('Usage: VERIFY_DATABASE_URL=<restore-db-url> npm run backup:verify -- <backup-file>');
+  process.exit(1);
+}
+
+if (!existsSync(backupFile) || !statSync(backupFile).isFile()) {
+  console.error(`Backup file not found: ${backupFile}`);
   process.exit(1);
 }
 
@@ -21,6 +27,10 @@ function run(command, args, options = {}) {
       stdio: 'inherit',
       shell: process.platform === 'win32',
       ...options
+    });
+
+    child.on('error', (error) => {
+      reject(new Error(`Unable to start ${command}: ${error.message}`));
     });
 
     child.on('exit', (code) => {
