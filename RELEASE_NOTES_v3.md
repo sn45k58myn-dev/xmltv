@@ -26,6 +26,13 @@ release-grade deployment paths.
 - Cache size warnings in dashboard analytics
 - Docker production image
 - GitHub Actions CI for install, Prisma generation, build, smoke import, and audit
+- CSP-safe admin UI interactions with no inline event handlers
+- Admin token persistence with local storage and cookie fallback
+- Optional Redis-backed API rate limiting
+- Optional Redis-backed cache metadata index for larger installations
+- PostgreSQL-backed queued manual imports with opt-in worker processes
+- Backup automation guidance with retention pruning and restore drills
+- Load testing guide with local feed benchmarks and k6 examples
 
 ## Breaking And Operational Changes
 
@@ -37,7 +44,11 @@ release-grade deployment paths.
 - Cached feed files are generated under `cache/` and should not be committed.
 - Full admin job run details are available under protected admin APIs.
 - Run only one `ENABLE_SCHEDULER=true` instance in multi-container deployments.
+- Use `IMPORT_RUN_MODE=queue` and `ENABLE_WORKER=true` for queued manual imports.
 - Backup and restore scripts use `DATABASE_URL`, `pg_dump`, and `pg_restore`.
+- Backup pruning uses `BACKUP_RETENTION_DAYS` and only removes matching
+  `xmltv-*.dump` files from `BACKUP_DIR`.
+- Protected feed load tests need `PUBLIC_EXPORTS=true` or an export token.
 
 ## Upgrade Notes
 
@@ -71,6 +82,7 @@ GET /api/discovery/validation
 GET /api/stats/dashboard
 GET /api/admin/jobs
 GET /api/admin/jobs/:id
+GET /api/admin/queue
 GET /country/:country.xml
 GET /country/:country.xml.gz
 GET /profile/:id.xml
@@ -98,6 +110,7 @@ npm ci
 npx prisma migrate deploy
 npm run build
 npm run smoke:import
+npm run benchmark:feeds
 npm start
 curl http://localhost:3000/health
 curl http://localhost:3000/ready
