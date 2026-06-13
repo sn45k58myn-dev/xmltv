@@ -12,10 +12,12 @@ import { validateCachedFeeds } from '../services/feedValidation';
 import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
+import { createApiKey, maskApiKey } from '../services/apiKeys';
 import {
   aliasCreateSchema,
   channelUpdateSchema,
   parseAdminPayload,
+  parseApiKeyCreatePayload,
   parseProfileCreatePayload,
   parseSourceCreatePayload,
   profileUpdateSchema,
@@ -100,6 +102,61 @@ adminApi.get('/audit', async (req, res) => {
   const limit = Number(req.query.limit ?? 100);
 
   res.json(await getAuditEvents(Number.isFinite(limit) ? limit : 100));
+});
+adminApi.get('/api-keys', async (_req, res) => {
+  const apiKeys = await prisma.apiKey.findMany({
+    orderBy: {
+      createdAt: 'desc'
+    }
+  });
+
+  res.json(apiKeys.map(maskApiKey));
+});
+adminApi.post('/api-keys', async (req, res) => {
+  const data = parseApiKeyCreatePayload(req.body);
+  const {
+    key,
+    apiKey
+  } = await createApiKey(data);
+
+  await recordAuditEvent(req, {
+    action: 'apiKey.create',
+    entityType: 'ApiKey',
+    entityId: apiKey.id,
+    metadata: {
+      name: apiKey.name,
+      role: apiKey.role,
+      prefix: apiKey.prefix
+    }
+  });
+
+  res.status(201).json({
+    ...maskApiKey(apiKey),
+    key
+  });
+});
+adminApi.delete('/api-keys/:id', async (req, res) => {
+  const apiKey = await prisma.apiKey.update({
+    where: {
+      id: req.params.id
+    },
+    data: {
+      active: false
+    }
+  });
+
+  await recordAuditEvent(req, {
+    action: 'apiKey.revoke',
+    entityType: 'ApiKey',
+    entityId: apiKey.id,
+    metadata: {
+      name: apiKey.name,
+      role: apiKey.role,
+      prefix: apiKey.prefix
+    }
+  });
+
+  res.status(204).end();
 });
 adminApi.get('/jobs/:id', async (req, res) => {
   const job = await prisma.jobRun.findUnique({

@@ -7,7 +7,8 @@ export function buildApiDocs() {
     description: appInfo.description,
     generatedAt: new Date().toISOString(),
     authentication: {
-      admin: 'Send x-admin-token for /api/admin, /api/sources, /api/export-tokens, /imports/upload, /profiles, and debug routes.',
+      admin: 'Send x-admin-token or an admin role x-api-key for /api/admin, /api/sources, /api/export-tokens, /imports/upload, /profiles, and debug routes.',
+      apiKeys: 'API keys may also be sent as Authorization: Bearer <api-key>. API key secrets are shown once at creation and then stored as SHA-256 hashes.',
       exports: 'Protected feeds require PUBLIC_EXPORTS=true, ?token=<export-token>, or x-export-token.'
     },
     endpoints: [
@@ -37,6 +38,9 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/admin/jobs/:id', description: 'Admin job run details.' },
       { method: 'GET', path: '/api/admin/queue', description: 'Admin queued job history for queued import workers.' },
       { method: 'GET', path: '/api/admin/audit', description: 'Admin audit log for source, import, profile, token, and channel mapping changes.' },
+      { method: 'GET', path: '/api/admin/api-keys', description: 'Admin API key listing with masked key previews.' },
+      { method: 'POST', path: '/api/admin/api-keys', description: 'Create an admin/operator/viewer API key. The raw key is returned only once.' },
+      { method: 'DELETE', path: '/api/admin/api-keys/:id', description: 'Deactivate an API key.' },
       { method: 'GET', path: '/api/admin/validation', description: 'Admin full feed validation details. Parses cached XML feeds and may be expensive.' },
       { method: 'GET', path: '/api/admin/quality', description: 'Admin feed quality details.' },
       { method: 'GET', path: '/api/admin/quality?snapshot=true', description: 'Admin feed quality details and persist a quality snapshot.' },

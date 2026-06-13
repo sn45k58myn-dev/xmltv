@@ -11,7 +11,7 @@ import { assertProductionSafeConfig } from './config/productionGuards';
 import { adminApi } from './routes/adminApi';
 import { rateLimit } from './middleware/rateLimit';
 import { requireExportToken } from './middleware/exportToken';
-import { systemMetrics } from './monitoring/metrics';
+import { prometheusMetrics, systemMetrics } from './monitoring/metrics';
 import { prisma } from './db/prisma';
 import { exportCategory, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
@@ -37,6 +37,7 @@ import { recordAuditEvent } from './services/auditLog';
 import { enqueueJob } from './jobs/jobQueue';
 import { runEnabledImports, summarizeImportResults } from './jobs/importWork';
 import { parseProfileCreatePayload } from './utils/adminPayloads';
+import { enqueueBullJob, startBullJobWorker } from './jobs/bullQueue';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -87,6 +88,11 @@ app.use('/api/sources', sourceRoutes);
 app.use('/api/export-tokens', exportTokenRoutes);
 
 app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
+app.get('/monitoring/prometheus', async (_req, res) => {
+  res
+    .type('text/plain; version=0.0.4; charset=utf-8')
+    .send(await prometheusMetrics());
+});
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
@@ -118,6 +124,29 @@ app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.sou
 
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   if (env.IMPORT_RUN_MODE === 'queue') {
+    if (env.JOB_QUEUE_BACKEND === 'bullmq') {
+      const job = await enqueueBullJob('manual-imports');
+
+      await recordAuditEvent(_req, {
+        action: 'import.queue',
+        entityType: 'BullMQ',
+        entityId: job.id,
+        metadata: {
+          trigger: 'manual',
+          backend: 'bullmq'
+        }
+      });
+
+      res.status(202).json({
+        queued: true,
+        backend: 'bullmq',
+        jobId: job.id,
+        status: job.status,
+        type: job.type
+      });
+      return;
+    }
+
     const job = await enqueueJob('manual-imports');
 
     await recordAuditEvent(_req, {
@@ -131,6 +160,7 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
 
     res.status(202).json({
       queued: true,
+      backend: 'database',
       jobId: job.id,
       status: job.status,
       type: job.type
@@ -441,7 +471,11 @@ export async function startServer() {
     console.log('Import scheduler disabled');
   }
 
-  startJobWorker();
+  const closeBullWorker = startBullJobWorker();
+
+  if (env.JOB_QUEUE_BACKEND !== 'bullmq') {
+    startJobWorker();
+  }
 
   const server = app.listen(env.PORT, () => {
     console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
@@ -451,6 +485,7 @@ export async function startServer() {
     console.log(`Received ${signal}, shutting down`);
 
     server.close(async () => {
+      await closeBullWorker?.();
       await prisma.$disconnect();
       process.exit(0);
     });

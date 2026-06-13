@@ -240,6 +240,22 @@ model AuditLog {
   @@index([entityType, createdAt])
 }
 
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  prefix     String    @unique
+  hash       String    @unique
+  role       String    @default("viewer")
+  active     Boolean   @default(true)
+  requests   Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([role, active])
+  @@index([createdAt])
+}
+
 model FeedQualitySnapshot {
   id        String   @id @default(cuid())
   feedKey   String

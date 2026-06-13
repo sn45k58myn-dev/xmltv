@@ -26,6 +26,7 @@ const schema = z.object({
   IMPORT_TIMEOUT_MS: z.coerce.number().default(1800000),
   SCHEDULER_LOCK_TTL_MS: z.coerce.number().default(3600000),
   IMPORT_RUN_MODE: z.enum(['inline', 'queue']).default('inline'),
+  JOB_QUEUE_BACKEND: z.enum(['database', 'bullmq']).default('database'),
   ENABLE_WORKER: z.string().default('false'),
   WORKER_POLL_MS: z.coerce.number().default(5000),
   WORKER_LOCK_TTL_MS: z.coerce.number().default(1800000),

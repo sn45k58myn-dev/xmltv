@@ -29,6 +29,7 @@
   "dependencies": {
     "@prisma/client": "^5.22.0",
     "axios": "^1.7.9",
+    "bullmq": "^5.78.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

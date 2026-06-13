@@ -44,6 +44,11 @@ export const aliasCreateSchema = z.object({
   normalized: z.string().trim().min(1)
 }).strict();
 
+export const apiKeyCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  role: z.enum(['admin', 'operator', 'viewer']).default('viewer')
+}).strict();
+
 type SourceCreatePayload = {
   name: string;
   type: string;
@@ -64,6 +69,11 @@ type ProfileCreatePayload = {
   rateLimit?: number | null;
 };
 
+type ApiKeyCreatePayload = {
+  name: string;
+  role?: 'admin' | 'operator' | 'viewer';
+};
+
 export function parseSourceCreatePayload(value: unknown): SourceCreatePayload {
   const parsed = sourceCreateSchema.parse(value);
 
@@ -81,6 +91,15 @@ export function parseProfileCreatePayload(value: unknown): ProfileCreatePayload 
     ...parsed,
     name: parsed.name as string,
     slug: parsed.slug as string
+  };
+}
+
+export function parseApiKeyCreatePayload(value: unknown): ApiKeyCreatePayload {
+  const parsed = apiKeyCreateSchema.parse(value);
+
+  return {
+    ...parsed,
+    name: parsed.name as string
   };
 }
 

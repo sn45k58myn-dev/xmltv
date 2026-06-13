@@ -27,7 +27,8 @@ vi.mock('./db/prisma', () => ({
       create: vi.fn()
     },
     importRun: {
-      count: vi.fn()
+      count: vi.fn(),
+      findFirst: vi.fn()
     },
     exportToken: {
       count: vi.fn(),
@@ -38,6 +39,12 @@ vi.mock('./db/prisma', () => ({
     auditLog: {
       create: vi.fn(),
       findMany: vi.fn()
+    },
+    apiKey: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn()
     }
   }
 }));
@@ -92,7 +99,71 @@ describe('server API', () => {
     const response = await request(app).get('/api/admin/summary');
 
     expect(response.status).toBe(401);
-    expect(response.body.error).toContain('Admin token required');
+    expect(response.body.error).toContain('Admin credentials required');
+  });
+
+  it('accepts admin API keys on admin routes', async () => {
+    vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
+      id: 'api-key-1',
+      name: 'CI',
+      prefix: 'ak_123456789',
+      hash: 'hash',
+      role: 'admin',
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T10:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.source.count).mockResolvedValue(1);
+    vi.mocked(prisma.channel.count).mockResolvedValue(2);
+    vi.mocked(prisma.program.count).mockResolvedValue(3);
+    vi.mocked(prisma.alias.count).mockResolvedValue(4);
+    vi.mocked(prisma.exportProfile.count).mockResolvedValue(5);
+    vi.mocked(prisma.importRun.count).mockResolvedValue(6);
+    vi.mocked(prisma.exportToken.count).mockResolvedValue(7);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/summary')
+      .set('x-api-key', 'ak_test_admin_key');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      sources: 1,
+      channels: 2,
+      programs: 3
+    });
+    expect(prisma.apiKey.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'api-key-1'
+      }
+    }));
+  });
+
+  it('rejects viewer API keys on admin routes', async () => {
+    vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
+      id: 'api-key-2',
+      name: 'Viewer',
+      prefix: 'ak_987654321',
+      hash: 'hash',
+      role: 'viewer',
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T10:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/summary')
+      .set('x-api-key', 'ak_test_viewer_key');
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toContain('role is not allowed');
   });
 
   it('rejects protected feeds when no export token is supplied', async () => {

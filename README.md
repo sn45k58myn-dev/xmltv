@@ -101,7 +101,7 @@ Important variables:
 - `SCHEDULES_DIRECT_DAYS`: Number of schedule days to request from SD-JSON.
 - `SCHEDULES_DIRECT_BASE_URL`: SD-JSON API base URL.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
-- `ADMIN_TOKEN`: Required for admin UI/API mutations and protected admin APIs.
+- `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
 - `CORS_ORIGIN`: `*` or a comma-separated list of allowed browser origins.
 - `JSON_BODY_LIMIT`: Maximum JSON request body size.
@@ -115,6 +115,7 @@ Important variables:
 - `IMPORT_TIMEOUT_MS`: Maximum wall-clock time for one scheduled source import.
 - `SCHEDULER_LOCK_TTL_MS`: Database job lock TTL for scheduled imports and retention jobs.
 - `IMPORT_RUN_MODE`: `inline` runs manual imports in the request; `queue` enqueues manual imports for workers.
+- `JOB_QUEUE_BACKEND`: `database` for the built-in PostgreSQL queue, or `bullmq` for Redis-backed BullMQ workers.
 - `ENABLE_WORKER`: Set to `true` on queue worker instances.
 - `WORKER_POLL_MS`: Queue worker polling interval.
 - `WORKER_LOCK_TTL_MS`: Queue job lock timeout before another worker can retry the job.
@@ -175,7 +176,7 @@ curl -X POST -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/api/admin/im
 
 For long-running imports, set `IMPORT_RUN_MODE=queue` on the web process and
 run at least one worker process with `ENABLE_WORKER=true`. The API returns `202`
-with a queued job id, and workers claim pending jobs from PostgreSQL.
+with a queued job id. By default workers claim pending jobs from PostgreSQL.
 
 ```bash
 # web/API process
@@ -183,6 +184,14 @@ IMPORT_RUN_MODE=queue ENABLE_WORKER=false npm start
 
 # worker process
 ENABLE_SCHEDULER=false ENABLE_WORKER=true npm start
+```
+
+For Redis-backed BullMQ workers, use the same backend setting on API and worker
+containers:
+
+```bash
+IMPORT_RUN_MODE=queue JOB_QUEUE_BACKEND=bullmq REDIS_URL=redis://redis:6379 npm start
+ENABLE_SCHEDULER=false ENABLE_WORKER=true JOB_QUEUE_BACKEND=bullmq REDIS_URL=redis://redis:6379 npm start
 ```
 
 Queued jobs are visible to admins:
@@ -342,18 +351,44 @@ The admin UI sends `x-admin-token` from the token input saved in local storage.
 Export token listings show token previews only; full token values are never
 returned by admin list endpoints after creation.
 
+### API Keys And RBAC
+
+Production deployments can use database-backed API keys instead of sharing the
+legacy `ADMIN_TOKEN`. Send keys with `x-api-key` or
+`Authorization: Bearer <api-key>`.
+
+Admin-only key management endpoints:
+
+```text
+GET /api/admin/api-keys
+POST /api/admin/api-keys
+DELETE /api/admin/api-keys/:id
+```
+
+Create keys with one of these roles:
+
+- `admin`: Full admin API access, including key management.
+- `operator`: Reserved for operational runbooks and future limited mutation routes.
+- `viewer`: Reserved for read-only operational access.
+
+The raw key is returned only once from `POST /api/admin/api-keys`. The database
+stores a SHA-256 hash plus a short prefix for identification. Revocation marks a
+key inactive so audit history remains intact.
+
 ## Observability
 
 Runtime monitoring is available at:
 
 ```text
 GET /monitoring/metrics
+GET /monitoring/prometheus
 GET /ready
 ```
 
-The response includes import status, channel/program counts, uptime, process
-memory, request totals, in-flight requests, status buckets, latency percentiles,
-and top routes by request count.
+`/monitoring/metrics` returns JSON. `/monitoring/prometheus` returns Prometheus
+0.0.4 text metrics for scraping. The metrics include import status,
+channel/program counts, uptime, process memory, request totals, in-flight
+requests, status buckets, latency percentiles, and top routes by request count.
 
 `/ready` performs a lightweight database probe for load balancers and
 orchestrators.
@@ -588,8 +623,9 @@ load tests, large-feed scenarios, and baseline recording guidance.
   `CACHE_METADATA_STORE=redis` and `REDIS_URL` so metadata reads can use the
   shared cache metadata index populated by cache writes/imports.
 - For long-running manual imports, set `IMPORT_RUN_MODE=queue` on API replicas
-  and run one or more `ENABLE_WORKER=true` worker processes. Workers use
-  PostgreSQL row locking to claim jobs without duplicating work.
+  and run one or more `ENABLE_WORKER=true` worker processes. The default
+  `JOB_QUEUE_BACKEND=database` uses PostgreSQL row locking; `bullmq` uses Redis
+  and should be configured consistently on API and worker containers.
 
 ## CI/CD
 

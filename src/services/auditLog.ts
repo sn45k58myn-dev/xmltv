@@ -33,7 +33,7 @@ export function maskExportToken<T extends { token: string }>(token: T) {
 }
 
 function actorFromRequest(req: Request) {
-  return req.requestId ?? req.ip;
+  return req.auth?.actor ?? req.requestId ?? req.ip;
 }
 
 export async function recordAuditEvent(
