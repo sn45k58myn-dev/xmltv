@@ -5,6 +5,8 @@ import { getRedisClient } from '../services/redisClient';
 
 type Bucket = { count: number; resetAt: number };
 const buckets = new Map<string, Bucket>();
+let requestsSincePrune = 0;
+const PRUNE_INTERVAL_REQUESTS = 100;
 
 function rateLimitKey(req: Request) {
   return req.ip || 'unknown';
@@ -18,12 +20,30 @@ function setRateLimitHeaders(
   res.setHeader('x-rate-limit-remaining', String(Math.max(0, env.RATE_LIMIT_MAX - count)));
 }
 
+function pruneExpiredBuckets(now: number) {
+  for (const [
+    key,
+    bucket
+  ] of buckets.entries()) {
+    if (now > bucket.resetAt) {
+      buckets.delete(key);
+    }
+  }
+}
+
 function memoryRateLimit(
   key: string,
   res: Response,
   next: NextFunction
 ) {
   const now = Date.now();
+  requestsSincePrune += 1;
+
+  if (requestsSincePrune >= PRUNE_INTERVAL_REQUESTS) {
+    requestsSincePrune = 0;
+    pruneExpiredBuckets(now);
+  }
+
   const bucket = buckets.get(key) ?? { count: 0, resetAt: now + env.RATE_LIMIT_WINDOW_MS };
   if (now > bucket.resetAt) { bucket.count = 0; bucket.resetAt = now + env.RATE_LIMIT_WINDOW_MS; }
   bucket.count += 1;
@@ -74,4 +94,8 @@ export function rateLimit(req: Request, res: Response, next: NextFunction) {
   }
 
   memoryRateLimit(key, res, next);
+}
+
+export function memoryRateLimitBucketCount() {
+  return buckets.size;
 }

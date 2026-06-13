@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const redisMock = {
   incr: vi.fn(),
@@ -39,6 +39,10 @@ describe('rateLimit', () => {
     delete process.env.RATE_LIMIT_WINDOW_MS;
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('limits requests with the in-memory store', async () => {
     const { rateLimit } = await loadRateLimiter({
       RATE_LIMIT_STORE: 'memory',
@@ -55,6 +59,29 @@ describe('rateLimit', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(secondRes.status).toHaveBeenCalledWith(429);
+  });
+
+  it('prunes expired in-memory buckets in long-running processes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));
+
+    const { memoryRateLimitBucketCount, rateLimit } = await loadRateLimiter({
+      RATE_LIMIT_STORE: 'memory',
+      RATE_LIMIT_MAX: '1000',
+      RATE_LIMIT_WINDOW_MS: '1'
+    });
+    const next = vi.fn() as NextFunction;
+
+    for (let index = 0; index < 99; index += 1) {
+      rateLimit(requestMock(`old-ip-${index}`), responseMock(), next);
+    }
+
+    expect(memoryRateLimitBucketCount()).toBe(99);
+
+    vi.setSystemTime(new Date('2026-06-13T12:00:01.000Z'));
+    rateLimit(requestMock('new-ip'), responseMock(), next);
+
+    expect(memoryRateLimitBucketCount()).toBe(1);
   });
 
   it('uses Redis when configured', async () => {
