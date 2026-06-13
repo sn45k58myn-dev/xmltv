@@ -13,6 +13,7 @@ const schema = z.object({
   SCHEDULES_DIRECT_BASE_URL: z.string().default('https://json.schedulesdirect.org/20141201'),
   CUSTOM_XMLTV_URLS: z.string().optional(),
   ADMIN_TOKEN: z.string().default('dev-admin-token'),
+  ALLOW_ADMIN_QUERY_TOKEN: z.string().default('false'),
   PUBLIC_EXPORTS: z.string().default('false'),
   CORS_ORIGIN: z.string().default('*'),
   JSON_BODY_LIMIT: z.string().default('1mb'),

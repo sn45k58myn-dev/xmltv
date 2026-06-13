@@ -103,6 +103,14 @@ describe('server API', () => {
     expect(response.body.error).toContain('Admin credentials required');
   });
 
+  it('rejects query-string admin tokens by default', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/api/admin/summary?adminToken=test-admin-token');
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toContain('Admin credentials required');
+  });
+
   it('accepts admin API keys on admin routes', async () => {
     vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
       id: 'api-key-1',

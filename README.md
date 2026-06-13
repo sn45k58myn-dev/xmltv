@@ -59,6 +59,7 @@ SCHEDULES_DIRECT_BASE_URL=https://json.schedulesdirect.org/20141201
 CUSTOM_XMLTV_URLS=https://example.com/guide.xml
 
 ADMIN_TOKEN=dev-admin-token
+ALLOW_ADMIN_QUERY_TOKEN=false
 PUBLIC_EXPORTS=false
 CORS_ORIGIN=*
 JSON_BODY_LIMIT=1mb
@@ -102,6 +103,9 @@ Important variables:
 - `SCHEDULES_DIRECT_BASE_URL`: SD-JSON API base URL.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
+- `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
+  `?adminToken=`. Keep `false` in production because query credentials can leak
+  through URLs, logs, and browser history.
 - `PUBLIC_EXPORTS`: Set to `true` to allow public feed access without tokens.
 - `CORS_ORIGIN`: `*` or a comma-separated list of allowed browser origins.
 - `JSON_BODY_LIMIT`: Maximum JSON request body size.
@@ -359,6 +363,9 @@ Main admin views:
 The admin UI sends `x-admin-token` from the token input saved in local storage.
 Export token listings show token previews only; full token values are never
 returned by admin list endpoints after creation.
+For production, prefer `x-admin-token`, `x-api-key`, or
+`Authorization: Bearer <api-key>` headers. Query-string admin tokens are disabled
+unless `ALLOW_ADMIN_QUERY_TOKEN=true`.
 
 ### API Keys And RBAC
 

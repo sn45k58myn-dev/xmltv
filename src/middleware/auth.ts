@@ -25,18 +25,33 @@ function bearerToken(req: Request) {
   return authorization.slice('bearer '.length).trim();
 }
 
+function adminToken(req: Request) {
+  const headerToken = req.header('x-admin-token');
+
+  if (headerToken) {
+    return headerToken;
+  }
+
+  if (env.ALLOW_ADMIN_QUERY_TOKEN !== 'true') {
+    return '';
+  }
+
+  const queryToken = Array.isArray(req.query.adminToken)
+    ? req.query.adminToken[0]
+    : req.query.adminToken;
+
+  return String(queryToken ?? '');
+}
+
 export function requireRole(roles: ApiKeyRole[]) {
   return async function requireRoleMiddleware(
     req: Request,
     res: Response,
     next: NextFunction
   ) {
-    const queryToken = Array.isArray(req.query.adminToken)
-      ? req.query.adminToken[0]
-      : req.query.adminToken;
-    const adminToken = String(req.header('x-admin-token') ?? queryToken ?? '');
+    const suppliedAdminToken = adminToken(req);
 
-    if (adminToken && safeTokenEquals(adminToken, env.ADMIN_TOKEN)) {
+    if (suppliedAdminToken && safeTokenEquals(suppliedAdminToken, env.ADMIN_TOKEN)) {
       req.auth = {
         actor: 'admin-token',
         role: 'admin'
