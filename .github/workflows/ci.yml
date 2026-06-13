@@ -63,6 +63,23 @@ jobs:
       - name: Smoke import
         run: npm run smoke:import
 
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Verify backup restore workflow
+        env:
+          BACKUP_DIR: backups-ci
+          PGPASSWORD: xmltv
+          VERIFY_DATABASE_URL: postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check?schema=public
+        run: |
+          set -e
+          npm run backup:db
+          latest="$(ls -1t backups-ci/xmltv-*.dump | head -1)"
+          dropdb -h localhost -U xmltv --if-exists xmltv_restore_check
+          createdb -h localhost -U xmltv xmltv_restore_check
+          trap 'dropdb -h localhost -U xmltv --if-exists xmltv_restore_check' EXIT
+          npm run backup:verify -- "$latest"
+
       - name: Audit moderate vulnerabilities
         run: npm audit --audit-level=moderate
 
