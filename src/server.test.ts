@@ -8,7 +8,8 @@ vi.mock('./db/prisma', () => ({
     $disconnect: vi.fn(),
     source: {
       findMany: vi.fn(),
-      count: vi.fn()
+      count: vi.fn(),
+      create: vi.fn()
     },
     channel: {
       findMany: vi.fn(),
@@ -63,6 +64,14 @@ describe('server API', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({ ok: true });
+  });
+
+  it('serves the root page without inline styles', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(response.text).not.toContain('<style>');
   });
 
   it('returns ready when the database probe succeeds', async () => {
@@ -130,6 +139,22 @@ describe('server API', () => {
       error: 'Internal server error'
     });
     expect(response.text).not.toContain('database secret details');
+  });
+
+  it('rejects unexpected admin source payload fields', async () => {
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/api/admin/sources')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        name: 'Source',
+        type: 'url',
+        id: 'not-allowed'
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Invalid request payload.');
+    expect(prisma.source.create).not.toHaveBeenCalled();
   });
 
   it('returns admin audit events for valid admin tokens', async () => {

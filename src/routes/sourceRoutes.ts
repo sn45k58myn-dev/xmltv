@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
 import { recordAuditEvent } from '../services/auditLog';
+import { parseAdminPayload, parseSourceCreatePayload, sourceUpdateSchema } from '../utils/adminPayloads';
 
 export const sourceRoutes = Router();
 sourceRoutes.use(requireAdmin);
@@ -15,8 +16,9 @@ sourceRoutes.get('/', async (_req, res) => {
 });
 
 sourceRoutes.post('/', async (req, res) => {
+  const data = parseSourceCreatePayload(req.body);
   const source = await prisma.source.create({
-    data: req.body
+    data
   });
 
   await recordAuditEvent(req, {
@@ -33,16 +35,20 @@ sourceRoutes.post('/', async (req, res) => {
 });
 
 sourceRoutes.put('/:id', async (req, res) => {
+  const data = parseAdminPayload(
+    sourceUpdateSchema,
+    req.body
+  );
   const source = await prisma.source.update({
     where: { id: req.params.id },
-    data: req.body
+    data
   });
 
   await recordAuditEvent(req, {
     action: 'source.update',
     entityType: 'Source',
     entityId: source.id,
-    metadata: req.body
+    metadata: data
   });
 
   res.json(source);

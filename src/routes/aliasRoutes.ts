@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
+import { aliasCreateSchema, parseAdminPayload } from '../utils/adminPayloads';
 
 export const aliasRoutes = Router();
 
@@ -10,8 +11,17 @@ aliasRoutes.get('/', async (_req, res) => {
 
 aliasRoutes.post('/', async (req, res) => {
   try {
+    const data = parseAdminPayload(aliasCreateSchema, req.body);
     const alias = await prisma.alias.create({
-      data: req.body,
+      data: {
+        value: data.value,
+        normalized: data.normalized,
+        channel: {
+          connect: {
+            id: data.channelId
+          }
+        }
+      },
     });
     res.status(201).json(alias);
   } catch (_error) {

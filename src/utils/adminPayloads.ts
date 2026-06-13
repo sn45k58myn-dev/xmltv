@@ -1,0 +1,92 @@
+import { z } from 'zod';
+
+const nullableString = z.string().trim().nullable().optional();
+const optionalString = z.string().trim().optional();
+
+export const sourceCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  type: z.string().trim().min(1),
+  url: nullableString,
+  priority: z.coerce.number().int().optional(),
+  mergeWeight: z.coerce.number().int().optional(),
+  enabled: z.boolean().optional()
+}).strict();
+
+export const sourceUpdateSchema = sourceCreateSchema.partial();
+
+export const profileCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  slug: z.string().trim().min(1),
+  country: nullableString,
+  category: nullableString,
+  providerId: nullableString,
+  channelIds: nullableString,
+  token: nullableString,
+  rateLimit: z.coerce.number().int().positive().nullable().optional()
+}).strict();
+
+export const profileUpdateSchema = profileCreateSchema.partial();
+
+export const channelUpdateSchema = z.object({
+  displayName: optionalString,
+  country: nullableString,
+  category: nullableString,
+  icon: nullableString,
+  logo: nullableString,
+  image: nullableString,
+  tmdbId: nullableString,
+  seriesId: nullableString
+}).strict();
+
+export const aliasCreateSchema = z.object({
+  channelId: z.string().trim().min(1),
+  value: z.string().trim().min(1),
+  normalized: z.string().trim().min(1)
+}).strict();
+
+type SourceCreatePayload = {
+  name: string;
+  type: string;
+  url?: string | null;
+  priority?: number;
+  mergeWeight?: number;
+  enabled?: boolean;
+};
+
+type ProfileCreatePayload = {
+  name: string;
+  slug: string;
+  country?: string | null;
+  category?: string | null;
+  providerId?: string | null;
+  channelIds?: string | null;
+  token?: string | null;
+  rateLimit?: number | null;
+};
+
+export function parseSourceCreatePayload(value: unknown): SourceCreatePayload {
+  const parsed = sourceCreateSchema.parse(value);
+
+  return {
+    ...parsed,
+    name: parsed.name as string,
+    type: parsed.type as string
+  };
+}
+
+export function parseProfileCreatePayload(value: unknown): ProfileCreatePayload {
+  const parsed = profileCreateSchema.parse(value);
+
+  return {
+    ...parsed,
+    name: parsed.name as string,
+    slug: parsed.slug as string
+  };
+}
+
+export function parseAdminPayload<T>(
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  value: unknown
+): T {
+  return schema.parse(value);
+}

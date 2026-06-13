@@ -12,6 +12,15 @@ import { validateCachedFeeds } from '../services/feedValidation';
 import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
+import {
+  aliasCreateSchema,
+  channelUpdateSchema,
+  parseAdminPayload,
+  parseProfileCreatePayload,
+  parseSourceCreatePayload,
+  profileUpdateSchema,
+  sourceUpdateSchema
+} from '../utils/adminPayloads';
 
 export const adminApi = Router();
 adminApi.use(requireAdmin);
@@ -56,7 +65,8 @@ adminApi.get('/quality/history', async (req, res) => {
 adminApi.get('/source-categories', async (_req, res) => res.json(await getSourceCategories()));
 adminApi.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 adminApi.post('/sources', async (req, res) => {
-  const source = await prisma.source.create({ data: req.body });
+  const data = parseSourceCreatePayload(req.body);
+  const source = await prisma.source.create({ data });
 
   await recordAuditEvent(req, {
     action: 'source.create',
@@ -71,13 +81,14 @@ adminApi.post('/sources', async (req, res) => {
   res.status(201).json(source);
 });
 adminApi.patch('/sources/:id', async (req, res) => {
-  const source = await prisma.source.update({ where: { id: req.params.id }, data: req.body });
+  const data = parseAdminPayload(sourceUpdateSchema, req.body);
+  const source = await prisma.source.update({ where: { id: req.params.id }, data });
 
   await recordAuditEvent(req, {
     action: 'source.update',
     entityType: 'Source',
     entityId: source.id,
-    metadata: req.body
+    metadata: data
   });
 
   res.json(source);
@@ -157,13 +168,14 @@ adminApi.get('/coverage', async (_req, res) => {
 });
 adminApi.get('/channels', async (_req, res) => res.json(await prisma.channel.findMany({ include: { aliases: true, mappings: true }, orderBy: { displayName: 'asc' }, take: 500 })));
 adminApi.patch('/channels/:id', async (req, res) => {
-  const channel = await prisma.channel.update({ where: { id: req.params.id }, data: req.body });
+  const data = parseAdminPayload(channelUpdateSchema, req.body);
+  const channel = await prisma.channel.update({ where: { id: req.params.id }, data });
 
   await recordAuditEvent(req, {
     action: 'channel.update',
     entityType: 'Channel',
     entityId: channel.id,
-    metadata: req.body
+    metadata: data
   });
 
   res.json(channel);
@@ -184,7 +196,18 @@ adminApi.post('/channels/merge', async (req, res) => {
 });
 adminApi.post('/aliases/generate', async (req, res) => res.json(await autoGenerateAliases(req.body.channelId)));
 adminApi.post('/aliases', async (req, res) => {
-  const alias = await prisma.alias.create({ data: req.body });
+  const data = parseAdminPayload(aliasCreateSchema, req.body);
+  const alias = await prisma.alias.create({
+    data: {
+      value: data.value,
+      normalized: data.normalized,
+      channel: {
+        connect: {
+          id: data.channelId
+        }
+      }
+    }
+  });
 
   await recordAuditEvent(req, {
     action: 'channel.alias.create',
@@ -213,7 +236,8 @@ adminApi.delete('/aliases/:id', async (req, res) => {
 });
 adminApi.get('/profiles', async (_req, res) => res.json(await prisma.exportProfile.findMany({ orderBy: { name: 'asc' } })));
 adminApi.post('/profiles', async (req, res) => {
-  const profile = await prisma.exportProfile.create({ data: req.body });
+  const data = parseProfileCreatePayload(req.body);
+  const profile = await prisma.exportProfile.create({ data });
 
   await recordAuditEvent(req, {
     action: 'profile.create',
@@ -228,13 +252,14 @@ adminApi.post('/profiles', async (req, res) => {
   res.status(201).json(profile);
 });
 adminApi.patch('/profiles/:id', async (req, res) => {
-  const profile = await prisma.exportProfile.update({ where: { id: req.params.id }, data: req.body });
+  const data = parseAdminPayload(profileUpdateSchema, req.body);
+  const profile = await prisma.exportProfile.update({ where: { id: req.params.id }, data });
 
   await recordAuditEvent(req, {
     action: 'profile.update',
     entityType: 'ExportProfile',
     entityId: profile.id,
-    metadata: req.body
+    metadata: data
   });
 
   res.json(profile);

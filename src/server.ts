@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import multer from 'multer';
+import { ZodError } from 'zod';
 import { statsRoutes } from './routes/statsRoutes';
 import path from 'node:path';
 import { env } from './config/env';
@@ -35,6 +36,7 @@ import { assertCacheDirectoryWritable } from './services/cacheService';
 import { recordAuditEvent } from './services/auditLog';
 import { enqueueJob } from './jobs/jobQueue';
 import { runEnabledImports, summarizeImportResults } from './jobs/importWork';
+import { parseProfileCreatePayload } from './utils/adminPayloads';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -169,7 +171,8 @@ app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, re
 });
 
 app.post('/profiles', requireAdmin, async (req, res) => {
-  const profile = await prisma.exportProfile.create({ data: req.body });
+  const data = parseProfileCreatePayload(req.body);
+  const profile = await prisma.exportProfile.create({ data });
 
   await recordAuditEvent(req, {
     action: 'profile.create',
@@ -325,11 +328,6 @@ app.get('/', (_req, res) => {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
         <title>XMLTV Aggregator</title>
-        <style>
-          body{font-family:system-ui,Segoe UI,sans-serif;margin:0;background:#f6f7fb;color:#172033;display:grid;min-height:100vh;place-items:center}
-          main{max-width:36rem;padding:2rem;text-align:center}
-          a{color:#172033;font-weight:700}
-        </style>
       </head>
       <body>
         <main>
@@ -414,6 +412,16 @@ app.use((
   if (error instanceof Error && error.message.startsWith('Uploaded XMLTV file')) {
     return res.status(400).json({
       error: error.message
+    });
+  }
+
+  if (error instanceof ZodError) {
+    return res.status(400).json({
+      error: 'Invalid request payload.',
+      issues: error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message
+      }))
     });
   }
 
