@@ -28,6 +28,7 @@ audit logging, and production deployment documentation.
 - Optional Redis-backed API rate limiting for multi-replica deployments
 - Persistent feed quality snapshots with admin quality history
 - Optional Redis-backed cache metadata index for larger installations
+- PostgreSQL-backed queued manual imports with opt-in worker process
 
 ## Current Production Baseline
 
@@ -64,7 +65,6 @@ Deployment requirements:
 
 ## Remaining Production Enhancements
 
-- Dedicated worker process or queue for long-running imports
 - Backup automation examples for hosted PostgreSQL providers
 - Load testing guidance and large-feed performance benchmarks
 

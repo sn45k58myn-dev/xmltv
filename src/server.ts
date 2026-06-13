@@ -15,6 +15,7 @@ import { prisma } from './db/prisma';
 import { exportCategory, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
 import { startImportScheduler } from './jobs/importScheduler';
+import { startJobWorker } from './jobs/jobWorker';
 import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
 import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
@@ -32,6 +33,8 @@ import { requestContext } from './middleware/requestContext';
 import { cleanupUploadedFile, validateUploadedXml } from './services/uploadValidation';
 import { assertCacheDirectoryWritable } from './services/cacheService';
 import { recordAuditEvent } from './services/auditLog';
+import { enqueueJob } from './jobs/jobQueue';
+import { runEnabledImports, summarizeImportResults } from './jobs/importWork';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -112,39 +115,32 @@ app.get(
 app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
+  if (env.IMPORT_RUN_MODE === 'queue') {
+    const job = await enqueueJob('manual-imports');
+
+    await recordAuditEvent(_req, {
+      action: 'import.queue',
+      entityType: 'JobQueue',
+      entityId: job.id,
+      metadata: {
+        trigger: 'manual'
+      }
+    });
+
+    res.status(202).json({
+      queued: true,
+      jobId: job.id,
+      status: job.status,
+      type: job.type
+    });
+    return;
+  }
+
   const results = await runTrackedJob(
     'manual-imports',
     'manual',
-    async () => {
-      const sources = await prisma.source.findMany({
-        where: {
-          enabled: true
-        },
-        orderBy: {
-          priority: 'asc'
-        }
-      });
-
-      const importResults = [];
-
-      for (const source of sources) {
-        importResults.push(
-          await runImport({
-            name: source.name,
-            type: source.type,
-            url: source.url ?? undefined,
-            priority: source.priority
-          })
-        );
-      }
-
-      return importResults;
-    },
-    (importResults) => {
-      const failed = importResults.filter((result) => result.status === 'failed').length;
-
-      return `Imported ${importResults.length - failed}, failed ${failed}`;
-    }
+    runEnabledImports,
+    summarizeImportResults
   );
 
   await recordAuditEvent(_req, {
@@ -436,6 +432,8 @@ export async function startServer() {
   } else {
     console.log('Import scheduler disabled');
   }
+
+  startJobWorker();
 
   const server = app.listen(env.PORT, () => {
     console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);

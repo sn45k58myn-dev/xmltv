@@ -205,6 +205,28 @@ model JobLock {
   @@index([lockedUntil])
 }
 
+model JobQueue {
+  id          String    @id @default(cuid())
+  type        String
+  status      String    @default("pending")
+  payload     String?
+  result      String?
+  error       String?
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  runAfter    DateTime  @default(now())
+  lockedBy    String?
+  lockedUntil DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAfter, createdAt])
+  @@index([type, status])
+  @@index([lockedUntil])
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   action     String

@@ -84,6 +84,7 @@ adminApi.patch('/sources/:id', async (req, res) => {
 });
 adminApi.get('/imports', async (_req, res) => res.json(await prisma.importRun.findMany({ include: { source: true }, orderBy: { startedAt: 'desc' }, take: 100 })));
 adminApi.get('/jobs', async (_req, res) => res.json(await prisma.jobRun.findMany({ orderBy: { startedAt: 'desc' }, take: 100 })));
+adminApi.get('/queue', async (_req, res) => res.json(await prisma.jobQueue.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })));
 adminApi.get('/audit', async (req, res) => {
   const limit = Number(req.query.limit ?? 100);
 

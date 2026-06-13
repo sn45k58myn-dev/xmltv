@@ -114,6 +114,10 @@ Important variables:
 - `SOURCE_FAILURE_BACKOFF_MINUTES`: Scheduler skips a source for this long after its latest failed health check.
 - `IMPORT_TIMEOUT_MS`: Maximum wall-clock time for one scheduled source import.
 - `SCHEDULER_LOCK_TTL_MS`: Database job lock TTL for scheduled imports and retention jobs.
+- `IMPORT_RUN_MODE`: `inline` runs manual imports in the request; `queue` enqueues manual imports for workers.
+- `ENABLE_WORKER`: Set to `true` on queue worker instances.
+- `WORKER_POLL_MS`: Queue worker polling interval.
+- `WORKER_LOCK_TTL_MS`: Queue job lock timeout before another worker can retry the job.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: API rate limit window and request cap.
 - `RATE_LIMIT_STORE`: `memory` for local/single process, or `redis` for shared multi-replica rate limiting.
 - `REDIS_URL`: Redis connection URL used when Redis-backed features are enabled.
@@ -160,6 +164,30 @@ Run configured imports from `.env` and enabled sources:
 
 ```bash
 npm run import
+```
+
+Manual admin imports normally run inline:
+
+```bash
+curl -X POST -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/api/admin/imports/run
+```
+
+For long-running imports, set `IMPORT_RUN_MODE=queue` on the web process and
+run at least one worker process with `ENABLE_WORKER=true`. The API returns `202`
+with a queued job id, and workers claim pending jobs from PostgreSQL.
+
+```bash
+# web/API process
+IMPORT_RUN_MODE=queue ENABLE_WORKER=false npm start
+
+# worker process
+ENABLE_SCHEDULER=false ENABLE_WORKER=true npm start
+```
+
+Queued jobs are visible to admins:
+
+```text
+GET /api/admin/queue
 ```
 
 Run imports from the admin UI:
@@ -546,6 +574,9 @@ dropdb xmltv_restore_check
 - For large cache directories or multiple app replicas, set
   `CACHE_METADATA_STORE=redis` and `REDIS_URL` so metadata reads can use the
   shared cache metadata index populated by cache writes/imports.
+- For long-running manual imports, set `IMPORT_RUN_MODE=queue` on API replicas
+  and run one or more `ENABLE_WORKER=true` worker processes. Workers use
+  PostgreSQL row locking to claim jobs without duplicating work.
 
 ## CI/CD
 
