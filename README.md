@@ -672,7 +672,9 @@ workflow installs dependencies with `npm ci`, generates Prisma client files with
 `npx prisma generate`, applies migrations with `npx prisma migrate deploy`,
 verifies `migrate deploy` against a fresh PostgreSQL schema, builds TypeScript,
 runs the smoke import, audits moderate vulnerabilities, and validates the Docker
-production image build.
+production image build. The Docker job also boots the Compose stack and checks
+`/health`, `/ready`, `/manifest.json`, and `/monitoring/prometheus` against the
+running production container.
 
 The v3 release currently has no moderate, high, or critical `npm audit`
 findings. CI keeps `npm audit --audit-level=moderate` blocking so runtime and
@@ -690,6 +692,7 @@ curl http://localhost:3000/health
 curl http://localhost:3000/ready
 curl http://localhost:3000/manifest.json
 curl http://localhost:3000/api/stats/dashboard
+curl http://localhost:3000/monitoring/prometheus
 ```
 
 Before publishing the final tag:
