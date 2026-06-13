@@ -551,6 +551,9 @@ development-only dependencies, can run migrations on start when
 `RUN_MIGRATIONS=true`, runs as the non-root `node` user, and exposes `/health`.
 The compose service also uses restart policies, a `/ready` healthcheck,
 `no-new-privileges`, dropped Linux capabilities, and a `/tmp` tmpfs.
+The `.dockerignore` file excludes local secrets, dependencies, generated output,
+cache/data/upload/backup directories, and docs-only files from the Docker build
+context.
 
 ## Production Deployment
 
