@@ -352,4 +352,51 @@ describe('server API', () => {
     expect(response.body[0].token).toBeUndefined();
     expect(response.body[0].tokenPreview).toBe('abcdef...7890');
   });
+
+  it('updates API key lifecycle fields without exposing hashes', async () => {
+    vi.mocked(prisma.apiKey.update).mockResolvedValue({
+      id: 'api-key-1',
+      name: 'Ops key',
+      prefix: 'ak_123456789',
+      hash: 'secret-hash',
+      role: 'operator',
+      active: false,
+      requests: 10,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T11:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .patch('/api/admin/api-keys/api-key-1')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        name: 'Ops key',
+        role: 'operator',
+        active: false
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.hash).toBeUndefined();
+    expect(response.body.keyPreview).toBe('ak_123456789...');
+    expect(prisma.apiKey.update).toHaveBeenCalledWith({
+      where: {
+        id: 'api-key-1'
+      },
+      data: {
+        name: 'Ops key',
+        role: 'operator',
+        active: false
+      }
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'apiKey.update',
+        entityType: 'ApiKey',
+        entityId: 'api-key-1'
+      })
+    }));
+  });
 });

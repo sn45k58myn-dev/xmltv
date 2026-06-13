@@ -17,6 +17,7 @@ import { boundedLimit } from '../utils/limits';
 import {
   aliasCreateSchema,
   aliasGenerateSchema,
+  apiKeyUpdateSchema,
   catchupSchema,
   channelAssetsSchema,
   channelMergeSchema,
@@ -152,6 +153,30 @@ adminApi.post('/api-keys', requireAdmin, async (req, res) => {
     ...maskApiKey(apiKey),
     key
   });
+});
+adminApi.patch('/api-keys/:id', requireAdmin, async (req, res) => {
+  const data = parseAdminPayload(apiKeyUpdateSchema, req.body);
+  const apiKey = await prisma.apiKey.update({
+    where: {
+      id: req.params.id
+    },
+    data
+  });
+
+  await recordAuditEvent(req, {
+    action: 'apiKey.update',
+    entityType: 'ApiKey',
+    entityId: apiKey.id,
+    metadata: {
+      changedFields: Object.keys(data),
+      name: apiKey.name,
+      role: apiKey.role,
+      active: apiKey.active,
+      prefix: apiKey.prefix
+    }
+  });
+
+  res.json(maskApiKey(apiKey));
 });
 adminApi.delete('/api-keys/:id', requireAdmin, async (req, res) => {
   const apiKey = await prisma.apiKey.update({

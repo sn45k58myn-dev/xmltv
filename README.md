@@ -378,6 +378,7 @@ Admin-only key management endpoints:
 ```text
 GET /api/admin/api-keys
 POST /api/admin/api-keys
+PATCH /api/admin/api-keys/:id
 DELETE /api/admin/api-keys/:id
 ```
 
@@ -395,7 +396,9 @@ snapshots with `snapshot=true`.
 
 The raw key is returned only once from `POST /api/admin/api-keys`. The database
 stores a SHA-256 hash plus a short prefix for identification. Revocation marks a
-key inactive so audit history remains intact.
+key inactive so audit history remains intact. Use `PATCH /api/admin/api-keys/:id`
+to rename a key, change its role, or toggle `active` without changing the
+stored secret hash.
 
 ## Observability
 

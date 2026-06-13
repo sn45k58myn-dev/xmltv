@@ -41,6 +41,7 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/admin/audit', description: 'Admin audit log for source, import, profile, token, and channel mapping changes.' },
       { method: 'GET', path: '/api/admin/api-keys', description: 'Admin API key listing with masked key previews.' },
       { method: 'POST', path: '/api/admin/api-keys', description: 'Create an admin/operator/viewer API key. The raw key is returned only once.' },
+      { method: 'PATCH', path: '/api/admin/api-keys/:id', description: 'Update an API key name, role, or active status without changing the stored secret hash.' },
       { method: 'DELETE', path: '/api/admin/api-keys/:id', description: 'Deactivate an API key.' },
       { method: 'GET', path: '/api/admin/validation', description: 'Admin full feed validation details. Parses cached XML feeds and may be expensive.' },
       { method: 'GET', path: '/api/admin/quality', description: 'Admin feed quality details.' },

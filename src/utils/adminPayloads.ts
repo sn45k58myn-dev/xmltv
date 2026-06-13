@@ -49,6 +49,12 @@ export const apiKeyCreateSchema = z.object({
   role: z.enum(['admin', 'operator', 'viewer']).default('viewer')
 }).strict();
 
+export const apiKeyUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  role: z.enum(['admin', 'operator', 'viewer']).optional(),
+  active: z.boolean().optional()
+}).strict();
+
 export const channelMergeSchema = z.object({
   targetChannelId: z.string().trim().min(1),
   channelIdsToMerge: z.array(z.string().trim().min(1)).min(1)
