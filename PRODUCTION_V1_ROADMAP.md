@@ -27,6 +27,7 @@ audit logging, and production deployment documentation.
   capabilities, no-new-privileges, and `/tmp` tmpfs
 - Optional Redis-backed API rate limiting for multi-replica deployments
 - Persistent feed quality snapshots with admin quality history
+- Optional Redis-backed cache metadata index for larger installations
 
 ## Current Production Baseline
 
@@ -63,7 +64,6 @@ Deployment requirements:
 
 ## Remaining Production Enhancements
 
-- Optional Redis-backed cache metadata for larger installations
 - Dedicated worker process or queue for long-running imports
 - Backup automation examples for hosted PostgreSQL providers
 - Load testing guidance and large-feed performance benchmarks

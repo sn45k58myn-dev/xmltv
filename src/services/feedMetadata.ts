@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../db/prisma';
+import { CacheMetadataEntry, buildCacheMetadataEntry, listRedisCacheMetadata } from './cacheMetadata';
 
 const CACHE_DIR = path.join(
   process.cwd(),
@@ -32,12 +33,6 @@ type CountryProgramRow = {
   firstProgramStart: Date | null;
   lastProgramStop: Date | null;
 };
-
-function feedKind(file: string) {
-  if (file.endsWith('.xml.gz')) return 'gzip';
-  if (file.endsWith('.xml')) return 'xml';
-  return 'unknown';
-}
 
 function cacheIdentity(file: string) {
   const feedKey = file.replace(/\.xml(\.gz)?$/, '');
@@ -101,27 +96,14 @@ async function getCountryMetadata(): Promise<CountryMetadata[]> {
   });
 }
 
-async function getCachedFeeds(): Promise<CachedFeedMetadata[]> {
-  let cacheEntries: Array<{ name: string; isFile: () => boolean }> = [];
-
-  try {
-    cacheEntries = await fs.readdir(CACHE_DIR, {
-      withFileTypes: true
-    });
-  } catch {
-    return [];
-  }
-
-  const cacheFiles = cacheEntries
-    .filter((entry) => entry.isFile())
-    .map((entry) => entry.name)
-    .filter((file) => file.endsWith('.xml') || file.endsWith('.xml.gz'));
-
+async function enrichDownloads(
+  cachedFeeds: CacheMetadataEntry[]
+): Promise<CachedFeedMetadata[]> {
   const downloadKeys = Array.from(
     new Set(
-      cacheFiles.flatMap((file) => [
-        file,
-        cacheIdentity(file).feedKey
+      cachedFeeds.flatMap((feed) => [
+        feed.feedKey,
+        cacheIdentity(feed.feedKey).feedKey
       ])
     )
   );
@@ -138,25 +120,55 @@ async function getCachedFeeds(): Promise<CachedFeedMetadata[]> {
     downloads.map((row) => [row.feedKey, row])
   );
 
+  return cachedFeeds.map((feed) => {
+    const identity = cacheIdentity(feed.feedKey);
+    const download =
+      downloadsByFeed.get(feed.feedKey) ?? downloadsByFeed.get(identity.feedKey);
+
+    return {
+      ...feed,
+      downloads: download?.downloads ?? 0,
+      lastDownloaded: download?.lastDownloaded?.toISOString()
+    };
+  });
+}
+
+async function getFilesystemCachedFeeds(): Promise<CacheMetadataEntry[]> {
+  let cacheEntries: Array<{ name: string; isFile: () => boolean }> = [];
+
+  try {
+    cacheEntries = await fs.readdir(CACHE_DIR, {
+      withFileTypes: true
+    });
+  } catch {
+    return [];
+  }
+
+  const cacheFiles = cacheEntries
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .filter((file) => file.endsWith('.xml') || file.endsWith('.xml.gz'));
+
   return Promise.all(
     cacheFiles.map(async (file) => {
       const stat = await fs.stat(path.join(CACHE_DIR, file));
-      const identity = cacheIdentity(file);
-      const download =
-        downloadsByFeed.get(file) ?? downloadsByFeed.get(identity.feedKey);
 
-      return {
-        feedKey: file,
-        country: identity.country,
-        type: feedKind(file),
-        bytes: stat.size,
-        megabytes: Number((stat.size / 1024 / 1024).toFixed(2)),
-        updatedAt: stat.mtime.toISOString(),
-        downloads: download?.downloads ?? 0,
-        lastDownloaded: download?.lastDownloaded?.toISOString()
-      };
+      return buildCacheMetadataEntry(
+        file,
+        stat.size,
+        stat.mtime
+      );
     })
   );
+}
+
+async function getCachedFeeds(): Promise<CachedFeedMetadata[]> {
+  const redisFeeds = await listRedisCacheMetadata();
+  const cachedFeeds = redisFeeds?.length
+    ? redisFeeds
+    : await getFilesystemCachedFeeds();
+
+  return enrichDownloads(cachedFeeds);
 }
 
 function summarizeFeedTypes(cachedFeeds: CachedFeedMetadata[]) {

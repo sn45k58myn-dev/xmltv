@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'node:crypto';
+import { recordCacheMetadata } from './cacheMetadata';
 
 const CACHE_DIR = path.join(
   process.cwd(),
@@ -74,13 +75,19 @@ export async function setCachedFeed(
   name: string,
   xml: string
 ) {
+  const file = `${name}.xml`;
+
   await atomicWrite(
     path.join(
       CACHE_DIR,
-      `${name}.xml`
+      file
     ),
     xml,
     'utf8'
+  );
+  await recordCacheMetadata(
+    file,
+    Buffer.byteLength(xml, 'utf8')
   );
 }
 
@@ -88,12 +95,18 @@ export async function setCachedFeedGzip(
   name: string,
   data: Buffer
 ) {
+  const file = `${name}.xml.gz`;
+
   await atomicWrite(
     path.join(
       CACHE_DIR,
-      `${name}.xml.gz`
+      file
     ),
     data
+  );
+  await recordCacheMetadata(
+    file,
+    data.length
   );
 }
 

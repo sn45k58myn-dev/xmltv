@@ -5,7 +5,11 @@ let client: RedisClientType | null = null;
 let connecting: Promise<RedisClientType | null> | null = null;
 
 export async function getRedisClient() {
-  if (env.RATE_LIMIT_STORE !== 'redis' || !env.REDIS_URL) {
+  const redisEnabled =
+    env.RATE_LIMIT_STORE === 'redis' ||
+    env.CACHE_METADATA_STORE === 'redis';
+
+  if (!redisEnabled || !env.REDIS_URL) {
     return null;
   }
 
@@ -31,7 +35,7 @@ export async function getRedisClient() {
 
     return client;
   })().catch((error) => {
-    console.error('Unable to connect to Redis, falling back to in-memory rate limiting:', error);
+    console.error('Unable to connect to Redis:', error);
     return null;
   }).finally(() => {
     connecting = null;

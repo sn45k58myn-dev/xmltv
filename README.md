@@ -116,7 +116,7 @@ Important variables:
 - `SCHEDULER_LOCK_TTL_MS`: Database job lock TTL for scheduled imports and retention jobs.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: API rate limit window and request cap.
 - `RATE_LIMIT_STORE`: `memory` for local/single process, or `redis` for shared multi-replica rate limiting.
-- `REDIS_URL`: Redis connection URL used when `RATE_LIMIT_STORE=redis`.
+- `REDIS_URL`: Redis connection URL used when Redis-backed features are enabled.
 - `PROGRAM_RETENTION_DAYS`: Removes old programme rows after this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
 - `EXPORT_FUTURE_DAYS`: Future programme window included in generated feeds.
@@ -127,6 +127,7 @@ Important variables:
 - `ENABLE_SCHEDULER`: Set to `false` on non-primary replicas.
 - `FEED_CACHE_MAX_AGE_SECONDS`: Cache-Control max-age for generated feed responses.
 - `CACHE_WARNING_MB`: Dashboard warning threshold for generated cache size.
+- `CACHE_METADATA_STORE`: `filesystem` for direct cache scans, or `redis` for a shared cache metadata index.
 - `VALIDATION_MAX_FEED_MB`: Maximum cached feed file size parsed by full validation.
 - `VALIDATION_TIMEOUT_MS`: Per-feed timeout guard for full validation.
 
@@ -247,6 +248,11 @@ curl http://localhost:3000/api/discovery/quality
 
 Metadata includes total cache size, feed count, XML/GZip type, update time, and
 download counts where available.
+
+By default, metadata is read from the local cache directory. Larger multi-replica
+deployments can set `CACHE_METADATA_STORE=redis` and `REDIS_URL` so cache writes
+also update a Redis hash of feed metadata. If Redis is unavailable or the hash is
+empty, metadata falls back to scanning `cache/`.
 
 `/api/discovery/validation` is intentionally lightweight for public use. It
 returns cache metadata and points operators to the full admin validation route.
@@ -537,6 +543,9 @@ dropdb xmltv_restore_check
 - The built-in rate limiter and request metrics are process-local; use external
   metrics aggregation when scaling horizontally. Set `RATE_LIMIT_STORE=redis`
   and `REDIS_URL` to share API rate limits across app replicas.
+- For large cache directories or multiple app replicas, set
+  `CACHE_METADATA_STORE=redis` and `REDIS_URL` so metadata reads can use the
+  shared cache metadata index populated by cache writes/imports.
 
 ## CI/CD
 

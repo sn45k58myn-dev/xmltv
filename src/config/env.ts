@@ -38,6 +38,7 @@ const schema = z.object({
   ENABLE_SCHEDULER: z.string().default('true'),
   FEED_CACHE_MAX_AGE_SECONDS: z.coerce.number().default(300),
   CACHE_WARNING_MB: z.coerce.number().default(1024),
+  CACHE_METADATA_STORE: z.enum(['filesystem', 'redis']).default('filesystem'),
   VALIDATION_MAX_FEED_MB: z.coerce.number().default(250),
   VALIDATION_TIMEOUT_MS: z.coerce.number().default(30000)
 });
