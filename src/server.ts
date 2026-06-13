@@ -10,6 +10,7 @@ import { env } from './config/env';
 import { assertProductionSafeConfig } from './config/productionGuards';
 import { adminApi } from './routes/adminApi';
 import { rateLimit } from './middleware/rateLimit';
+import { requireMonitoringToken } from './middleware/monitoringAuth';
 import { requireExportToken } from './middleware/exportToken';
 import { prometheusMetrics, systemMetrics } from './monitoring/metrics';
 import { prisma } from './db/prisma';
@@ -87,8 +88,8 @@ app.use('/api/admin', adminApi);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/export-tokens', exportTokenRoutes);
 
-app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
-app.get('/monitoring/prometheus', async (_req, res) => {
+app.get('/monitoring/metrics', requireMonitoringToken, async (_req, res) => res.json(await systemMetrics()));
+app.get('/monitoring/prometheus', requireMonitoringToken, async (_req, res) => {
   res
     .type('text/plain; version=0.0.4; charset=utf-8')
     .send(await prometheusMetrics());

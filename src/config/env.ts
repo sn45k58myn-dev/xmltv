@@ -35,6 +35,7 @@ const schema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().default(120),
   RATE_LIMIT_STORE: z.enum(['memory', 'redis']).default('memory'),
   REDIS_URL: z.string().optional(),
+  MONITORING_TOKEN: z.string().optional(),
   TMDB_API_KEY: z.string().optional(),
   PREMIUM_ENABLED: z.string().default('true'),
   PROGRAM_RETENTION_DAYS: z.coerce.number().default(14),
