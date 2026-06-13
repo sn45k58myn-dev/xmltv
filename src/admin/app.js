@@ -168,7 +168,7 @@ async function refreshTokensList() {
   if(!data.length) { list.innerHTML = '<p class="muted">No tokens</p>'; return; }
   list.innerHTML = `<table><thead><tr><th>ID</th><th>Name</th><th>Token</th><th>Profile ID</th><th>Provider ID</th><th>Active</th><th>Requests</th><th>Actions</th></tr></thead><tbody>
     ${data.map(t => `<tr>
-      <td>${t.id}</td><td>${t.name}</td><td><code>${t.token}</code></td><td>${t.profileId || '-'}</td><td>${t.providerId || '-'}</td><td>${t.active}</td><td>${t.requests}</td>
+      <td>${t.id}</td><td>${t.name}</td><td><code>${t.tokenPreview || 'hidden'}</code></td><td>${t.profileId || '-'}</td><td>${t.providerId || '-'}</td><td>${t.active}</td><td>${t.requests}</td>
       <td><button onclick="deleteExportToken('${t.id}')">Delete</button></td>
     </tr>`).join('')}
   </tbody></table>`;

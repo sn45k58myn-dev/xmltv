@@ -9,3 +9,5 @@ data/*
 !data/.gitkeep
 cache/
 *.xml
+*.xml.gz
+channels.json

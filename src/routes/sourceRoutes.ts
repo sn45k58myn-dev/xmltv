@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
+import { parseAdminPayload, parseSourceCreatePayload, sourceUpdateSchema } from '../utils/adminPayloads';
 
 export const sourceRoutes = Router();
 sourceRoutes.use(requireAdmin);
@@ -14,17 +15,19 @@ sourceRoutes.get('/', async (_req, res) => {
 });
 
 sourceRoutes.post('/', async (req, res) => {
+  const data = parseSourceCreatePayload(req.body);
   const source = await prisma.source.create({
-    data: req.body
+    data
   });
 
   res.status(201).json(source);
 });
 
 sourceRoutes.put('/:id', async (req, res) => {
+  const data = parseAdminPayload(sourceUpdateSchema, req.body);
   const source = await prisma.source.update({
     where: { id: req.params.id },
-    data: req.body
+    data
   });
 
   res.json(source);

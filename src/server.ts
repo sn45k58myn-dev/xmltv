@@ -1,8 +1,11 @@
+import 'express-async-errors';
 import cors from 'cors';
 import express from 'express';
 import multer from 'multer';
+import fs from 'node:fs/promises';
 import { statsRoutes } from './routes/statsRoutes';
 import path from 'node:path';
+import { ZodError } from 'zod';
 import { env } from './config/env';
 import { adminApi } from './routes/adminApi';
 import { rateLimit } from './middleware/rateLimit';
@@ -20,12 +23,20 @@ import { requireAdmin } from './middleware/auth';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 import { getFeedManifest } from './services/feedManifest';
+import { parseProfileCreatePayload } from './utils/adminPayloads';
 
-const app = express();
-const upload = multer({ dest: path.join(process.cwd(), 'uploads') });
+export const app = express();
+const upload = multer({
+  dest: path.join(process.cwd(), 'uploads'),
+  limits: {
+    fileSize: env.UPLOAD_MAX_MB * 1024 * 1024
+  }
+});
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  limit: env.JSON_BODY_LIMIT
+}));
 app.use(rateLimit);
 
 app.use('/api/stats', statsRoutes);
@@ -75,14 +86,50 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   res.json(results);
 });
 
-app.post('/imports/upload', upload.single('xmltv'), async (req, res) => {
+async function validateUploadedXml(file: Express.Multer.File) {
+  const handle = await fs.open(file.path, 'r');
+
+  try {
+    const buffer = Buffer.alloc(256);
+    const result = await handle.read(
+      buffer,
+      0,
+      buffer.length,
+      0
+    );
+    const prefix = buffer.subarray(0, result.bytesRead).toString('utf8').trimStart();
+
+    if (!prefix.startsWith('<')) {
+      throw new Error('Uploaded file does not look like XML.');
+    }
+  } finally {
+    await handle.close();
+  }
+}
+
+async function cleanupUploadedFile(file?: Express.Multer.File) {
+  if (!file) return;
+
+  await fs.unlink(file.path).catch(() => undefined);
+}
+
+app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Missing xmltv file upload field' });
-  const result = await runImport({ name: `Upload ${req.file.originalname}`, type: 'upload', url: req.file.path, priority: 30 });
-  res.json(result);
+
+  try {
+    await validateUploadedXml(req.file);
+    const result = await runImport({ name: `Upload ${req.file.originalname}`, type: 'upload', url: req.file.path, priority: 30 });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  } finally {
+    await cleanupUploadedFile(req.file);
+  }
 });
 
-app.post('/profiles', async (req, res) => {
-  const profile = await prisma.exportProfile.create({ data: req.body });
+app.post('/profiles', requireAdmin, async (req, res) => {
+  const data = parseProfileCreatePayload(req.body);
+  const profile = await prisma.exportProfile.create({ data });
   res.status(201).json(profile);
 });
 
@@ -138,21 +185,13 @@ app.get(
 
 // Legacy compatibility routes
 
-app.get('/uk.xml', (_req, res) =>
-  res.redirect('/country/GB.xml')
-);
+app.get('/uk.xml', requireExportToken, (_req, res) => sendCachedCountryXml(res, 'GB'));
 
-app.get('/uk.xml.gz', (_req, res) =>
-  res.redirect('/country/GB.xml.gz')
-);
+app.get('/uk.xml.gz', requireExportToken, (_req, res) => sendCachedCountryGzip(res, 'GB'));
 
-app.get('/us.xml', (_req, res) =>
-  res.redirect('/country/US.xml')
-);
+app.get('/us.xml', requireExportToken, (_req, res) => sendCachedCountryXml(res, 'US'));
 
-app.get('/us.xml.gz', (_req, res) =>
-  res.redirect('/country/US.xml.gz')
-);
+app.get('/us.xml.gz', requireExportToken, (_req, res) => sendCachedCountryGzip(res, 'US'));
 
 app.get('/sports.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('sports')));
 app.get('/movies.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('movies')));
@@ -171,6 +210,41 @@ function sendXml(
   res.send(xml);
 }
 
+async function sendCachedCountryXml(
+  res,
+  country: string
+) {
+  const xml = await getCachedFeed(country);
+
+  if (!xml) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  await recordFeedDownload(`${country}.xml`);
+
+  return sendXml(res, xml);
+}
+
+async function sendCachedCountryGzip(
+  res,
+  country: string
+) {
+  const gzip = await getCachedFeedGzip(country);
+
+  if (!gzip) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  await recordFeedDownload(`${country}.xml.gz`);
+
+  res.setHeader(
+    'content-type',
+    'application/gzip'
+  );
+
+  return res.send(gzip);
+}
+
 app.get('/', (_req, res) => {
   res.send(`
     <h1>XMLTV Aggregator</h1>
@@ -183,14 +257,12 @@ app.get('/', (_req, res) => {
   `);
 });
 
-startImportScheduler();
-
-app.get('/debug/channels', async (_req, res) => {
+app.get('/debug/channels', requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.findMany();
   res.json(channels);
 });
 
-app.get('/debug/programs', async (_req, res) => {
+app.get('/debug/programs', requireAdmin, async (_req, res) => {
   const programs = await prisma.program.findMany({
     take: 20
   });
@@ -198,7 +270,7 @@ app.get('/debug/programs', async (_req, res) => {
   res.json(programs);
 });
 
-app.get('/channels', async (_req, res) => {
+app.get('/channels', requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.findMany({
     orderBy: {
       displayName: 'asc'
@@ -208,7 +280,7 @@ app.get('/channels', async (_req, res) => {
   res.json(channels);
 });
 
-app.get('/programs', async (_req, res) => {
+app.get('/programs', requireAdmin, async (_req, res) => {
   const programs = await prisma.program.findMany({
     orderBy: {
       start: 'asc'
@@ -219,7 +291,7 @@ app.get('/programs', async (_req, res) => {
   res.json(programs);
 });
 
-app.get('/coverage', async (_req, res) => {
+app.get('/coverage', requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.count();
   const programs = await prisma.program.count();
   const aliases = await prisma.alias.count();
@@ -233,6 +305,34 @@ app.get('/coverage', async (_req, res) => {
   });
 });
 
-app.listen(env.PORT, () => {
-  console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
+app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (error instanceof ZodError) {
+    return res.status(400).json({
+      error: 'Invalid request payload.',
+      issues: error.issues.map((issue) => ({
+        path: issue.path.join('.'),
+        message: issue.message
+      }))
+    });
+  }
+
+  if (error instanceof Error && error.message.includes('does not look like XML')) {
+    return res.status(400).json({
+      error: error.message
+    });
+  }
+
+  console.error('Unhandled request error:', error);
+
+  return res.status(500).json({
+    error: 'Internal server error'
+  });
 });
+
+if (require.main === module) {
+  startImportScheduler();
+
+  app.listen(env.PORT, () => {
+    console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
+  });
+}

@@ -62,13 +62,13 @@ your database credentials differ.
 Run imports:
 
 ```bash
-curl -X POST http://localhost:3000/imports/run
+curl -X POST -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/api/admin/imports/run
 ```
 
 Upload a local XMLTV file:
 
 ```bash
-curl -F "xmltv=@guide.xml" http://localhost:3000/imports/upload
+curl -H "x-admin-token: $ADMIN_TOKEN" -F "xmltv=@guide.xml" http://localhost:3000/imports/upload
 ```
 
 Open exports:
@@ -110,6 +110,20 @@ EXPORT_FUTURE_DAYS=7
 - Alias matching normalizes channel names by removing common quality/country suffixes.
 - Provider exports use `Mapping` records to decide which internal channels belong to a provider.
 - Profile exports use `ExportProfile` filters and optional explicit channel ID lists.
+- Production database setup should use `npx prisma migrate deploy`. `npm run db:push` is for local development.
+- Admin mutation routes require `x-admin-token`. Uploads are size-limited and rejected when they do not look like XML.
+- Export token list endpoints return masked token previews; keep the raw token value when it is created.
+
+## Verification
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+npm test
+npm run verify
+npm audit --audit-level=moderate
+```
 
 
 ## Admin UI
