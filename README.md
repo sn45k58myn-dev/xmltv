@@ -189,6 +189,8 @@ curl -X POST -H "x-admin-token: $ADMIN_TOKEN" http://localhost:3000/api/admin/im
 For long-running imports, set `IMPORT_RUN_MODE=queue` on the web process and
 run at least one worker process with `ENABLE_WORKER=true`. The API returns `202`
 with a queued job id. By default workers claim pending jobs from PostgreSQL.
+The built-in PostgreSQL worker and BullMQ worker both stop accepting new work
+during graceful process shutdown.
 
 ```bash
 # web/API process

@@ -49,7 +49,7 @@ export async function processNextQueuedJob(workerId = createWorkerId()) {
 
 export function startJobWorker() {
   if (env.ENABLE_WORKER !== 'true') {
-    return;
+    return undefined;
   }
 
   const workerId = createWorkerId();
@@ -78,4 +78,8 @@ export function startJobWorker() {
   );
 
   interval.unref?.();
+
+  return async () => {
+    clearInterval(interval);
+  };
 }

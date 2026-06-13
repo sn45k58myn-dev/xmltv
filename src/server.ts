@@ -479,10 +479,9 @@ export async function startServer() {
   }
 
   const closeBullWorker = startBullJobWorker();
-
-  if (env.JOB_QUEUE_BACKEND !== 'bullmq') {
-    startJobWorker();
-  }
+  const closeJobWorker = env.JOB_QUEUE_BACKEND !== 'bullmq'
+    ? startJobWorker()
+    : undefined;
 
   const server = app.listen(env.PORT, () => {
     console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
@@ -493,6 +492,7 @@ export async function startServer() {
 
     server.close(async () => {
       await closeBullWorker?.();
+      await closeJobWorker?.();
       await prisma.$disconnect();
       process.exit(0);
     });
