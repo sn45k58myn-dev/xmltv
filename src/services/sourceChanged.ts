@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { env } from '../config/env';
 import { getSourceCache, updateSourceCache } from './sourceCache';
 
 export async function sourceChanged(
@@ -9,9 +10,17 @@ export async function sourceChanged(
     const cache = await getSourceCache(sourceId);
 
     const response = await axios.head(url, {
-      timeout: 10000,
+      timeout: env.SOURCE_HEAD_TIMEOUT_MS,
       validateStatus: () => true
     });
+
+    if (response.status >= 400) {
+      console.warn(
+        `Source freshness check returned ${response.status}, importing anyway`
+      );
+
+      return true;
+    }
 
     const etag =
       typeof response.headers.etag === 'string'
@@ -22,6 +31,14 @@ export async function sourceChanged(
       typeof response.headers['last-modified'] === 'string'
         ? response.headers['last-modified']
         : undefined;
+
+    if (!etag && !lastModified) {
+      console.warn(
+        'Source freshness check returned no cache validators, importing anyway'
+      );
+
+      return true;
+    }
 
     if (!cache) {
       await updateSourceCache(
@@ -46,7 +63,7 @@ export async function sourceChanged(
     }
 
     return changed;
-  } catch (error) {
+  } catch (_error) {
     console.warn(
       `Unable to check source freshness, importing anyway`
     );

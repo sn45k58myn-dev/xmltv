@@ -4,6 +4,8 @@ import { prisma } from './db/prisma';
 
 vi.mock('./db/prisma', () => ({
   prisma: {
+    $queryRaw: vi.fn(),
+    $disconnect: vi.fn(),
     source: {
       findMany: vi.fn(),
       count: vi.fn(),
@@ -14,6 +16,7 @@ vi.mock('./db/prisma', () => ({
       count: vi.fn()
     },
     program: {
+      findMany: vi.fn(),
       count: vi.fn()
     },
     alias: {
@@ -24,15 +27,24 @@ vi.mock('./db/prisma', () => ({
       create: vi.fn()
     },
     importRun: {
-      count: vi.fn()
+      count: vi.fn(),
+      findFirst: vi.fn()
     },
     exportToken: {
       count: vi.fn(),
+      findMany: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn()
     },
-    feedDownload: {
-      upsert: vi.fn()
+    auditLog: {
+      create: vi.fn(),
+      findMany: vi.fn()
+    },
+    apiKey: {
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn()
     }
   }
 }));
@@ -40,6 +52,7 @@ vi.mock('./db/prisma', () => ({
 async function loadApp() {
   process.env.ADMIN_TOKEN = 'test-admin-token';
   process.env.PUBLIC_EXPORTS = 'false';
+  process.env.ENABLE_SCHEDULER = 'false';
   process.env.RATE_LIMIT_MAX = '1000';
 
   const serverModule = await import('./server');
@@ -47,21 +60,113 @@ async function loadApp() {
   return serverModule.app;
 }
 
-describe('server security', () => {
+describe('server API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('requires admin auth for uploads', async () => {
+  it('returns health status', async () => {
     const app = await loadApp();
-    const response = await request(app)
-      .post('/imports/upload')
-      .attach('xmltv', Buffer.from('<tv></tv>'), 'guide.xml');
+    const response = await request(app).get('/health');
 
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ ok: true });
   });
 
-  it('requires export token for generated feeds', async () => {
+  it('serves the root page without inline styles', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/');
+
+    expect(response.status).toBe(200);
+    expect(response.text).not.toContain('<style>');
+  });
+
+  it('returns ready when the database probe succeeds', async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ '?column?': 1 }]);
+
+    const app = await loadApp();
+    const response = await request(app).get('/ready');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      ok: true,
+      database: true
+    });
+  });
+
+  it('rejects admin routes without an admin token', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/api/admin/summary');
+
+    expect(response.status).toBe(401);
+    expect(response.body.error).toContain('Admin credentials required');
+  });
+
+  it('accepts admin API keys on admin routes', async () => {
+    vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
+      id: 'api-key-1',
+      name: 'CI',
+      prefix: 'ak_123456789',
+      hash: 'hash',
+      role: 'admin',
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T10:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.source.count).mockResolvedValue(1);
+    vi.mocked(prisma.channel.count).mockResolvedValue(2);
+    vi.mocked(prisma.program.count).mockResolvedValue(3);
+    vi.mocked(prisma.alias.count).mockResolvedValue(4);
+    vi.mocked(prisma.exportProfile.count).mockResolvedValue(5);
+    vi.mocked(prisma.importRun.count).mockResolvedValue(6);
+    vi.mocked(prisma.exportToken.count).mockResolvedValue(7);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/summary')
+      .set('x-api-key', 'ak_test_admin_key');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      sources: 1,
+      channels: 2,
+      programs: 3
+    });
+    expect(prisma.apiKey.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'api-key-1'
+      }
+    }));
+  });
+
+  it('rejects viewer API keys on admin routes', async () => {
+    vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
+      id: 'api-key-2',
+      name: 'Viewer',
+      prefix: 'ak_987654321',
+      hash: 'hash',
+      role: 'viewer',
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T10:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/summary')
+      .set('x-api-key', 'ak_test_viewer_key');
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toContain('role is not allowed');
+  });
+
+  it('rejects protected feeds when no export token is supplied', async () => {
     const app = await loadApp();
     const response = await request(app).get('/country/GB.xml');
 
@@ -69,16 +174,42 @@ describe('server security', () => {
     expect(response.body.error).toContain('Export token required');
   });
 
-  it('rejects invalid export tokens', async () => {
+  it('rejects protected feeds when the export token is invalid', async () => {
     vi.mocked(prisma.exportToken.findUnique).mockResolvedValue(null);
 
     const app = await loadApp();
     const response = await request(app)
       .get('/country/GB.xml')
-      .set('x-export-token', 'bad');
+      .set('x-export-token', 'bad-token');
 
     expect(response.status).toBe(401);
     expect(response.body.error).toContain('Invalid or inactive export token');
+  });
+
+  it('rejects obviously non-XML uploads before import processing', async () => {
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/imports/upload')
+      .set('x-admin-token', 'test-admin-token')
+      .attach('xmltv', Buffer.from('not xml at all'), 'bad.txt');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('does not look like XML');
+  });
+
+  it('returns a generic JSON error for internal route failures', async () => {
+    vi.mocked(prisma.source.findMany).mockRejectedValue(new Error('database secret details'));
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/sources')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({
+      error: 'Internal server error'
+    });
+    expect(response.text).not.toContain('database secret details');
   });
 
   it('rejects unexpected admin source payload fields', async () => {
@@ -95,5 +226,55 @@ describe('server security', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Invalid request payload.');
     expect(prisma.source.create).not.toHaveBeenCalled();
+  });
+
+  it('returns admin audit events for valid admin tokens', async () => {
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([
+      {
+        id: 'audit-1',
+        action: 'source.create',
+        entityType: 'Source',
+        entityId: 'source-1',
+        actor: 'request-1',
+        metadata: '{"name":"Test"}',
+        createdAt: new Date('2026-06-12T12:00:00.000Z')
+      }
+    ] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/audit')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body[0]).toMatchObject({
+      id: 'audit-1',
+      action: 'source.create'
+    });
+  });
+
+  it('does not expose full export tokens in admin token listing', async () => {
+    vi.mocked(prisma.exportToken.findMany).mockResolvedValue([
+      {
+        id: 'token-1',
+        name: 'Main',
+        token: 'abcdef1234567890',
+        profileId: null,
+        providerId: null,
+        active: true,
+        requests: 0,
+        lastUsedAt: null,
+        createdAt: new Date('2026-06-12T12:00:00.000Z')
+      }
+    ] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/export-tokens')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body[0].token).toBeUndefined();
+    expect(response.body[0].tokenPreview).toBe('abcdef...7890');
   });
 });

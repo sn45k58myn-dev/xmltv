@@ -1,6 +1,16 @@
 import axios from 'axios';
 import fs from 'node:fs/promises';
+import { env } from '../config/env';
 import { SourceDefinition } from '../models/xmltv';
+import { fetchSchedulesDirectXmltv } from './schedulesDirect';
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelay(attempt: number) {
+  return env.SOURCE_RETRY_DELAY_MS * Math.max(1, attempt);
+}
 
 export async function fetchXmltvSource(source: SourceDefinition): Promise<string> {
   if (source.type === 'upload') {
@@ -9,10 +19,32 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
   }
 
   if (source.type === 'schedules-direct') {
-    throw new Error('Schedules Direct adapter placeholder: add JSON/token implementation for your lineup, then convert to XMLTV before parsing.');
+    return fetchSchedulesDirectXmltv();
   }
 
   if (!source.url) throw new Error(`Source ${source.name} missing URL`);
-  const response = await axios.get(source.url, { timeout: 60000, responseType: 'text' });
-  return response.data;
+
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= env.SOURCE_FETCH_RETRIES; attempt++) {
+    try {
+      const response = await axios.get(source.url, {
+        timeout: env.SOURCE_FETCH_TIMEOUT_MS,
+        responseType: 'text',
+        validateStatus: (status) => status >= 200 && status < 300
+      });
+
+      return response.data;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt >= env.SOURCE_FETCH_RETRIES) {
+        break;
+      }
+
+      await sleep(retryDelay(attempt + 1));
+    }
+  }
+
+  throw lastError;
 }

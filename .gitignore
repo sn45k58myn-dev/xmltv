@@ -10,4 +10,4 @@ data/*
 cache/
 *.xml
 *.xml.gz
-channels.json
+backups/

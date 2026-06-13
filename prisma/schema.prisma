@@ -179,3 +179,95 @@ model FeedDownload {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+model JobRun {
+  id         String    @id @default(cuid())
+  name       String
+  trigger    String
+  status     String
+  summary    String?
+  error      String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  @@index([name, startedAt])
+  @@index([status, startedAt])
+}
+
+model JobLock {
+  name       String   @id
+  owner      String?
+  lockedUntil DateTime
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@index([lockedUntil])
+}
+
+model JobQueue {
+  id          String    @id @default(cuid())
+  type        String
+  status      String    @default("pending")
+  payload     String?
+  result      String?
+  error       String?
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  runAfter    DateTime  @default(now())
+  lockedBy    String?
+  lockedUntil DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAfter, createdAt])
+  @@index([type, status])
+  @@index([lockedUntil])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String?
+  actor      String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([entityType, createdAt])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String
+  prefix     String    @unique
+  hash       String    @unique
+  role       String    @default("viewer")
+  active     Boolean   @default(true)
+  requests   Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([role, active])
+  @@index([createdAt])
+}
+
+model FeedQualitySnapshot {
+  id        String   @id @default(cuid())
+  feedKey   String
+  score     Int
+  grade     String
+  valid     Boolean
+  channels  Int      @default(0)
+  programs  Int      @default(0)
+  bytes     Int      @default(0)
+  reasons   String?
+  createdAt DateTime @default(now())
+
+  @@index([feedKey, createdAt])
+  @@index([grade, createdAt])
+}

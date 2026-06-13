@@ -1,30 +1,46 @@
 import 'express-async-errors';
 import cors from 'cors';
 import express from 'express';
+import helmet from 'helmet';
 import multer from 'multer';
-import fs from 'node:fs/promises';
+import { ZodError } from 'zod';
 import { statsRoutes } from './routes/statsRoutes';
 import path from 'node:path';
 import { ZodError } from 'zod';
 import { env } from './config/env';
+import { assertProductionSafeConfig } from './config/productionGuards';
 import { adminApi } from './routes/adminApi';
 import { rateLimit } from './middleware/rateLimit';
 import { requireExportToken } from './middleware/exportToken';
-import { systemMetrics } from './monitoring/metrics';
+import { prometheusMetrics, systemMetrics } from './monitoring/metrics';
 import { prisma } from './db/prisma';
 import { exportCategory, exportProfile, exportProvider } from './exports/exportService';
 import { runImport } from './pipeline/importPipeline';
 import { startImportScheduler } from './jobs/importScheduler';
+import { startJobWorker } from './jobs/jobWorker';
 import { sourceRoutes } from './routes/sourceRoutes';
 import { exportTokenRoutes } from './routes/exportTokenRoutes';
 import { sourceHealthRoutes } from './routes/sourceHealthRoutes';
 import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
+import { docsRoutes } from './routes/docsRoutes';
 import { requireAdmin } from './middleware/auth';
+import { securityHeaders } from './middleware/securityHeaders';
 import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
-import { getFeedManifest } from './services/feedManifest';
+import { buildManifest } from './services/manifestService';
+import { providerFeedKey } from './services/feedKeys';
+import { requestMetrics } from './monitoring/requestMetrics';
+import { runTrackedJob } from './jobs/jobRuns';
+import { requestContext } from './middleware/requestContext';
+import { cleanupUploadedFile, validateUploadedXml } from './services/uploadValidation';
+import { assertCacheDirectoryWritable } from './services/cacheService';
+import { recordAuditEvent } from './services/auditLog';
+import { enqueueJob } from './jobs/jobQueue';
+import { runEnabledImports, summarizeImportResults } from './jobs/importWork';
 import { parseProfileCreatePayload } from './utils/adminPayloads';
+import { enqueueBullJob, startBullJobWorker } from './jobs/bullQueue';
 
+assertProductionSafeConfig();
 export const app = express();
 const upload = multer({
   dest: path.join(process.cwd(), 'uploads'),
@@ -32,86 +48,144 @@ const upload = multer({
     fileSize: env.UPLOAD_MAX_MB * 1024 * 1024
   }
 });
+const corsOrigins = env.CORS_ORIGIN
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
-app.use(cors());
+if (env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
+
+app.use(helmet());
+app.use(securityHeaders);
+app.use(requestContext);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('CORS origin not allowed'));
+  }
+}));
 app.use(express.json({
   limit: env.JSON_BODY_LIMIT
 }));
 app.use(rateLimit);
+app.use(requestMetrics);
 
 app.use('/api/stats', statsRoutes);
 app.use('/api/source-health', sourceHealthRoutes);
 app.use('/api/discovery', feedDiscoveryRoutes);
-app.use('/admin', express.static(path.join(__dirname, 'admin')));
+app.use('/api/docs', docsRoutes);
+app.use('/admin', express.static(path.join(__dirname, 'admin'), {
+  setHeaders: (res) => {
+    res.setHeader('Cache-Control', 'no-store');
+  }
+}));
 app.use('/api/admin', adminApi);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/export-tokens', exportTokenRoutes);
 
 app.get('/monitoring/metrics', async (_req, res) => res.json(await systemMetrics()));
+app.get('/monitoring/prometheus', async (_req, res) => {
+  res
+    .type('text/plain; version=0.0.4; charset=utf-8')
+    .send(await prometheusMetrics());
+});
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
+
+app.get('/ready', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      ok: true,
+      database: true
+    });
+  } catch {
+    res.status(503).json({
+      ok: false,
+      database: false
+    });
+  }
+});
 
 app.get(
   '/manifest.json',
   async (_req, res) => {
-    res.json(await getFeedManifest());
+    res.json(
+      await buildManifest()
+    );
   }
 );
 
-app.get('/sources', async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
+app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
 
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
-  const sources = await prisma.source.findMany({
-    where: {
-      enabled: true
-    },
-    orderBy: {
-      priority: 'asc'
+  if (env.IMPORT_RUN_MODE === 'queue') {
+    if (env.JOB_QUEUE_BACKEND === 'bullmq') {
+      const job = await enqueueBullJob('manual-imports');
+
+      await recordAuditEvent(_req, {
+        action: 'import.queue',
+        entityType: 'BullMQ',
+        entityId: job.id,
+        metadata: {
+          trigger: 'manual',
+          backend: 'bullmq'
+        }
+      });
+
+      res.status(202).json({
+        queued: true,
+        backend: 'bullmq',
+        jobId: job.id,
+        status: job.status,
+        type: job.type
+      });
+      return;
+    }
+
+    const job = await enqueueJob('manual-imports');
+
+    await recordAuditEvent(_req, {
+      action: 'import.queue',
+      entityType: 'JobQueue',
+      entityId: job.id,
+      metadata: {
+        trigger: 'manual'
+      }
+    });
+
+    res.status(202).json({
+      queued: true,
+      backend: 'database',
+      jobId: job.id,
+      status: job.status,
+      type: job.type
+    });
+    return;
+  }
+
+  const results = await runTrackedJob(
+    'manual-imports',
+    'manual',
+    runEnabledImports,
+    summarizeImportResults
+  );
+
+  await recordAuditEvent(_req, {
+    action: 'import.trigger',
+    entityType: 'ImportRun',
+    metadata: {
+      trigger: 'manual'
     }
   });
 
-  const results = [];
-
-  for (const source of sources) {
-    results.push(
-      await runImport({
-        name: source.name,
-        type: source.type,
-        url: source.url ?? undefined,
-        priority: source.priority
-      })
-    );
-  }
-
   res.json(results);
 });
-
-async function validateUploadedXml(file: Express.Multer.File) {
-  const handle = await fs.open(file.path, 'r');
-
-  try {
-    const buffer = Buffer.alloc(256);
-    const result = await handle.read(
-      buffer,
-      0,
-      buffer.length,
-      0
-    );
-    const prefix = buffer.subarray(0, result.bytesRead).toString('utf8').trimStart();
-
-    if (!prefix.startsWith('<')) {
-      throw new Error('Uploaded file does not look like XML.');
-    }
-  } finally {
-    await handle.close();
-  }
-}
-
-async function cleanupUploadedFile(file?: Express.Multer.File) {
-  if (!file) return;
-
-  await fs.unlink(file.path).catch(() => undefined);
-}
 
 app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, res, next) => {
   if (!req.file) return res.status(400).json({ error: 'Missing xmltv file upload field' });
@@ -130,6 +204,17 @@ app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, re
 app.post('/profiles', requireAdmin, async (req, res) => {
   const data = parseProfileCreatePayload(req.body);
   const profile = await prisma.exportProfile.create({ data });
+
+  await recordAuditEvent(req, {
+    action: 'profile.create',
+    entityType: 'ExportProfile',
+    entityId: profile.id,
+    metadata: {
+      name: profile.name,
+      slug: profile.slug
+    }
+  });
+
   res.status(201).json(profile);
 });
 
@@ -138,23 +223,7 @@ app.get(
   requireExportToken,
   async (req, res) => {
     const country = req.params.country.toUpperCase();
-
-    const xml = await getCachedFeed(country);
-
-    if (!xml) {
-      return res.status(404).send('Feed not generated');
-    }
-
-    await recordFeedDownload(
-      `${country}.xml`
-    );
-
-    res.setHeader(
-      'content-type',
-      'application/xml; charset=utf-8'
-    );
-
-    res.send(xml);
+    return sendCachedCountryXml(res, country);
   }
 );
 
@@ -163,45 +232,81 @@ app.get(
   requireExportToken,
   async (req, res) => {
     const country = req.params.country.toUpperCase();
-
-    const gzip = await getCachedFeedGzip(country);
-
-    if (!gzip) {
-      return res.status(404).send('Feed not generated');
-    }
-
-    await recordFeedDownload(
-      `${country}.xml.gz`
-    );
-
-    res.setHeader(
-      'content-type',
-      'application/gzip'
-    );
-
-    res.send(gzip);
+    return sendCachedCountryGzip(res, country);
   }
 );
 
 // Legacy compatibility routes
 
-app.get('/uk.xml', requireExportToken, (_req, res) => sendCachedCountryXml(res, 'GB'));
+app.get('/uk.xml', requireExportToken, (_req, res) =>
+  sendCachedCountryXml(res, 'GB')
+);
 
-app.get('/uk.xml.gz', requireExportToken, (_req, res) => sendCachedCountryGzip(res, 'GB'));
+app.get('/uk.xml.gz', requireExportToken, (_req, res) =>
+  sendCachedCountryGzip(res, 'GB')
+);
 
-app.get('/us.xml', requireExportToken, (_req, res) => sendCachedCountryXml(res, 'US'));
+app.get('/us.xml', requireExportToken, (_req, res) =>
+  sendCachedCountryXml(res, 'US')
+);
 
-app.get('/us.xml.gz', requireExportToken, (_req, res) => sendCachedCountryGzip(res, 'US'));
+app.get('/us.xml.gz', requireExportToken, (_req, res) =>
+  sendCachedCountryGzip(res, 'US')
+);
 
-app.get('/sports.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('sports')));
-app.get('/movies.xml', requireExportToken, async (_req, res) => sendXml(res, await exportCategory('movies')));
-app.get('/profile/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProfile(req.params.id)));
-app.get('/provider/:id.xml', requireExportToken, async (req, res) => sendXml(res, await exportProvider(req.params.id)));
+app.get('/sports.xml', requireExportToken, async (_req, res) => {
+  await recordFeedDownload('sports.xml');
+  sendXml(res, await exportCategory('sports'));
+});
+app.get('/movies.xml', requireExportToken, async (_req, res) => {
+  await recordFeedDownload('movies.xml');
+  sendXml(res, await exportCategory('movies'));
+});
+app.get('/profile/:id.xml', requireExportToken, async (req, res) => {
+  await recordFeedDownload(`profile_${req.params.id}.xml`);
+  sendXml(res, await exportProfile(req.params.id));
+});
+app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
+  const key = providerFeedKey(req.params.id);
+  const cached = await getCachedFeed(key);
+  const xml = cached ?? await exportProvider(req.params.id);
+
+  await recordFeedDownload(`${key}.xml`);
+
+  sendXml(res, xml);
+});
+
+app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
+  const key = providerFeedKey(req.params.id);
+  const gzip = await getCachedFeedGzip(key);
+
+  if (!gzip) {
+    return res.status(404).send('Feed not generated');
+  }
+
+  await recordFeedDownload(`${key}.xml.gz`);
+
+  res.setHeader(
+    'content-type',
+    'application/gzip'
+  );
+  setFeedCacheHeaders(res);
+
+  res.send(gzip);
+});
+
+function setFeedCacheHeaders(res) {
+  res.setHeader(
+    'cache-control',
+    `public, max-age=${env.FEED_CACHE_MAX_AGE_SECONDS}`
+  );
+}
 
 function sendXml(
   res,
   xml
 ) {
+  setFeedCacheHeaders(res);
   res.setHeader(
     'content-type',
     'application/xml; charset=utf-8'
@@ -241,34 +346,50 @@ async function sendCachedCountryGzip(
     'content-type',
     'application/gzip'
   );
+  setFeedCacheHeaders(res);
 
   return res.send(gzip);
 }
 
 app.get('/', (_req, res) => {
   res.send(`
-    <h1>XMLTV Aggregator</h1>
-    <ul>
-      <li><a href="/health">Health</a></li>
-      <li><a href="/sources">Sources</a></li>
-      <li><a href="/monitoring/metrics">Metrics</a></li>
-      <li><a href="/admin">Admin</a></li>
-    </ul>
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>XMLTV Aggregator</title>
+      </head>
+      <body>
+        <main>
+          <h1>XMLTV Aggregator</h1>
+          <p>Service is running.</p>
+          <p><a href="/admin">Open admin</a></p>
+        </main>
+      </body>
+    </html>
   `);
 });
 
-app.get('/debug/channels', requireAdmin, async (_req, res) => {
-  const channels = await prisma.channel.findMany();
-  res.json(channels);
-});
-
-app.get('/debug/programs', requireAdmin, async (_req, res) => {
-  const programs = await prisma.program.findMany({
-    take: 20
+if (env.ENABLE_DEBUG_ROUTES === 'true') {
+  app.get('/debug/channels', requireAdmin, async (_req, res) => {
+    const channels = await prisma.channel.findMany({
+      take: 500
+    });
+    res.json(channels);
   });
 
-  res.json(programs);
-});
+  app.get('/debug/programs', requireAdmin, async (_req, res) => {
+    const programs = await prisma.program.findMany({
+      take: 100,
+      orderBy: {
+        start: 'desc'
+      }
+    });
+
+    res.json(programs);
+  });
+}
 
 app.get('/channels', requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.findMany({
@@ -305,7 +426,26 @@ app.get('/coverage', requireAdmin, async (_req, res) => {
   });
 });
 
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((
+  error: unknown,
+  _req: express.Request,
+  res: express.Response,
+  _next: express.NextFunction
+) => {
+  if (error instanceof multer.MulterError) {
+    return res.status(400).json({
+      error: error.code === 'LIMIT_FILE_SIZE'
+        ? `Uploaded file exceeds ${env.UPLOAD_MAX_MB} MB limit.`
+        : 'Invalid multipart upload.'
+    });
+  }
+
+  if (error instanceof Error && error.message.startsWith('Uploaded XMLTV file')) {
+    return res.status(400).json({
+      error: error.message
+    });
+  }
+
   if (error instanceof ZodError) {
     return res.status(400).json({
       error: 'Invalid request payload.',
@@ -316,12 +456,6 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
     });
   }
 
-  if (error instanceof Error && error.message.includes('does not look like XML')) {
-    return res.status(400).json({
-      error: error.message
-    });
-  }
-
   console.error('Unhandled request error:', error);
 
   return res.status(500).json({
@@ -329,10 +463,50 @@ app.use((error: unknown, _req: express.Request, res: express.Response, _next: ex
   });
 });
 
-if (require.main === module) {
-  startImportScheduler();
+export async function startServer() {
+  await assertCacheDirectoryWritable();
 
-  app.listen(env.PORT, () => {
+  if (env.ENABLE_SCHEDULER === 'true') {
+    startImportScheduler();
+  } else {
+    console.log('Import scheduler disabled');
+  }
+
+  const closeBullWorker = startBullJobWorker();
+
+  if (env.JOB_QUEUE_BACKEND !== 'bullmq') {
+    startJobWorker();
+  }
+
+  const server = app.listen(env.PORT, () => {
     console.log(`XMLTV aggregator listening on ${env.BASE_URL}`);
   });
+
+  async function shutdown(signal: string) {
+    console.log(`Received ${signal}, shutting down`);
+
+    server.close(async () => {
+      await closeBullWorker?.();
+      await prisma.$disconnect();
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      process.exit(1);
+    }, 10000).unref();
+  }
+
+  process.on('SIGTERM', () => {
+    void shutdown('SIGTERM');
+  });
+
+  process.on('SIGINT', () => {
+    void shutdown('SIGINT');
+  });
+
+  return server;
+}
+
+if (require.main === module) {
+  void startServer();
 }

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../db/prisma';
 import { env } from '../config/env';
+import { prisma } from '../db/prisma';
 
 export async function requireExportToken(
   req: Request,
@@ -14,7 +14,8 @@ export async function requireExportToken(
   const queryToken = Array.isArray(req.query.token)
     ? req.query.token[0]
     : req.query.token;
-  const token = String(queryToken ?? req.header('x-export-token') ?? '').trim();
+  const headerToken = req.header('x-export-token');
+  const token = String(queryToken ?? headerToken ?? '').trim();
 
   if (!token) {
     return res.status(401).json({

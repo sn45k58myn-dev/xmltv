@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: xmltv
       POSTGRES_USER: xmltv
@@ -9,21 +10,43 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xmltv -d xmltv"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   xmltv:
     build: .
+    restart: unless-stopped
+    init: true
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "3000:3000"
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://xmltv:xmltv@postgres:5432/xmltv?schema=public
+      RUN_MIGRATIONS: "true"
     volumes:
+      - ./cache:/app/cache
       - ./data:/app/data
       - ./uploads:/app/uploads
-      - ./prisma:/app/prisma
+      - ./backups:/app/backups
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
 volumes:
   postgres-data:

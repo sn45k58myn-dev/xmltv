@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=public
+      ADMIN_TOKEN: ci-admin-token
+      PUBLIC_EXPORTS: "true"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: xmltv
+          POSTGRES_USER: xmltv
+          POSTGRES_PASSWORD: xmltv
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U xmltv -d xmltv"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Deploy migrations
+        run: npx prisma migrate deploy
+
+      - name: Verify migrations on fresh schema
+        env:
+          DATABASE_URL: postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=fresh_migrate_deploy
+        run: npx prisma migrate deploy
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Smoke import
+        run: npm run smoke:import
+
+      - name: Audit moderate vulnerabilities
+        run: npm audit --audit-level=moderate
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose file
+        run: docker compose config
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: xmltv-aggregator:ci

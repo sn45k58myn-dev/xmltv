@@ -24,7 +24,7 @@ aliasRoutes.post('/', async (req, res) => {
       },
     });
     res.status(201).json(alias);
-  } catch (error) {
+  } catch (_error) {
     res.status(400).json({ error: 'Failed to create alias' });
   }
 });
@@ -35,7 +35,7 @@ aliasRoutes.delete('/:id', async (req, res) => {
       where: { id: req.params.id },
     });
     res.status(204).send();
-  } catch (error) {
+  } catch (_error) {
     res.status(400).json({ error: 'Failed to delete alias' });
   }
 });

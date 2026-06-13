@@ -44,6 +44,7 @@ export async function exportCountry(country: string): Promise<string> {
       country: normalized
     },
     include: {
+      aliases: true,
       programs: {
         where: exportProgramWindow(),
         orderBy: {
@@ -64,6 +65,7 @@ export async function exportCategory(category: string): Promise<string> {
   const channels = await prisma.channel.findMany({
     where: { OR: terms.map((term) => ({ category: containsInsensitive(term) })) },
     include: {
+      aliases: true,
       programs: {
         where: {
           AND: [
@@ -89,6 +91,7 @@ export async function exportProfile(id: string): Promise<string> {
       ...(channelIds?.length ? { id: { in: channelIds } } : {})
     },
     include: {
+      aliases: true,
       programs: {
         where: exportProgramWindow(),
         orderBy: { start: 'asc' }
@@ -100,16 +103,34 @@ export async function exportProfile(id: string): Promise<string> {
 }
 
 export async function exportProvider(providerId: string): Promise<string> {
-  const mappings = await prisma.mapping.findMany({ where: { providerId }, select: { channelId: true } });
-  const channels = await prisma.channel.findMany({
-    where: { id: { in: mappings.map((m) => m.channelId) } },
+  const mappings = await prisma.mapping.findMany({
+    where: {
+      providerId
+    },
     include: {
-      programs: {
-        where: exportProgramWindow(),
-        orderBy: { start: 'asc' }
+      channel: {
+        include: {
+          aliases: true,
+          programs: {
+            where: exportProgramWindow(),
+            orderBy: {
+              start: 'asc'
+            }
+          }
+        }
       }
     },
-    orderBy: { displayName: 'asc' }
+    orderBy: {
+      channel: {
+        displayName: 'asc'
+      }
+    }
   });
+
+  const channels = mappings.map((mapping) => ({
+    ...mapping.channel,
+    xmltvId: mapping.providerChannelId
+  }));
+
   return writeXmltv(channels);
 }

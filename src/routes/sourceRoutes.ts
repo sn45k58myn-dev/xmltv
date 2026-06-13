@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
+import { recordAuditEvent } from '../services/auditLog';
 import { parseAdminPayload, parseSourceCreatePayload, sourceUpdateSchema } from '../utils/adminPayloads';
 
 export const sourceRoutes = Router();
@@ -20,22 +21,52 @@ sourceRoutes.post('/', async (req, res) => {
     data
   });
 
+  await recordAuditEvent(req, {
+    action: 'source.create',
+    entityType: 'Source',
+    entityId: source.id,
+    metadata: {
+      name: source.name,
+      type: source.type
+    }
+  });
+
   res.status(201).json(source);
 });
 
 sourceRoutes.put('/:id', async (req, res) => {
-  const data = parseAdminPayload(sourceUpdateSchema, req.body);
+  const data = parseAdminPayload(
+    sourceUpdateSchema,
+    req.body
+  );
   const source = await prisma.source.update({
     where: { id: req.params.id },
     data
+  });
+
+  await recordAuditEvent(req, {
+    action: 'source.update',
+    entityType: 'Source',
+    entityId: source.id,
+    metadata: data
   });
 
   res.json(source);
 });
 
 sourceRoutes.delete('/:id', async (req, res) => {
-  await prisma.source.delete({
+  const source = await prisma.source.delete({
     where: { id: req.params.id }
+  });
+
+  await recordAuditEvent(req, {
+    action: 'source.delete',
+    entityType: 'Source',
+    entityId: source.id,
+    metadata: {
+      name: source.name,
+      type: source.type
+    }
   });
 
   res.status(204).end();

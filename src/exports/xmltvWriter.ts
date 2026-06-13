@@ -1,4 +1,4 @@
-import { Program, Channel } from '@prisma/client';
+import { Program, Channel, Alias } from '@prisma/client';
 
 function esc(value: string | null | undefined): string {
   return (value ?? '')
@@ -14,13 +14,25 @@ function xmltvDate(date: Date): string {
   return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())} +0000`;
 }
 
-type ChannelWithPrograms = Channel & { programs: Program[] };
+type ChannelWithPrograms = Channel & {
+  aliases?: Alias[];
+  programs: Program[];
+};
 
 export function writeXmltv(channels: ChannelWithPrograms[]): string {
   const out: string[] = ['<?xml version="1.0" encoding="UTF-8"?>', '<tv generator-info-name="xmltv-aggregator">'];
   for (const channel of channels) {
     out.push(`  <channel id="${esc(channel.xmltvId)}">`);
     out.push(`    <display-name>${esc(channel.displayName)}</display-name>`);
+    const names = new Set([channel.displayName.toLowerCase()]);
+    for (const alias of channel.aliases ?? []) {
+      const normalized = alias.value.toLowerCase();
+
+      if (!names.has(normalized)) {
+        out.push(`    <display-name>${esc(alias.value)}</display-name>`);
+        names.add(normalized);
+      }
+    }
     const icon = channel.logo ?? channel.icon ?? channel.image;
     if (icon) out.push(`    <icon src="${esc(icon)}" />`);
     out.push('  </channel>');
