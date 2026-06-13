@@ -71,6 +71,17 @@ export const exportTokenCreateSchema = z.object({
   active: z.boolean().optional()
 }).strict();
 
+export const legacyExportTokenCreateSchema = exportTokenCreateSchema.extend({
+  token: z.string().trim().min(16)
+}).strict();
+
+export const exportTokenUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  profileId: nullableString,
+  providerId: nullableString,
+  active: z.boolean().optional()
+}).strict();
+
 export const channelAssetsSchema = z.object({
   logo: nullableString,
   image: nullableString

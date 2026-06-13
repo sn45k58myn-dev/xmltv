@@ -338,6 +338,10 @@ Admin UI -> Export Tokens
 ```
 
 Successful token use increments request counts and updates last-used time.
+Deleting an export token deactivates it rather than removing the row, preserving
+request history for audits. Use `PATCH /api/export-tokens/:id` to rename a
+token, change profile/provider metadata, or toggle `active` without changing the
+token secret.
 
 ## Admin UI
 

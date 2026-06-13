@@ -353,6 +353,82 @@ describe('server API', () => {
     expect(response.body[0].tokenPreview).toBe('abcdef...7890');
   });
 
+  it('updates export token metadata without exposing the token secret', async () => {
+    vi.mocked(prisma.exportToken.update).mockResolvedValue({
+      id: 'token-1',
+      name: 'Jellyfin token',
+      token: 'abcdef1234567890',
+      profileId: 'profile-1',
+      providerId: null,
+      active: false,
+      requests: 12,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-12T12:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .patch('/api/export-tokens/token-1')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        name: 'Jellyfin token',
+        profileId: 'profile-1',
+        active: false
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body.token).toBeUndefined();
+    expect(response.body.tokenPreview).toBe('abcdef...7890');
+    expect(prisma.exportToken.update).toHaveBeenCalledWith({
+      where: {
+        id: 'token-1'
+      },
+      data: {
+        name: 'Jellyfin token',
+        profileId: 'profile-1',
+        active: false
+      }
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'exportToken.update',
+        entityType: 'ExportToken',
+        entityId: 'token-1'
+      })
+    }));
+  });
+
+  it('deactivates export tokens instead of hard deleting them', async () => {
+    vi.mocked(prisma.exportToken.update).mockResolvedValue({
+      id: 'token-1',
+      name: 'Jellyfin token',
+      token: 'abcdef1234567890',
+      profileId: null,
+      providerId: null,
+      active: false,
+      requests: 12,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-12T12:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .delete('/api/export-tokens/token-1')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(204);
+    expect(prisma.exportToken.update).toHaveBeenCalledWith({
+      where: {
+        id: 'token-1'
+      },
+      data: {
+        active: false
+      }
+    });
+  });
+
   it('updates API key lifecycle fields without exposing hashes', async () => {
     vi.mocked(prisma.apiKey.update).mockResolvedValue({
       id: 'api-key-1',
