@@ -250,6 +250,35 @@ describe('server API', () => {
     expect(response.body.error).toContain('Invalid or inactive export token');
   });
 
+  it('prefers header export tokens over query-string tokens', async () => {
+    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
+      id: 'token-1',
+      name: 'Client',
+      token: 'header-token',
+      profileId: null,
+      providerId: null,
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-12T12:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.exportToken.update).mockResolvedValue({} as any);
+    vi.mocked(getCachedFeed).mockResolvedValue('<tv></tv>');
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/country/GB.xml?token=query-token')
+      .set('x-export-token', 'header-token');
+
+    expect(response.status).toBe(200);
+    expect(prisma.exportToken.findUnique).toHaveBeenCalledWith({
+      where: {
+        token: 'header-token'
+      }
+    });
+  });
+
   it('marks protected feed responses as private cache entries', async () => {
     vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
       id: 'token-1',

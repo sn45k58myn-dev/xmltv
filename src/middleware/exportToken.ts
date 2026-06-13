@@ -15,7 +15,7 @@ export async function requireExportToken(
     ? req.query.token[0]
     : req.query.token;
   const headerToken = req.header('x-export-token');
-  const token = String(queryToken ?? headerToken ?? '').trim();
+  const token = String(headerToken ?? queryToken ?? '').trim();
 
   if (!token) {
     return res.status(401).json({

@@ -350,6 +350,10 @@ When `PUBLIC_EXPORTS=false`, pass an active export token using either:
 x-export-token: <export-token>
 ```
 
+Prefer `x-export-token` for API clients. It takes precedence if both header and
+query-string tokens are supplied. Use `?token=` only for clients that cannot send
+custom headers, such as some guide consumers.
+
 Create and manage export tokens in:
 
 ```text
