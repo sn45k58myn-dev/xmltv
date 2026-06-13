@@ -124,7 +124,8 @@ Important variables:
 - `SOURCE_FETCH_TIMEOUT_MS`: Timeout for XMLTV source downloads.
 - `SOURCE_FETCH_MAX_MB`: Maximum remote XMLTV download size in megabytes.
 - `SOURCE_FETCH_MAX_REDIRECTS`: Maximum remote source redirects. Defaults to
-  `0` so DNS/private-network source guards cannot be bypassed by redirects.
+  `0`; when redirects are enabled, every hop is revalidated so
+  DNS/private-network source guards cannot be bypassed.
 - `SOURCE_FETCH_RETRIES`: Retry count for transient XMLTV source download failures.
 - `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
 - `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.

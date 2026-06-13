@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import { env } from '../config/env';
 import { SourceDefinition } from '../models/xmltv';
 import { fetchSchedulesDirectXmltv } from './schedulesDirect';
-import { assertResolvedSourceUrlAllowed } from './sourceUrl';
+import { assertResolvedSourceUrlAllowed, resolveSourceRedirectUrl } from './sourceUrl';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,22 +24,14 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
   }
 
   if (!source.url) throw new Error(`Source ${source.name} missing URL`);
-  await assertResolvedSourceUrlAllowed(source.url);
+  const currentUrl = source.url;
+  await assertResolvedSourceUrlAllowed(currentUrl);
 
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= env.SOURCE_FETCH_RETRIES; attempt++) {
     try {
-      const response = await axios.get(source.url, {
-        timeout: env.SOURCE_FETCH_TIMEOUT_MS,
-        maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
-        maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
-        maxRedirects: env.SOURCE_FETCH_MAX_REDIRECTS,
-        responseType: 'text',
-        validateStatus: (status) => status >= 200 && status < 300
-      });
-
-      return response.data;
+      return await fetchWithValidatedRedirects(currentUrl);
     } catch (error) {
       lastError = error;
 
@@ -52,4 +44,44 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
   }
 
   throw lastError;
+}
+
+async function fetchWithValidatedRedirects(startUrl: string) {
+  let currentUrl = startUrl;
+
+  for (let redirectCount = 0; redirectCount <= env.SOURCE_FETCH_MAX_REDIRECTS; redirectCount++) {
+    const response = await axios.get(currentUrl, {
+      timeout: env.SOURCE_FETCH_TIMEOUT_MS,
+      maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
+      maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
+      maxRedirects: 0,
+      responseType: 'text',
+      validateStatus: (status) => status >= 200 && status < 400
+    });
+
+    if (response.status >= 300) {
+      const location = response.headers?.location;
+
+      if (!location) {
+        throw new Error(`Source redirect from ${currentUrl} did not include a Location header.`);
+      }
+
+      if (redirectCount >= env.SOURCE_FETCH_MAX_REDIRECTS) {
+        throw new Error(`Source exceeded maximum redirects (${env.SOURCE_FETCH_MAX_REDIRECTS}).`);
+      }
+
+      const redirected = resolveSourceRedirectUrl(
+        currentUrl,
+        location
+      );
+
+      await assertResolvedSourceUrlAllowed(redirected.toString());
+      currentUrl = redirected.toString();
+      continue;
+    }
+
+    return response.data;
+  }
+
+  throw new Error(`Source exceeded maximum redirects (${env.SOURCE_FETCH_MAX_REDIRECTS}).`);
 }

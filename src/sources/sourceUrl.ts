@@ -80,6 +80,24 @@ export function assertSourceUrlAllowed(url: string) {
   return parsed;
 }
 
+export function resolveSourceRedirectUrl(
+  currentUrl: string,
+  location: string
+) {
+  let redirected: URL;
+
+  try {
+    redirected = new URL(
+      location,
+      currentUrl
+    );
+  } catch {
+    throw new Error('Source redirect URL is invalid.');
+  }
+
+  return assertSourceUrlAllowed(redirected.toString());
+}
+
 export async function assertResolvedSourceUrlAllowed(url: string) {
   const parsed = assertSourceUrlAllowed(url);
 

@@ -1,6 +1,6 @@
 import dns from 'node:dns/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { assertResolvedSourceUrlAllowed, assertSourceUrlAllowed } from './sourceUrl';
+import { assertResolvedSourceUrlAllowed, assertSourceUrlAllowed, resolveSourceRedirectUrl } from './sourceUrl';
 
 vi.mock('node:dns/promises', () => ({
   default: {
@@ -51,5 +51,21 @@ describe('assertSourceUrlAllowed', () => {
 
     await expect(assertResolvedSourceUrlAllowed('http://feeds.example.com/guide.xml'))
       .rejects.toThrow('private network');
+  });
+
+  it('resolves relative redirect URLs against the current source URL', () => {
+    expect(resolveSourceRedirectUrl(
+      'https://feeds.example.com/path/guide.xml',
+      '../new-guide.xml'
+    ).toString()).toBe('https://feeds.example.com/new-guide.xml');
+  });
+
+  it('rejects redirected source URLs that point at private hosts in production', () => {
+    process.env.NODE_ENV = 'production';
+
+    expect(() => resolveSourceRedirectUrl(
+      'https://feeds.example.com/guide.xml',
+      'http://127.0.0.1/admin'
+    )).toThrow('private network');
   });
 });

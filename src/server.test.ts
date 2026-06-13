@@ -49,6 +49,7 @@ vi.mock('./db/prisma', () => ({
       findMany: vi.fn(),
       findUnique: vi.fn(),
       create: vi.fn(),
+      updateMany: vi.fn(),
       update: vi.fn()
     },
     auditLog: {
@@ -57,6 +58,7 @@ vi.mock('./db/prisma', () => ({
     },
     apiKey: {
       findUnique: vi.fn(),
+      updateMany: vi.fn(),
       update: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn()
@@ -248,7 +250,7 @@ describe('server API', () => {
       createdAt: new Date('2026-06-13T10:00:00.000Z'),
       updatedAt: new Date('2026-06-13T10:00:00.000Z')
     } as any);
-    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.apiKey.updateMany).mockResolvedValue({ count: 1 });
     vi.mocked(prisma.source.count).mockResolvedValue(1);
     vi.mocked(prisma.channel.count).mockResolvedValue(2);
     vi.mocked(prisma.program.count).mockResolvedValue(3);
@@ -268,9 +270,10 @@ describe('server API', () => {
       channels: 2,
       programs: 3
     });
-    expect(prisma.apiKey.update).toHaveBeenCalledWith(expect.objectContaining({
+    expect(prisma.apiKey.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
-        id: 'api-key-1'
+        hash: expect.any(String),
+        active: true
       }
     }));
   });
@@ -288,7 +291,7 @@ describe('server API', () => {
       createdAt: new Date('2026-06-13T10:00:00.000Z'),
       updatedAt: new Date('2026-06-13T10:00:00.000Z')
     } as any);
-    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.apiKey.updateMany).mockResolvedValue({ count: 1 });
     vi.mocked(prisma.source.count).mockResolvedValue(1);
     vi.mocked(prisma.channel.count).mockResolvedValue(2);
     vi.mocked(prisma.program.count).mockResolvedValue(3);
@@ -323,7 +326,7 @@ describe('server API', () => {
       createdAt: new Date('2026-06-13T10:00:00.000Z'),
       updatedAt: new Date('2026-06-13T10:00:00.000Z')
     } as any);
-    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.apiKey.updateMany).mockResolvedValue({ count: 1 });
 
     const app = await loadApp();
     const response = await request(app)
@@ -343,18 +346,9 @@ describe('server API', () => {
   });
 
   it('rejects invalid country feed route params', async () => {
-    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
-      id: 'token-1',
-      name: 'Client',
-      token: 'valid-token',
-      profileId: null,
-      providerId: null,
-      active: true,
-      requests: 0,
-      lastUsedAt: null,
-      createdAt: new Date('2026-06-12T12:00:00.000Z')
-    } as any);
-    vi.mocked(prisma.exportToken.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 1
+    });
 
     const app = await loadApp();
     const response = await request(app)
@@ -366,7 +360,9 @@ describe('server API', () => {
   });
 
   it('rejects protected feeds when the export token is invalid', async () => {
-    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 0
+    });
 
     const app = await loadApp();
     const response = await request(app)
@@ -378,18 +374,9 @@ describe('server API', () => {
   });
 
   it('prefers header export tokens over query-string tokens', async () => {
-    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
-      id: 'token-1',
-      name: 'Client',
-      token: 'header-token',
-      profileId: null,
-      providerId: null,
-      active: true,
-      requests: 0,
-      lastUsedAt: null,
-      createdAt: new Date('2026-06-12T12:00:00.000Z')
-    } as any);
-    vi.mocked(prisma.exportToken.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 1
+    });
     vi.mocked(getCachedFeed).mockResolvedValue('<tv></tv>');
     vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
 
@@ -399,26 +386,18 @@ describe('server API', () => {
       .set('x-export-token', 'header-token');
 
     expect(response.status).toBe(200);
-    expect(prisma.exportToken.findUnique).toHaveBeenCalledWith({
+    expect(prisma.exportToken.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
-        token: 'header-token'
+        token: 'header-token',
+        active: true
       }
-    });
+    }));
   });
 
   it('marks protected feed responses as private cache entries', async () => {
-    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
-      id: 'token-1',
-      name: 'Client',
-      token: 'valid-token',
-      profileId: null,
-      providerId: null,
-      active: true,
-      requests: 0,
-      lastUsedAt: null,
-      createdAt: new Date('2026-06-12T12:00:00.000Z')
-    } as any);
-    vi.mocked(prisma.exportToken.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 1
+    });
     vi.mocked(getCachedFeed).mockResolvedValue('<tv></tv>');
     vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
 

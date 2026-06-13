@@ -16,6 +16,7 @@ describe('fetchXmltvSource', () => {
 
   it('applies a maximum remote feed download size', async () => {
     vi.mocked(axios.get).mockResolvedValue({
+      status: 200,
       data: '<tv></tv>'
     });
 
@@ -33,5 +34,19 @@ describe('fetchXmltvSource', () => {
         maxRedirects: 0
       })
     );
+  });
+
+  it('fails clearly when a source redirect has no location header', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      status: 302,
+      headers: {},
+      data: ''
+    });
+
+    await expect(fetchXmltvSource({
+      name: 'Remote',
+      type: 'url',
+      url: 'https://example.com/guide.xml'
+    })).rejects.toThrow('did not include a Location header');
   });
 });

@@ -49,6 +49,23 @@ export async function createApiKey(input: {
 
 export async function validateApiKey(apiKey: string) {
   const hash = hashApiKey(apiKey);
+  const updated = await prisma.apiKey.updateMany({
+    where: {
+      hash,
+      active: true
+    },
+    data: {
+      requests: {
+        increment: 1
+      },
+      lastUsedAt: new Date()
+    }
+  });
+
+  if (updated.count !== 1) {
+    return null;
+  }
+
   const stored = await prisma.apiKey.findUnique({
     where: {
       hash
@@ -58,18 +75,6 @@ export async function validateApiKey(apiKey: string) {
   if (!stored?.active) {
     return null;
   }
-
-  await prisma.apiKey.update({
-    where: {
-      id: stored.id
-    },
-    data: {
-      requests: {
-        increment: 1
-      },
-      lastUsedAt: new Date()
-    }
-  });
 
   return {
     id: stored.id,

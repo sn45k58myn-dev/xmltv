@@ -23,21 +23,10 @@ export async function requireExportToken(
     });
   }
 
-  const exportToken = await prisma.exportToken.findUnique({
+  const updated = await prisma.exportToken.updateMany({
     where: {
-      token
-    }
-  });
-
-  if (!exportToken?.active) {
-    return res.status(401).json({
-      error: 'Invalid or inactive export token.'
-    });
-  }
-
-  await prisma.exportToken.update({
-    where: {
-      id: exportToken.id
+      token,
+      active: true
     },
     data: {
       requests: {
@@ -46,6 +35,12 @@ export async function requireExportToken(
       lastUsedAt: new Date()
     }
   });
+
+  if (updated.count !== 1) {
+    return res.status(401).json({
+      error: 'Invalid or inactive export token.'
+    });
+  }
 
   return next();
 }
