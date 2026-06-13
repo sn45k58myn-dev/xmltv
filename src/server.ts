@@ -204,6 +204,19 @@ app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, re
       url: req.file.path,
       priority: 30
     });
+
+    await recordAuditEvent(req, {
+      action: 'import.upload',
+      entityType: 'ImportRun',
+      entityId: 'id' in result ? result.id : undefined,
+      metadata: {
+        originalName: safeUploadDisplayName(req.file.originalname),
+        status: result.status,
+        channelsSeen: 'channelsSeen' in result ? result.channelsSeen : undefined,
+        programsSeen: 'programsSeen' in result ? result.programsSeen : undefined
+      }
+    });
+
     return res.json(result);
   } catch (error) {
     return next(error);

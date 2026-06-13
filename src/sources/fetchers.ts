@@ -32,6 +32,8 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
     try {
       const response = await axios.get(source.url, {
         timeout: env.SOURCE_FETCH_TIMEOUT_MS,
+        maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
+        maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
         responseType: 'text',
         validateStatus: (status) => status >= 200 && status < 300
       });

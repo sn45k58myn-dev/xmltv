@@ -134,4 +134,19 @@ describe('runImport', () => {
       })
     }));
   });
+
+  it('skips remote freshness checks for uploaded XMLTV files', async () => {
+    const result = await runImport({
+      name: 'Upload guide.xml',
+      type: 'upload',
+      url: 'uploads/local-file'
+    });
+
+    expect(result.status).toBe('success');
+    expect(sourceChanged).not.toHaveBeenCalled();
+    expect(fetchXmltvSource).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'upload',
+      url: 'uploads/local-file'
+    }));
+  });
 });

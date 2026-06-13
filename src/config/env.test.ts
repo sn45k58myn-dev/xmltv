@@ -7,6 +7,7 @@ async function loadEnvWith(overrides: Record<string, string | undefined>) {
     'RATE_LIMIT_MAX',
     'ENABLE_WORKER',
     'PORT',
+    'SOURCE_FETCH_MAX_MB',
     'SOURCE_FETCH_RETRIES'
   ];
 
@@ -25,6 +26,7 @@ describe('env', () => {
     delete process.env.RATE_LIMIT_MAX;
     delete process.env.ENABLE_WORKER;
     delete process.env.PORT;
+    delete process.env.SOURCE_FETCH_MAX_MB;
     delete process.env.SOURCE_FETCH_RETRIES;
   });
 
@@ -46,5 +48,11 @@ describe('env', () => {
     });
 
     expect(env.SOURCE_FETCH_RETRIES).toBe(0);
+  });
+
+  it('rejects invalid remote source download limits', async () => {
+    await expect(loadEnvWith({
+      SOURCE_FETCH_MAX_MB: '0'
+    })).rejects.toThrow();
   });
 });

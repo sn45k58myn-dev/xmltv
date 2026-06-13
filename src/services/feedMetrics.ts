@@ -12,19 +12,29 @@ const CACHE_DIR = path.join(
   'cache'
 );
 
-export async function getFeedSizes(): Promise<FeedSize[]> {
+function isFeedFile(file: string) {
+  return file.endsWith('.xml') || file.endsWith('.xml.gz');
+}
+
+export async function getFeedSizes(cacheDir = CACHE_DIR): Promise<FeedSize[]> {
   try {
-    const files = await fs.readdir(CACHE_DIR);
+    const entries = await fs.readdir(cacheDir, {
+      withFileTypes: true
+    });
 
     const results: FeedSize[] = [];
 
-    for (const file of files) {
+    for (const entry of entries) {
+      if (!entry.isFile() || !isFeedFile(entry.name)) {
+        continue;
+      }
+
       const stat = await fs.stat(
-        path.join(CACHE_DIR, file)
+        path.join(cacheDir, entry.name)
       );
 
       results.push({
-        feed: file,
+        feed: entry.name,
         bytes: stat.size,
         megabytes: Number(
           (stat.size / 1024 / 1024).toFixed(2)

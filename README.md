@@ -66,6 +66,7 @@ JSON_BODY_LIMIT=1mb
 UPLOAD_MAX_MB=200
 TRUST_PROXY=false
 SOURCE_FETCH_TIMEOUT_MS=60000
+SOURCE_FETCH_MAX_MB=1024
 SOURCE_FETCH_RETRIES=2
 SOURCE_RETRY_DELAY_MS=1000
 SOURCE_HEAD_TIMEOUT_MS=10000
@@ -117,6 +118,7 @@ Important variables:
 - `UPLOAD_MAX_MB`: Maximum XMLTV upload size in megabytes.
 - `TRUST_PROXY`: Set to `true` when running behind a trusted reverse proxy.
 - `SOURCE_FETCH_TIMEOUT_MS`: Timeout for XMLTV source downloads.
+- `SOURCE_FETCH_MAX_MB`: Maximum remote XMLTV download size in megabytes.
 - `SOURCE_FETCH_RETRIES`: Retry count for transient XMLTV source download failures.
 - `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
 - `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.
@@ -711,6 +713,8 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Rebuild cached feeds after source or mapping changes by running imports. Feed
   cache writes are atomic; old cache files remain available until replacements
   are fully written.
+- Download analytics are best-effort; feeds continue serving if a download
+  metrics write fails.
 - Source downloads only accept `http` and `https` URLs. In production mode,
   localhost/private-network source URLs and hostnames resolving to private
   addresses are refused before freshness checks or feed downloads run.

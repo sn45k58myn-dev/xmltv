@@ -109,7 +109,7 @@ async function findOrCreateChannel(input, source) {
 export async function runImport(definition) {
   const source = await upsertSource(definition);
 
-  if (definition.url) {
+  if (definition.url && definition.type !== 'upload') {
     const changed = await sourceChanged(
       source.id,
       definition.url
