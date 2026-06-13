@@ -377,8 +377,14 @@ DELETE /api/admin/api-keys/:id
 Create keys with one of these roles:
 
 - `admin`: Full admin API access, including key management.
-- `operator`: Reserved for operational runbooks and future limited mutation routes.
-- `viewer`: Reserved for read-only operational access.
+- `operator`: Read-only operational access plus costly operational checks such
+  as full feed validation.
+- `viewer`: Read-only operational access to dashboards, metadata, jobs,
+  imports, profiles, channels, source categories, and quality history.
+
+Source, channel, alias, profile, token, API-key, enrichment, catch-up, and audit
+log endpoints remain admin-only. Viewer keys cannot persist feed quality
+snapshots with `snapshot=true`.
 
 The raw key is returned only once from `POST /api/admin/api-keys`. The database
 stores a SHA-256 hash plus a short prefix for identification. Revocation marks a

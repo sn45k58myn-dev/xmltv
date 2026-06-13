@@ -143,7 +143,7 @@ describe('server API', () => {
     }));
   });
 
-  it('rejects viewer API keys on admin routes', async () => {
+  it('accepts viewer API keys on read-only admin routes', async () => {
     vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
       id: 'api-key-2',
       name: 'Viewer',
@@ -157,10 +157,45 @@ describe('server API', () => {
       updatedAt: new Date('2026-06-13T10:00:00.000Z')
     } as any);
     vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.source.count).mockResolvedValue(1);
+    vi.mocked(prisma.channel.count).mockResolvedValue(2);
+    vi.mocked(prisma.program.count).mockResolvedValue(3);
+    vi.mocked(prisma.alias.count).mockResolvedValue(4);
+    vi.mocked(prisma.exportProfile.count).mockResolvedValue(5);
+    vi.mocked(prisma.importRun.count).mockResolvedValue(6);
+    vi.mocked(prisma.exportToken.count).mockResolvedValue(7);
 
     const app = await loadApp();
     const response = await request(app)
       .get('/api/admin/summary')
+      .set('x-api-key', 'ak_test_viewer_key');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      sources: 1,
+      channels: 2,
+      programs: 3
+    });
+  });
+
+  it('rejects viewer API keys on admin-only routes', async () => {
+    vi.mocked(prisma.apiKey.findUnique).mockResolvedValue({
+      id: 'api-key-3',
+      name: 'Viewer',
+      prefix: 'ak_111222333',
+      hash: 'hash',
+      role: 'viewer',
+      active: true,
+      requests: 0,
+      lastUsedAt: null,
+      createdAt: new Date('2026-06-13T10:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T10:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.apiKey.update).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/api-keys')
       .set('x-api-key', 'ak_test_viewer_key');
 
     expect(response.status).toBe(403);
