@@ -39,6 +39,7 @@ import { enqueueJob } from './jobs/jobQueue';
 import { runEnabledImports, summarizeImportResults } from './jobs/importWork';
 import { parseProfileCreatePayload } from './utils/adminPayloads';
 import { enqueueBullJob, startBullJobWorker } from './jobs/bullQueue';
+import { closeRedisClient } from './services/redisClient';
 
 assertProductionSafeConfig();
 export const app = express();
@@ -496,6 +497,7 @@ export async function startServer() {
       await closeScheduler?.();
       await closeBullWorker?.();
       await closeJobWorker?.();
+      await closeRedisClient();
       await prisma.$disconnect();
       process.exit(0);
     });
