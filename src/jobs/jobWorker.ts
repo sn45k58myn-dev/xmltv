@@ -54,6 +54,7 @@ export function startJobWorker() {
 
   const workerId = createWorkerId();
   let running = false;
+  let activeJob: Promise<void> | undefined;
 
   console.log(`Job worker started: ${workerId}`);
 
@@ -61,12 +62,14 @@ export function startJobWorker() {
     if (running) return;
 
     running = true;
-    void processNextQueuedJob(workerId)
+    activeJob = processNextQueuedJob(workerId)
+      .then(() => undefined)
       .catch((error) => {
         console.error('Job worker failed while processing queue:', error);
       })
       .finally(() => {
         running = false;
+        activeJob = undefined;
       });
   };
 
@@ -81,5 +84,27 @@ export function startJobWorker() {
 
   return async () => {
     clearInterval(interval);
+
+    if (!activeJob) {
+      return;
+    }
+
+    let timeout: NodeJS.Timeout | undefined;
+
+    try {
+      await Promise.race([
+        activeJob,
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(
+            resolve,
+            env.WORKER_SHUTDOWN_TIMEOUT_MS
+          );
+        })
+      ]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
   };
 }

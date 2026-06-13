@@ -14,6 +14,9 @@ vi.mock('./db/prisma', () => ({
       create: vi.fn(),
       update: vi.fn()
     },
+    sourceHealth: {
+      findMany: vi.fn()
+    },
     channel: {
       findMany: vi.fn(),
       count: vi.fn()
@@ -177,6 +180,28 @@ describe('server API', () => {
     expect(response.status).toBe(200);
     expect(prisma.importRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
       take: 500
+    }));
+  });
+
+  it('protects source health details', async () => {
+    const app = await loadApp();
+    const response = await request(app).get('/api/source-health');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('bounds authenticated source health limits', async () => {
+    vi.mocked(prisma.sourceHealth.findMany).mockResolvedValue([]);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/source-health?limit=50000')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(prisma.sourceHealth.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 1000
     }));
   });
 

@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../db/prisma';
-import { recordFeedDownload } from './downloadMetrics';
+import { getFeedDownloads, recordFeedDownload } from './downloadMetrics';
 
 vi.mock('../db/prisma', () => ({
   prisma: {
     feedDownload: {
+      findMany: vi.fn(),
       upsert: vi.fn()
     }
   }
@@ -42,5 +43,18 @@ describe('recordFeedDownload', () => {
       'Unable to record feed download for GB.xml:',
       expect.any(Error)
     );
+  });
+
+  it('bounds feed download listing limits', async () => {
+    vi.mocked(prisma.feedDownload.findMany).mockResolvedValue([]);
+
+    await getFeedDownloads(50000);
+
+    expect(prisma.feedDownload.findMany).toHaveBeenCalledWith({
+      orderBy: {
+        downloads: 'desc'
+      },
+      take: 5000
+    });
   });
 });

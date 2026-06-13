@@ -37,6 +37,7 @@ const schema = z.object({
   ENABLE_WORKER: booleanString.default('false'),
   WORKER_POLL_MS: positiveInt.default(5000),
   WORKER_LOCK_TTL_MS: positiveInt.default(1800000),
+  WORKER_SHUTDOWN_TIMEOUT_MS: positiveInt.default(30000),
   RATE_LIMIT_WINDOW_MS: positiveInt.default(60000),
   RATE_LIMIT_MAX: positiveInt.default(120),
   RATE_LIMIT_STORE: z.enum(['memory', 'redis']).default('memory'),

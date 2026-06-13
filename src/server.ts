@@ -39,6 +39,7 @@ import { recordAuditEvent } from './services/auditLog';
 import { enqueueJob } from './jobs/jobQueue';
 import { runEnabledImports, summarizeImportResults } from './jobs/importWork';
 import { parseProfileCreatePayload } from './utils/adminPayloads';
+import { boundedLimit } from './utils/limits';
 import { enqueueBullJob, startBullJobWorker } from './jobs/bullQueue';
 import { closeRedisClient } from './services/redisClient';
 
@@ -83,7 +84,7 @@ app.use(rateLimit);
 app.use(requestMetrics);
 
 app.use('/api/stats', statsRoutes);
-app.use('/api/source-health', sourceHealthRoutes);
+app.use('/api/source-health', noStore, sourceHealthRoutes);
 app.use('/api/discovery', feedDiscoveryRoutes);
 app.use('/api/docs', docsRoutes);
 app.use('/admin', express.static(path.join(__dirname, 'admin'), {
@@ -414,14 +415,14 @@ app.get('/', (_req, res) => {
 });
 
 if (env.ENABLE_DEBUG_ROUTES === 'true') {
-  app.get('/debug/channels', requireAdmin, async (_req, res) => {
+  app.get('/debug/channels', noStore, requireAdmin, async (_req, res) => {
     const channels = await prisma.channel.findMany({
       take: 500
     });
     res.json(channels);
   });
 
-  app.get('/debug/programs', requireAdmin, async (_req, res) => {
+  app.get('/debug/programs', noStore, requireAdmin, async (_req, res) => {
     const programs = await prisma.program.findMany({
       take: 100,
       orderBy: {
@@ -433,17 +434,21 @@ if (env.ENABLE_DEBUG_ROUTES === 'true') {
   });
 }
 
-app.get('/channels', requireAdmin, async (_req, res) => {
+app.get('/channels', noStore, requireAdmin, async (req, res) => {
   const channels = await prisma.channel.findMany({
     orderBy: {
       displayName: 'asc'
-    }
+    },
+    take: boundedLimit(req.query.limit, {
+      defaultValue: 500,
+      max: 5000
+    })
   });
 
   res.json(channels);
 });
 
-app.get('/programs', requireAdmin, async (_req, res) => {
+app.get('/programs', noStore, requireAdmin, async (_req, res) => {
   const programs = await prisma.program.findMany({
     orderBy: {
       start: 'asc'
@@ -454,7 +459,7 @@ app.get('/programs', requireAdmin, async (_req, res) => {
   res.json(programs);
 });
 
-app.get('/coverage', requireAdmin, async (_req, res) => {
+app.get('/coverage', noStore, requireAdmin, async (_req, res) => {
   const channels = await prisma.channel.count();
   const programs = await prisma.program.count();
   const aliases = await prisma.alias.count();

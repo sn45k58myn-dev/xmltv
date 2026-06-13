@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma';
+import { boundedLimit } from '../utils/limits';
 
 export async function recordFeedDownload(feedKey: string) {
   try {
@@ -20,8 +21,12 @@ export async function recordFeedDownload(feedKey: string) {
   }
 }
 
-export async function getFeedDownloads() {
+export async function getFeedDownloads(limit = 1000) {
   return prisma.feedDownload.findMany({
-    orderBy: { downloads: 'desc' }
+    orderBy: { downloads: 'desc' },
+    take: boundedLimit(limit, {
+      defaultValue: 1000,
+      max: 5000
+    })
   });
 }

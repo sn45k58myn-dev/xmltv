@@ -13,7 +13,7 @@ export function buildApiDocs() {
     },
     endpoints: [
       { method: 'GET', path: '/health', description: 'Basic health check.' },
-      { method: 'GET', path: '/ready', description: 'Readiness check with database probe.' },
+      { method: 'GET', path: '/ready', description: 'Readiness check with database and cache writeability probes.' },
       { method: 'GET', path: '/api/docs', description: 'Machine-readable endpoint catalogue.' },
       { method: 'GET', path: '/manifest.json', description: 'Public feed manifest.' },
       { method: 'GET', path: '/api/discovery/manifest', description: 'Feed discovery manifest.' },
@@ -51,7 +51,8 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/admin/quality', description: 'Admin feed quality details.' },
       { method: 'GET', path: '/api/admin/quality?snapshot=true', description: 'Admin feed quality details and persist a quality snapshot.' },
       { method: 'GET', path: '/api/admin/quality/history', description: 'Admin feed quality snapshot history.' },
-      { method: 'GET', path: '/api/admin/metadata', description: 'Admin feed metadata details.' }
+      { method: 'GET', path: '/api/admin/metadata', description: 'Admin feed metadata details.' },
+      { method: 'GET', path: '/api/source-health', description: 'Admin/viewer source health history. Requires x-admin-token or API key.' }
     ]
   };
 }

@@ -42,10 +42,10 @@ statsRoutes.get('/dashboard', async (_req, res) => {
 
 statsRoutes.get('/top-feeds', async (_req, res) => {
   const downloads =
-    await getFeedDownloads();
+    await getFeedDownloads(20);
 
   res.json(
-    downloads.slice(0, 20)
+    downloads
   );
 });
 
@@ -67,8 +67,8 @@ statsRoutes.get('/imports', async (_req, res) => {
   res.json(runs);
 });
 
-statsRoutes.get('/downloads', async (_req, res) => {
+statsRoutes.get('/downloads', async (req, res) => {
   res.json(
-    await getFeedDownloads()
+    await getFeedDownloads(Number(req.query.limit))
   );
 });

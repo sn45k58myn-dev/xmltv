@@ -9,7 +9,8 @@ async function loadEnvWith(overrides: Record<string, string | undefined>) {
     'PORT',
     'SOURCE_FETCH_MAX_MB',
     'SOURCE_FETCH_MAX_REDIRECTS',
-    'SOURCE_FETCH_RETRIES'
+    'SOURCE_FETCH_RETRIES',
+    'WORKER_SHUTDOWN_TIMEOUT_MS'
   ];
 
   for (const key of keys) {
@@ -30,6 +31,7 @@ describe('env', () => {
     delete process.env.SOURCE_FETCH_MAX_MB;
     delete process.env.SOURCE_FETCH_MAX_REDIRECTS;
     delete process.env.SOURCE_FETCH_RETRIES;
+    delete process.env.WORKER_SHUTDOWN_TIMEOUT_MS;
   });
 
   it('rejects invalid positive integer settings', async () => {
@@ -57,6 +59,12 @@ describe('env', () => {
   it('rejects invalid remote source download limits', async () => {
     await expect(loadEnvWith({
       SOURCE_FETCH_MAX_MB: '0'
+    })).rejects.toThrow();
+  });
+
+  it('rejects invalid worker shutdown timeouts', async () => {
+    await expect(loadEnvWith({
+      WORKER_SHUTDOWN_TIMEOUT_MS: '0'
     })).rejects.toThrow();
   });
 });

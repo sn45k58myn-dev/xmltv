@@ -133,6 +133,8 @@ Important variables:
 - `ENABLE_WORKER`: Set to `true` on queue worker instances.
 - `WORKER_POLL_MS`: Queue worker polling interval.
 - `WORKER_LOCK_TTL_MS`: Queue job lock timeout before another worker can retry the job.
+- `WORKER_SHUTDOWN_TIMEOUT_MS`: Maximum time a database queue worker waits for
+  an active job during graceful shutdown.
 - `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`: API rate limit window and request cap.
 - `RATE_LIMIT_STORE`: `memory` for local/single process, or `redis` for shared multi-replica rate limiting.
 - `REDIS_URL`: Redis connection URL used when Redis-backed features are enabled.
@@ -712,6 +714,7 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Express framework disclosure is disabled with `X-Powered-By` removed from
   responses.
 - Admin and management API responses send `Cache-Control: no-store`.
+- Source health history is protected by admin/viewer authentication.
 - Set `REDIS_URL` whenever `JOB_QUEUE_BACKEND=bullmq`,
   `RATE_LIMIT_STORE=redis`, or `CACHE_METADATA_STORE=redis`; production startup
   fails fast when Redis-backed features are enabled without it.
