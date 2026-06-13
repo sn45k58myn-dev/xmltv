@@ -29,7 +29,8 @@ describe('fetchXmltvSource', () => {
       'https://example.com/guide.xml',
       expect.objectContaining({
         maxContentLength: 1024 * 1024 * 1024,
-        maxBodyLength: 1024 * 1024 * 1024
+        maxBodyLength: 1024 * 1024 * 1024,
+        maxRedirects: 0
       })
     );
   });

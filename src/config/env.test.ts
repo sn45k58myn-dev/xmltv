@@ -8,6 +8,7 @@ async function loadEnvWith(overrides: Record<string, string | undefined>) {
     'ENABLE_WORKER',
     'PORT',
     'SOURCE_FETCH_MAX_MB',
+    'SOURCE_FETCH_MAX_REDIRECTS',
     'SOURCE_FETCH_RETRIES'
   ];
 
@@ -27,6 +28,7 @@ describe('env', () => {
     delete process.env.ENABLE_WORKER;
     delete process.env.PORT;
     delete process.env.SOURCE_FETCH_MAX_MB;
+    delete process.env.SOURCE_FETCH_MAX_REDIRECTS;
     delete process.env.SOURCE_FETCH_RETRIES;
   });
 
@@ -44,10 +46,12 @@ describe('env', () => {
 
   it('allows non-negative retry counts', async () => {
     const { env } = await loadEnvWith({
-      SOURCE_FETCH_RETRIES: '0'
+      SOURCE_FETCH_RETRIES: '0',
+      SOURCE_FETCH_MAX_REDIRECTS: '0'
     });
 
     expect(env.SOURCE_FETCH_RETRIES).toBe(0);
+    expect(env.SOURCE_FETCH_MAX_REDIRECTS).toBe(0);
   });
 
   it('rejects invalid remote source download limits', async () => {

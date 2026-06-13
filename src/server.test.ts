@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from './db/prisma';
-import { getCachedFeed } from './services/cacheService';
+import { assertCacheDirectoryWritable, getCachedFeed } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 
 vi.mock('./db/prisma', () => ({
@@ -31,7 +31,15 @@ vi.mock('./db/prisma', () => ({
     },
     importRun: {
       count: vi.fn(),
-      findFirst: vi.fn()
+      findFirst: vi.fn(),
+      findMany: vi.fn()
+    },
+    jobRun: {
+      findMany: vi.fn(),
+      findUnique: vi.fn()
+    },
+    jobQueue: {
+      findMany: vi.fn()
     },
     exportToken: {
       count: vi.fn(),
@@ -104,6 +112,7 @@ describe('server API', () => {
 
   it('returns ready when the database probe succeeds', async () => {
     vi.mocked(prisma.$queryRaw).mockResolvedValue([{ '?column?': 1 }]);
+    vi.mocked(assertCacheDirectoryWritable).mockResolvedValue(undefined);
 
     const app = await loadApp();
     const response = await request(app).get('/ready');
@@ -111,7 +120,23 @@ describe('server API', () => {
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
       ok: true,
-      database: true
+      database: true,
+      cache: true
+    });
+  });
+
+  it('returns not ready when cache storage is not writable', async () => {
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([{ '?column?': 1 }]);
+    vi.mocked(assertCacheDirectoryWritable).mockRejectedValue(new Error('read-only cache'));
+
+    const app = await loadApp();
+    const response = await request(app).get('/ready');
+
+    expect(response.status).toBe(503);
+    expect(response.body).toEqual({
+      ok: false,
+      database: true,
+      cache: false
     });
   });
 
@@ -121,6 +146,38 @@ describe('server API', () => {
 
     expect(response.status).toBe(401);
     expect(response.body.error).toContain('Admin credentials required');
+  });
+
+  it('marks admin API responses as non-cacheable', async () => {
+    vi.mocked(prisma.source.count).mockResolvedValue(1);
+    vi.mocked(prisma.channel.count).mockResolvedValue(2);
+    vi.mocked(prisma.program.count).mockResolvedValue(3);
+    vi.mocked(prisma.alias.count).mockResolvedValue(4);
+    vi.mocked(prisma.exportProfile.count).mockResolvedValue(5);
+    vi.mocked(prisma.importRun.count).mockResolvedValue(6);
+    vi.mocked(prisma.exportToken.count).mockResolvedValue(7);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/summary')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+  });
+
+  it('bounds admin imports list limits', async () => {
+    vi.mocked(prisma.importRun.findMany).mockResolvedValue([]);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/imports?limit=50000')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(prisma.importRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 500
+    }));
   });
 
   it('rejects query-string admin tokens by default', async () => {

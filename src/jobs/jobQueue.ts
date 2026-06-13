@@ -99,6 +99,8 @@ export async function retryQueuedJob(
     return;
   }
 
+  const retryBackoffMs = retryDelayMs * Math.max(1, 2 ** Math.max(0, job.attempts - 1));
+
   await prisma.jobQueue.update({
     where: {
       id: job.id
@@ -110,7 +112,7 @@ export async function retryQueuedJob(
         : error
           ? String(error)
           : undefined,
-      runAfter: new Date(Date.now() + retryDelayMs),
+      runAfter: new Date(Date.now() + retryBackoffMs),
       lockedBy: null,
       lockedUntil: null
     }

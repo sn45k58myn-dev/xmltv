@@ -14,6 +14,7 @@ export async function sourceChanged(
 
     const response = await axios.head(url, {
       timeout: env.SOURCE_HEAD_TIMEOUT_MS,
+      maxRedirects: env.SOURCE_FETCH_MAX_REDIRECTS,
       validateStatus: () => true
     });
 

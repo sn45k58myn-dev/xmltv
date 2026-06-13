@@ -114,9 +114,28 @@ adminApi.patch('/sources/:id', requireAdmin, async (req, res) => {
 
   res.json(source);
 });
-adminApi.get('/imports', requireViewer, async (_req, res) => res.json(await prisma.importRun.findMany({ include: { source: true }, orderBy: { startedAt: 'desc' }, take: 100 })));
-adminApi.get('/jobs', requireViewer, async (_req, res) => res.json(await prisma.jobRun.findMany({ orderBy: { startedAt: 'desc' }, take: 100 })));
-adminApi.get('/queue', requireViewer, async (_req, res) => res.json(await prisma.jobQueue.findMany({ orderBy: { createdAt: 'desc' }, take: 100 })));
+adminApi.get('/imports', requireViewer, async (req, res) => res.json(await prisma.importRun.findMany({
+  include: { source: true },
+  orderBy: { startedAt: 'desc' },
+  take: boundedLimit(req.query.limit, {
+    defaultValue: 100,
+    max: 500
+  })
+})));
+adminApi.get('/jobs', requireViewer, async (req, res) => res.json(await prisma.jobRun.findMany({
+  orderBy: { startedAt: 'desc' },
+  take: boundedLimit(req.query.limit, {
+    defaultValue: 100,
+    max: 500
+  })
+})));
+adminApi.get('/queue', requireViewer, async (req, res) => res.json(await prisma.jobQueue.findMany({
+  orderBy: { createdAt: 'desc' },
+  take: boundedLimit(req.query.limit, {
+    defaultValue: 100,
+    max: 500
+  })
+})));
 adminApi.get('/audit', requireAdmin, async (req, res) => {
   res.json(await getAuditEvents(boundedLimit(req.query.limit, {
     defaultValue: 100,
@@ -217,7 +236,11 @@ adminApi.get('/jobs/:id', requireViewer, async (req, res) => {
 
   return res.json(job);
 });
-adminApi.get('/coverage', requireViewer, async (_req, res) => {
+adminApi.get('/coverage', requireViewer, async (req, res) => {
+  const limit = boundedLimit(req.query.limit, {
+    defaultValue: 1000,
+    max: 5000
+  });
   const [
     channels,
     programStats
@@ -232,7 +255,7 @@ adminApi.get('/coverage', requireViewer, async (_req, res) => {
         country: true,
         category: true
       },
-      take: 1000
+      take: limit
     }),
     prisma.program.groupBy({
       by: ['channelId'],
@@ -267,7 +290,14 @@ adminApi.get('/coverage', requireViewer, async (_req, res) => {
     };
   }));
 });
-adminApi.get('/channels', requireViewer, async (_req, res) => res.json(await prisma.channel.findMany({ include: { aliases: true, mappings: true }, orderBy: { displayName: 'asc' }, take: 500 })));
+adminApi.get('/channels', requireViewer, async (req, res) => res.json(await prisma.channel.findMany({
+  include: { aliases: true, mappings: true },
+  orderBy: { displayName: 'asc' },
+  take: boundedLimit(req.query.limit, {
+    defaultValue: 500,
+    max: 5000
+  })
+})));
 adminApi.patch('/channels/:id', requireAdmin, async (req, res) => {
   const data = parseNonEmptyAdminPayload(channelUpdateSchema, req.body);
   const channel = await prisma.channel.update({ where: { id: req.params.id }, data });

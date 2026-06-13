@@ -32,6 +32,7 @@ import { providerFeedKey } from './services/feedKeys';
 import { requestMetrics } from './monitoring/requestMetrics';
 import { runTrackedJob } from './jobs/jobRuns';
 import { requestContext } from './middleware/requestContext';
+import { noStore } from './middleware/noStore';
 import { cleanupUploadedFile, safeUploadDisplayName, validateUploadedXml } from './services/uploadValidation';
 import { assertCacheDirectoryWritable } from './services/cacheService';
 import { recordAuditEvent } from './services/auditLog';
@@ -90,9 +91,9 @@ app.use('/admin', express.static(path.join(__dirname, 'admin'), {
     res.setHeader('Cache-Control', 'no-store');
   }
 }));
-app.use('/api/admin', adminApi);
-app.use('/api/sources', sourceRoutes);
-app.use('/api/export-tokens', exportTokenRoutes);
+app.use('/api/admin', noStore, adminApi);
+app.use('/api/sources', noStore, sourceRoutes);
+app.use('/api/export-tokens', noStore, exportTokenRoutes);
 
 app.get('/monitoring/metrics', requireMonitoringToken, async (_req, res) => res.json(await systemMetrics()));
 app.get('/monitoring/prometheus', requireMonitoringToken, async (_req, res) => {
@@ -104,16 +105,25 @@ app.get('/monitoring/prometheus', requireMonitoringToken, async (_req, res) => {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/ready', async (_req, res) => {
+  const checks = {
+    database: false,
+    cache: false
+  };
+
   try {
     await prisma.$queryRaw`SELECT 1`;
+    checks.database = true;
+    await assertCacheDirectoryWritable();
+    checks.cache = true;
+
     res.json({
       ok: true,
-      database: true
+      ...checks
     });
   } catch {
     res.status(503).json({
       ok: false,
-      database: false
+      ...checks
     });
   }
 });

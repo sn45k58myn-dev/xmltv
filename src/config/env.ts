@@ -25,6 +25,7 @@ const schema = z.object({
   TRUST_PROXY: booleanString.default('false'),
   SOURCE_FETCH_TIMEOUT_MS: positiveInt.default(60000),
   SOURCE_FETCH_MAX_MB: positiveInt.default(1024),
+  SOURCE_FETCH_MAX_REDIRECTS: nonNegativeInt.default(0),
   SOURCE_FETCH_RETRIES: nonNegativeInt.default(2),
   SOURCE_RETRY_DELAY_MS: positiveInt.default(1000),
   SOURCE_HEAD_TIMEOUT_MS: positiveInt.default(10000),

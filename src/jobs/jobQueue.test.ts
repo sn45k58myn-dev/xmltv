@@ -101,10 +101,15 @@ describe('jobQueue', () => {
   });
 
   it('requeues failed jobs until max attempts are reached', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));
     vi.mocked(prisma.jobQueue.update).mockResolvedValue(job as any);
 
     await retryQueuedJob(
-      job as any,
+      {
+        ...job,
+        attempts: 2
+      } as any,
       new Error('temporary')
     );
 
@@ -114,9 +119,11 @@ describe('jobQueue', () => {
       },
       data: expect.objectContaining({
         status: 'pending',
+        runAfter: new Date('2026-06-13T12:00:10.000Z'),
         lockedBy: null,
         lockedUntil: null
       })
     });
+    vi.useRealTimers();
   });
 });

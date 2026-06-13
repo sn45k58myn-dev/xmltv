@@ -34,6 +34,7 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
         timeout: env.SOURCE_FETCH_TIMEOUT_MS,
         maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
         maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
+        maxRedirects: env.SOURCE_FETCH_MAX_REDIRECTS,
         responseType: 'text',
         validateStatus: (status) => status >= 200 && status < 300
       });

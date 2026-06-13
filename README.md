@@ -67,6 +67,7 @@ UPLOAD_MAX_MB=200
 TRUST_PROXY=false
 SOURCE_FETCH_TIMEOUT_MS=60000
 SOURCE_FETCH_MAX_MB=1024
+SOURCE_FETCH_MAX_REDIRECTS=0
 SOURCE_FETCH_RETRIES=2
 SOURCE_RETRY_DELAY_MS=1000
 SOURCE_HEAD_TIMEOUT_MS=10000
@@ -119,6 +120,8 @@ Important variables:
 - `TRUST_PROXY`: Set to `true` when running behind a trusted reverse proxy.
 - `SOURCE_FETCH_TIMEOUT_MS`: Timeout for XMLTV source downloads.
 - `SOURCE_FETCH_MAX_MB`: Maximum remote XMLTV download size in megabytes.
+- `SOURCE_FETCH_MAX_REDIRECTS`: Maximum remote source redirects. Defaults to
+  `0` so DNS/private-network source guards cannot be bypassed by redirects.
 - `SOURCE_FETCH_RETRIES`: Retry count for transient XMLTV source download failures.
 - `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
 - `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.
@@ -451,8 +454,8 @@ Set `MONITORING_TOKEN` in production if these endpoints are reachable outside a
 trusted private network. The Admin UI Monitoring view has a separate monitoring
 token field and sends it as `x-monitoring-token`.
 
-`/ready` performs a lightweight database probe for load balancers and
-orchestrators.
+`/ready` performs lightweight database and cache writeability probes for load
+balancers and orchestrators.
 
 Every HTTP response includes an `x-request-id` header. If an upstream proxy sends
 `x-request-id`, the app preserves it; otherwise it generates a UUID. Completed
@@ -643,9 +646,9 @@ curl -f https://xmltv.example.com/health
 curl -f https://xmltv.example.com/ready
 ```
 
-`/health` confirms the HTTP process is alive. `/ready` performs a lightweight
-database probe and should be used for readiness checks and load balancer
-rotation.
+`/health` confirms the HTTP process is alive. `/ready` performs lightweight
+database and cache writeability probes and should be used for readiness checks
+and load balancer rotation.
 
 ## Backup And Recovery
 
@@ -708,6 +711,7 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Set `TRUST_PROXY=true` only behind a trusted reverse proxy.
 - Express framework disclosure is disabled with `X-Powered-By` removed from
   responses.
+- Admin and management API responses send `Cache-Control: no-store`.
 - Set `REDIS_URL` whenever `JOB_QUEUE_BACKEND=bullmq`,
   `RATE_LIMIT_STORE=redis`, or `CACHE_METADATA_STORE=redis`; production startup
   fails fast when Redis-backed features are enabled without it.
