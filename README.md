@@ -94,6 +94,9 @@ VALIDATION_TIMEOUT_MS=30000
 
 Important variables:
 
+- Numeric and boolean environment variables are validated at startup. Invalid
+  booleans, ports outside `1..65535`, zero values for positive limits, and
+  negative retention windows fail before the server starts.
 - `DATABASE_URL`: PostgreSQL connection string used by Prisma.
 - `NODE_ENV`: Set to `production` for deployed runtime safety checks.
 - `PORT`: HTTP port exposed by the app.
