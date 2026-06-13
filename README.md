@@ -716,12 +716,12 @@ load tests, large-feed scenarios, and baseline recording guidance.
 GitHub Actions runs on pushes to `main`, pull requests, and manual dispatch. The
 workflow installs dependencies with `npm ci`, generates Prisma client files with
 `npx prisma generate`, applies migrations with `npx prisma migrate deploy`,
-verifies `migrate deploy` against a fresh PostgreSQL schema, builds TypeScript,
-runs tests, runs the smoke import, verifies a `pg_dump` backup can restore into
-a disposable PostgreSQL database, audits moderate vulnerabilities, and validates
-the Docker production image build. The Docker job also boots the Compose stack
-and checks `/health`, `/ready`, `/manifest.json`, and `/monitoring/prometheus`
-against the running production container.
+verifies `migrate deploy` against a fresh PostgreSQL schema, runs
+`npm run verify`, runs the smoke import, verifies a `pg_dump` backup can restore
+into a disposable PostgreSQL database, audits moderate vulnerabilities, and
+validates the Docker production image build. The Docker job also boots the
+Compose stack and checks `/health`, `/ready`, `/manifest.json`, and
+`/monitoring/prometheus` against the running production container.
 
 The v3 release currently has no moderate, high, or critical `npm audit`
 findings. CI keeps `npm audit --audit-level=moderate` blocking so runtime and

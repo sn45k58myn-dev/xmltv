@@ -54,11 +54,8 @@ jobs:
           DATABASE_URL: postgresql://xmltv:xmltv@localhost:5432/xmltv?schema=fresh_migrate_deploy
         run: npx prisma migrate deploy
 
-      - name: Build
-        run: npm run build
-
-      - name: Test
-        run: npm test
+      - name: Verify
+        run: npm run verify
 
       - name: Smoke import
         run: npm run smoke:import
