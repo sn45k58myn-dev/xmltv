@@ -128,6 +128,7 @@ Important variables:
 - `TMDB_API_KEY`: Optional programme enrichment key.
 - `RUN_MIGRATIONS`: Set to `true` in Docker deployments to run `prisma migrate deploy` before app start.
 - `BACKUP_DIR`: Directory used by database backup scripts.
+- `BACKUP_RETENTION_DAYS`: Number of days to retain local backup dumps when pruning.
 - `ENABLE_SCHEDULER`: Set to `false` on non-primary replicas.
 - `FEED_CACHE_MAX_AGE_SECONDS`: Cache-Control max-age for generated feed responses.
 - `CACHE_WARNING_MB`: Dashboard warning threshold for generated cache size.
@@ -528,6 +529,12 @@ npm run backup:db
 This runs `scripts/backup-postgres.js` and writes a timestamped `.dump` file to
 `BACKUP_DIR`, defaulting to `backups/`.
 
+Prune old local backup files:
+
+```bash
+npm run backup:prune
+```
+
 Restore a backup:
 
 ```bash
@@ -548,6 +555,9 @@ VERIFY_DATABASE_URL="postgresql://xmltv:xmltv@localhost:5432/xmltv_restore_check
   npm run backup:verify -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
 dropdb xmltv_restore_check
 ```
+
+See [docs/backup-automation.md](docs/backup-automation.md) for cron, systemd,
+Docker Compose, hosted PostgreSQL, retention, and restore-drill examples.
 
 ## Production Notes
 

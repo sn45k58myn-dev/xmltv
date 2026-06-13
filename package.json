@@ -13,6 +13,7 @@
     "backup:db": "node scripts/backup-postgres.js",
     "restore:db": "node scripts/restore-postgres.js",
     "backup:verify": "node scripts/verify-backup-postgres.js",
+    "backup:prune": "node scripts/prune-backups.js",
     "import": "tsx src/cli/import.ts",
     "smoke:import": "tsx src/cli/importSmoke.ts",
     "export": "tsx src/cli/export.ts",

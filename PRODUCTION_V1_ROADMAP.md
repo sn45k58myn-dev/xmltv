@@ -29,6 +29,7 @@ audit logging, and production deployment documentation.
 - Persistent feed quality snapshots with admin quality history
 - Optional Redis-backed cache metadata index for larger installations
 - PostgreSQL-backed queued manual imports with opt-in worker process
+- Backup automation examples for cron, systemd, Docker, and hosted PostgreSQL
 
 ## Current Production Baseline
 
@@ -65,7 +66,6 @@ Deployment requirements:
 
 ## Remaining Production Enhancements
 
-- Backup automation examples for hosted PostgreSQL providers
 - Load testing guidance and large-feed performance benchmarks
 
 ## Deferred By Design
