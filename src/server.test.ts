@@ -242,6 +242,19 @@ describe('server API', () => {
     expect(response.body.error).toContain('does not look like XML');
   });
 
+  it('rejects uploads with more than one XMLTV file', async () => {
+    const xml = Buffer.from('<tv></tv>');
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/imports/upload')
+      .set('x-admin-token', 'test-admin-token')
+      .attach('xmltv', xml, 'one.xml')
+      .attach('xmltv', xml, 'two.xml');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toContain('one XMLTV file');
+  });
+
   it('returns a generic JSON error for internal route failures', async () => {
     vi.mocked(prisma.source.findMany).mockRejectedValue(new Error('database secret details'));
 

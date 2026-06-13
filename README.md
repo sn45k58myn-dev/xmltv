@@ -237,8 +237,10 @@ curl -H "x-admin-token: dev-admin-token" \
 
 Admin upload and profile mutation routes require `x-admin-token`. Uploaded
 XMLTV files are rejected when empty, larger than `UPLOAD_MAX_MB`, or obviously
-not XML before import parsing starts. Temporary upload files are removed after
-success or failure.
+not XML before import parsing starts. The upload endpoint accepts one XMLTV file
+field and a small number of form fields, sanitizes the original filename before
+using it in import labels, and removes temporary upload files after success or
+failure.
 
 Schedules Direct imports use the SD-JSON API when
 `SCHEDULES_DIRECT_USERNAME` and `SCHEDULES_DIRECT_PASSWORD` are set. The adapter

@@ -32,7 +32,7 @@ import { providerFeedKey } from './services/feedKeys';
 import { requestMetrics } from './monitoring/requestMetrics';
 import { runTrackedJob } from './jobs/jobRuns';
 import { requestContext } from './middleware/requestContext';
-import { cleanupUploadedFile, validateUploadedXml } from './services/uploadValidation';
+import { cleanupUploadedFile, safeUploadDisplayName, validateUploadedXml } from './services/uploadValidation';
 import { assertCacheDirectoryWritable } from './services/cacheService';
 import { recordAuditEvent } from './services/auditLog';
 import { enqueueJob } from './jobs/jobQueue';
@@ -46,7 +46,10 @@ export const app = express();
 const upload = multer({
   dest: path.join(process.cwd(), 'uploads'),
   limits: {
-    fileSize: env.UPLOAD_MAX_MB * 1024 * 1024
+    fileSize: env.UPLOAD_MAX_MB * 1024 * 1024,
+    files: 1,
+    fields: 5,
+    parts: 6
   }
 });
 const corsOrigins = env.CORS_ORIGIN
@@ -193,7 +196,12 @@ app.post('/imports/upload', requireAdmin, upload.single('xmltv'), async (req, re
 
   try {
     await validateUploadedXml(req.file);
-    const result = await runImport({ name: `Upload ${req.file.originalname}`, type: 'upload', url: req.file.path, priority: 30 });
+    const result = await runImport({
+      name: `Upload ${safeUploadDisplayName(req.file.originalname)}`,
+      type: 'upload',
+      url: req.file.path,
+      priority: 30
+    });
     return res.json(result);
   } catch (error) {
     return next(error);
@@ -440,7 +448,9 @@ app.use((
       requestId,
       error: error.code === 'LIMIT_FILE_SIZE'
         ? `Uploaded file exceeds ${env.UPLOAD_MAX_MB} MB limit.`
-        : 'Invalid multipart upload.'
+        : error.code === 'LIMIT_FILE_COUNT'
+          ? 'Upload accepts exactly one XMLTV file.'
+          : 'Invalid multipart upload.'
     });
   }
 

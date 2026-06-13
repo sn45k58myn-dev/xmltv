@@ -1,6 +1,24 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 
 const XML_PREAMBLE_BYTES = 512;
+const MAX_UPLOAD_NAME_LENGTH = 120;
+
+export function safeUploadDisplayName(originalName: string) {
+  const baseName = path.basename(originalName || 'upload.xml');
+  const sanitized = baseName
+    .split('')
+    .filter((char) => {
+      const code = char.charCodeAt(0);
+
+      return code >= 32 && code !== 127;
+    })
+    .join('')
+    .replace(/[^\w .()+-]/g, '_')
+    .trim();
+
+  return (sanitized || 'upload.xml').slice(0, MAX_UPLOAD_NAME_LENGTH);
+}
 
 export async function validateUploadedXml(file: Express.Multer.File) {
   if (file.size <= 0) {
