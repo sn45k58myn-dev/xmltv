@@ -12,6 +12,15 @@ function parseXmltvDate(value: string): Date {
   return new Date(iso);
 }
 
+function validProgrammeWindow(
+  start: Date,
+  stop: Date
+) {
+  return !Number.isNaN(start.valueOf()) &&
+    !Number.isNaN(stop.valueOf()) &&
+    stop > start;
+}
+
 function text(value: any): string | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'string') return value.trim() || undefined;
@@ -50,6 +59,16 @@ export function parseXmltv(xml: string): ParsedXmltv {
 
   const programs: XmltvProgram[] = arrayify<any>(doc.tv.programme).flatMap((program) => {
     if (!program['@_channel'] || !program['@_start'] || !program['@_stop']) return [];
+    const start = parseXmltvDate(String(program['@_start']));
+    const stop = parseXmltvDate(String(program['@_stop']));
+
+    if (!validProgrammeWindow(
+      start,
+      stop
+    )) {
+      return [];
+    }
+
     const categories = arrayify<any>(program.category)
       .map(text)
       .filter(Boolean) as string[];
@@ -60,8 +79,8 @@ export function parseXmltv(xml: string): ParsedXmltv {
       subtitle: firstValue(program['sub-title']),
       description: firstValue(program.desc),
       category: categories.length ? Array.from(new Set(categories)).join(', ') : undefined,
-      start: parseXmltvDate(String(program['@_start'])),
-      stop: parseXmltvDate(String(program['@_stop']))
+      start,
+      stop
     }];
   });
 

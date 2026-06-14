@@ -1,5 +1,6 @@
 import axios from 'axios';
 import fs from 'node:fs/promises';
+import zlib from 'node:zlib';
 import { env } from '../config/env';
 import { SourceDefinition } from '../models/xmltv';
 import { fetchSchedulesDirectXmltv } from './schedulesDirect';
@@ -34,6 +35,27 @@ function sleep(ms: number) {
 
 function retryDelay(attempt: number) {
   return env.SOURCE_RETRY_DELAY_MS * Math.max(1, attempt);
+}
+
+function decodeSourceBody(
+  data: unknown,
+  url: string,
+  headers: Record<string, unknown>
+) {
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  const buffer = Buffer.isBuffer(data)
+    ? data
+    : Buffer.from(data as ArrayBuffer);
+  const encoding = String(headers['content-encoding'] ?? '').toLowerCase();
+  const isGzip =
+    encoding.includes('gzip') ||
+    url.toLowerCase().endsWith('.gz') ||
+    buffer.subarray(0, 2).equals(Buffer.from([0x1f, 0x8b]));
+
+  return (isGzip ? zlib.gunzipSync(buffer) : buffer).toString('utf8');
 }
 
 export async function fetchXmltvSource(source: SourceDefinition): Promise<string> {
@@ -139,7 +161,7 @@ async function fetchWithValidatedRedirects(
         maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
         maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
         maxRedirects: 0,
-        responseType: 'text',
+        responseType: 'arraybuffer',
         validateStatus: (status) => status >= 200 && status < 400
       });
     } catch (error) {
@@ -171,7 +193,11 @@ async function fetchWithValidatedRedirects(
       continue;
     }
 
-    return response.data;
+    return decodeSourceBody(
+      response.data,
+      currentUrl,
+      response.headers ?? {}
+    );
   }
 
   throw new Error(`Source exceeded maximum redirects (${env.SOURCE_FETCH_MAX_REDIRECTS}).`);

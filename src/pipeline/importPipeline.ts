@@ -16,11 +16,13 @@ async function upsertSource(definition) {
       type: definition.type,
       url: definition.url,
       priority: definition.priority ?? 100,
+      mergeWeight: definition.mergeWeight ?? 100,
     },
     update: {
       type: definition.type,
       url: definition.url,
       priority: definition.priority ?? 100,
+      mergeWeight: definition.mergeWeight ?? 100,
       enabled: true,
     },
   });
@@ -59,9 +61,44 @@ const sourceCountryRules: Array<{
   { match: /\b(norway)\b/i, country: 'NO' },
   { match: /\b(poland)\b/i, country: 'PL' }
 ];
+const sourceCountryCodes: Record<string, string> = {
+  AT: 'AT',
+  AU: 'AU',
+  BE: 'BE',
+  BR: 'BR',
+  CA: 'CA',
+  CH: 'CH',
+  DE: 'DE',
+  DK: 'DK',
+  ES: 'ES',
+  FI: 'FI',
+  FR: 'FR',
+  GB: 'GB',
+  IE: 'IE',
+  IN: 'IN',
+  IT: 'IT',
+  JP: 'JP',
+  KR: 'KR',
+  MX: 'MX',
+  NL: 'NL',
+  NO: 'NO',
+  NZ: 'NZ',
+  PL: 'PL',
+  PT: 'PT',
+  SE: 'SE',
+  UK: 'GB',
+  US: 'US'
+};
 
 function inferSourceCountry(source) {
   const value = `${source.name ?? ''} ${source.url ?? ''}`;
+  const codeMatch = value.match(/(?:^|[^A-Za-z])(AT|AU|BE|BR|CA|CH|DE|DK|ES|FI|FR|GB|IE|IN|IT|JP|KR|MX|NL|NO|NZ|PL|PT|SE|UK|US)\d?(?:[^A-Za-z]|$)/i);
+  const countryCode = codeMatch?.[1]?.toUpperCase();
+
+  if (countryCode && sourceCountryCodes[countryCode]) {
+    return sourceCountryCodes[countryCode];
+  }
+
   const rule = sourceCountryRules.find((item) => item.match.test(value));
 
   return rule?.country;
@@ -72,10 +109,57 @@ function channelCountry(
   source,
   metadata
 ) {
+  const sourceCountry = inferSourceCountry(source);
+
   return input.country ??
+    sourceCountry ??
     metadata.country ??
-    inferSourceCountry(source) ??
     null;
+}
+
+async function xmltvIdForCountry(
+  sourceChannelId: string,
+  country: string | null,
+  sourceId: string
+) {
+  const existing = await prisma.channel.findUnique({
+    where: {
+      xmltvId: sourceChannelId
+    }
+  });
+
+  if (!existing || existing.country === country) {
+    return {
+      xmltvId: sourceChannelId,
+      existing
+    };
+  }
+
+  const countryPrefix = country?.toLowerCase() ?? 'global';
+  const countryScopedId = `${countryPrefix}.${sourceChannelId}`;
+  const existingScoped = await prisma.channel.findUnique({
+    where: {
+      xmltvId: countryScopedId
+    }
+  });
+
+  if (!existingScoped || existingScoped.country === country) {
+    return {
+      xmltvId: countryScopedId,
+      existing: existingScoped
+    };
+  }
+
+  const sourceScopedId = `${sourceId}.${sourceChannelId}`;
+
+  return {
+    xmltvId: sourceScopedId,
+    existing: await prisma.channel.findUnique({
+      where: {
+        xmltvId: sourceScopedId
+      }
+    })
+  };
 }
 
 async function ensureSourceRef(
@@ -120,9 +204,14 @@ async function findOrCreateChannel(input, source) {
     metadata
   );
 
-  const existingById = await prisma.channel.findUnique({
-    where: { xmltvId: input.id },
-  });
+  const {
+    xmltvId,
+    existing: existingById
+  } = await xmltvIdForCountry(
+    input.id,
+    country,
+    source.id
+  );
 
   if (existingById) {
     return {
@@ -185,7 +274,7 @@ async function findOrCreateChannel(input, source) {
 
   const channel = await prisma.channel.create({
     data: {
-      xmltvId: input.id,
+      xmltvId,
       displayName: input.displayName,
       normalized,
       country,

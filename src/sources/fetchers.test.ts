@@ -1,4 +1,5 @@
 import axios from 'axios';
+import zlib from 'node:zlib';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchXmltvSource } from './fetchers';
 
@@ -32,9 +33,24 @@ describe('fetchXmltvSource', () => {
       expect.objectContaining({
         maxContentLength: 1024 * 1024 * 1024,
         maxBodyLength: 1024 * 1024 * 1024,
-        maxRedirects: 0
+        maxRedirects: 0,
+        responseType: 'arraybuffer'
       })
     );
+  });
+
+  it('decompresses remote gzip XMLTV feeds', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      status: 200,
+      headers: {},
+      data: zlib.gzipSync('<tv></tv>')
+    });
+
+    await expect(fetchXmltvSource({
+      name: 'Gzip Remote',
+      type: 'url',
+      url: 'https://example.com/guide.xml.gz'
+    })).resolves.toBe('<tv></tv>');
   });
 
   it('fails clearly when a source redirect has no location header', async () => {

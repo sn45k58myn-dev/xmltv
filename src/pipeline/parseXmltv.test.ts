@@ -92,18 +92,43 @@ describe('parseXmltv', () => {
     expect(parsed.channels).toHaveLength(1);
     expect(parsed.channels[0].id).toBe('valid');
   });
-});
 
-describe('validateXmltv', () => {
-  it('rejects invalid programme dates', () => {
+  it('skips programmes with malformed date windows', () => {
     const parsed = parseXmltv(`
       <tv>
         <channel id="bad.date"><display-name>Bad Date</display-name></channel>
         <programme start="not-a-date" stop="20260612100000 +0000" channel="bad.date">
           <title>Broken</title>
         </programme>
+        <programme start="20260612090000 +0000" stop="20260612100000 +0000" channel="bad.date">
+          <title>Good</title>
+        </programme>
       </tv>
     `);
+
+    expect(parsed.programs).toHaveLength(1);
+    expect(parsed.programs[0].title).toBe('Good');
+  });
+});
+
+describe('validateXmltv', () => {
+  it('rejects invalid programme dates', () => {
+    const parsed = {
+      channels: [
+        {
+          id: 'bad.date',
+          displayName: 'Bad Date'
+        }
+      ],
+      programs: [
+        {
+          channel: 'bad.date',
+          title: 'Broken',
+          start: new Date('not-a-date'),
+          stop: new Date('2026-06-12T10:00:00Z')
+        }
+      ]
+    };
 
     expect(() => validateXmltv(parsed)).toThrow('bad programme date');
   });

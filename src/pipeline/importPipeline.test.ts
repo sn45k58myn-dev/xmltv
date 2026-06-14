@@ -153,6 +153,27 @@ describe('runImport', () => {
     }));
   });
 
+  it('persists merge weight when importing a source definition', async () => {
+    await runImport({
+      name: 'Weighted Source US',
+      type: 'custom-url',
+      url: 'https://example.test/weighted.xml',
+      priority: 80,
+      mergeWeight: 50
+    });
+
+    expect(prisma.source.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({
+        priority: 80,
+        mergeWeight: 50
+      }),
+      update: expect.objectContaining({
+        priority: 80,
+        mergeWeight: 50
+      })
+    }));
+  });
+
   it('skips remote freshness checks for uploaded XMLTV files', async () => {
     const result = await runImport({
       name: 'Upload guide.xml',
