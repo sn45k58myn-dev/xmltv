@@ -30,6 +30,7 @@ const schema = z.object({
   SOURCE_RETRY_DELAY_MS: positiveInt.default(1000),
   SOURCE_HEAD_TIMEOUT_MS: positiveInt.default(10000),
   SOURCE_FAILURE_BACKOFF_MINUTES: nonNegativeInt.default(30),
+  SOURCE_AUTO_DISABLE_FAILURES: nonNegativeInt.default(0),
   IMPORT_TIMEOUT_MS: positiveInt.default(1800000),
   SCHEDULER_LOCK_TTL_MS: positiveInt.default(3600000),
   IMPORT_RUN_MODE: z.enum(['inline', 'queue']).default('inline'),

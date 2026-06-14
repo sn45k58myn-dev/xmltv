@@ -54,7 +54,7 @@ export function startImportScheduler() {
 
           const started = Date.now();
 
-          await withImportTimeout(
+          const result = await withImportTimeout(
             source.name,
             runImport({
               name: source.name,
@@ -63,14 +63,23 @@ export function startImportScheduler() {
               priority: source.priority
             })
           );
-          imported++;
+
+          if (result.status === 'failed') {
+            failed++;
+          } else if (result.status === 'skipped') {
+            console.log(
+              `Skipped ${source.name}`
+            );
+          } else {
+            imported++;
+          }
 
           const seconds = Math.round(
             (Date.now() - started) / 1000
           );
 
           console.log(
-            `Imported ${source.name} in ${seconds}s`
+            `${result.status} ${source.name} in ${seconds}s`
           );
         } catch (err) {
           failed++;

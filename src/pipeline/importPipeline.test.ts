@@ -3,6 +3,7 @@ import { runImport } from './importPipeline';
 import { prisma } from '../db/prisma';
 import { fetchXmltvSource } from '../sources/fetchers';
 import { sourceChanged } from '../services/sourceChanged';
+import { recordSourceFailure } from '../services/sourceReliability';
 
 vi.mock('../db/prisma', () => ({
   prisma: {
@@ -39,6 +40,10 @@ vi.mock('../sources/fetchers', () => ({
 
 vi.mock('../services/sourceChanged', () => ({
   sourceChanged: vi.fn()
+}));
+
+vi.mock('../services/sourceReliability', () => ({
+  recordSourceFailure: vi.fn()
 }));
 
 vi.mock('../services/programWindow', () => ({
@@ -78,6 +83,11 @@ describe('runImport', () => {
     } as any);
     vi.mocked(prisma.source.update).mockResolvedValue({} as any);
     vi.mocked(prisma.sourceHealth.create).mockResolvedValue({} as any);
+    vi.mocked(recordSourceFailure).mockResolvedValue({
+      disabled: false,
+      failureStreak: 1,
+      health: {}
+    } as any);
     vi.mocked(prisma.importRun.update).mockResolvedValue({
       id: 'import-1',
       status: 'success',
@@ -197,5 +207,30 @@ describe('runImport', () => {
       }
     });
     expect(prisma.channel.create).not.toHaveBeenCalled();
+  });
+
+  it('delegates failed imports to source reliability policy', async () => {
+    vi.mocked(fetchXmltvSource).mockRejectedValue(new Error('Source returned HTTP 500'));
+    vi.mocked(prisma.importRun.update).mockResolvedValue({
+      id: 'import-1',
+      status: 'failed',
+      errors: 'Source returned HTTP 500'
+    } as any);
+
+    const result = await runImport({
+      name: 'Test Source US',
+      type: 'custom-url',
+      url: 'https://example.test/feed.xml',
+      priority: 10
+    });
+
+    expect(result.status).toBe('failed');
+    expect(recordSourceFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'source-1',
+        name: 'Test Source US'
+      }),
+      'Source returned HTTP 500'
+    );
   });
 });

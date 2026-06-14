@@ -72,6 +72,7 @@ SOURCE_FETCH_RETRIES=2
 SOURCE_RETRY_DELAY_MS=1000
 SOURCE_HEAD_TIMEOUT_MS=10000
 SOURCE_FAILURE_BACKOFF_MINUTES=30
+SOURCE_AUTO_DISABLE_FAILURES=0
 IMPORT_TIMEOUT_MS=1800000
 SCHEDULER_LOCK_TTL_MS=3600000
 RATE_LIMIT_WINDOW_MS=60000
@@ -130,6 +131,9 @@ Important variables:
 - `SOURCE_RETRY_DELAY_MS`: Base retry backoff delay for source downloads.
 - `SOURCE_HEAD_TIMEOUT_MS`: Timeout for source freshness HEAD checks.
 - `SOURCE_FAILURE_BACKOFF_MINUTES`: Scheduler skips a source for this long after its latest failed health check.
+- `SOURCE_AUTO_DISABLE_FAILURES`: Set to a positive number to automatically
+  disable a source after that many consecutive failed health checks. The default
+  `0` only records failures and applies backoff.
 - `IMPORT_TIMEOUT_MS`: Maximum wall-clock time for one scheduled source import.
 - `SCHEDULER_LOCK_TTL_MS`: Database job lock TTL for scheduled imports and retention jobs.
 - `IMPORT_RUN_MODE`: `inline` runs manual imports in the request; `queue` enqueues manual imports for workers.
@@ -286,6 +290,13 @@ the scheduler to skip that source until `SOURCE_FAILURE_BACKOFF_MINUTES` has
 elapsed. Scheduled and manual enabled-source imports are also guarded by
 `IMPORT_TIMEOUT_MS`; manual batches continue through per-source failures and
 report imported, skipped, and failed counts.
+
+For stricter production source resilience, set
+`SOURCE_AUTO_DISABLE_FAILURES` to a positive number. After that many consecutive
+failed health checks, the source is automatically disabled and a
+`source.auto_disable` audit event is written. Operators can review the source
+health summary in Admin > Sources, fix the upstream URL or credentials, and
+re-enable the source when it is safe.
 
 Operational retention runs daily after programme retention. It prunes old audit
 logs, job runs, completed queue jobs, feed quality snapshots, source health

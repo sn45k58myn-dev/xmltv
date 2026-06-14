@@ -6,6 +6,7 @@ import { checksum, normalizeName } from '../utils/normalize';
 import { parseXmltv } from './parseXmltv';
 import { validateXmltv } from './validateXmltv';
 import { enrichChannel } from '../enrichment/channelMetadata';
+import { recordSourceFailure } from '../services/sourceReliability';
 
 async function upsertSource(definition) {
   return prisma.source.upsert({
@@ -326,14 +327,10 @@ export async function runImport(definition) {
   } catch (error) {
     console.error('IMPORT ERROR:', error);
 
-    await prisma.sourceHealth.create({
-      data: {
-        sourceId: source.id,
-        status: 'failed',
-        message:
-          error instanceof Error ? error.message : String(error),
-      },
-    });
+    await recordSourceFailure(
+      source,
+      error instanceof Error ? error.message : String(error)
+    );
 
     return prisma.importRun.update({
       where: {
