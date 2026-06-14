@@ -12,6 +12,11 @@ uploads
 backups
 *.log
 npm-debug.log*
+webgrab/.tmp
+webgrab/data
+webgrab/config/siteini
+webgrab/config/*.xml
+!webgrab/config/WebGrab++.config.template.xml
 Dockerfile
 docker-compose.yml
 README.md

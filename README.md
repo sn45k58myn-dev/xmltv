@@ -710,42 +710,55 @@ Jellyfin matching.
 
 ## WebGrab+ with Docker
 
-You can run WebGrab+ as a dedicated service instead of invoking it inside the
-Node app process.
+Docker Compose runs WebGrab+ as a dedicated service beside PostgreSQL and the
+Node app. A one-shot `webgrab-setup` service downloads the SiteIni catalog,
+generates `webgrab/config/WebGrab++.config.xml`, and registers every discovered
+country folder as a Source catalog row before the app starts.
 
 ```bash
 mkdir -p webgrab/config webgrab/data
 cp .env.example .env
-docker compose --profile webgrab up -d webgrabplus xmltv postgres
+docker compose up --build -d
 ```
 
-The webgrabplus container mounts:
+The stack mounts shared WebGrab paths like this:
 
 ```text
-./webgrab/config -> /config
-./webgrab/data -> /data/webgrab
+./webgrab/config -> /config in webgrabplus
+./webgrab/config -> /app/webgrab/config in xmltv/webgrab-setup
+./webgrab/data   -> /data/webgrab in webgrabplus
+./webgrab/data   -> /app/data/webgrab in xmltv/webgrab-setup
 ```
 
-Place your WebGrab+ config in:
+The generated WebGrab config writes to:
 
-`webgrab/config/WebGrab++.config.xml`
+`/data/webgrab/guide.xml`
 
-Point your WebGrab+ configuration at `/data/webgrab` and generate
-`guide.xml` (or any file name you choose). The app mounts the same directory at
-`/app/data/webgrab`, so an upload source can read it as:
+The app reads the same file as:
 
 `/app/data/webgrab/guide.xml`
 
-Create a normal source in the app with:
-
-- `type`: `upload`
-- `url`: `/app/data/webgrab/guide.xml`
-
-You can also use local-source registration script and include multiple files:
+Compose sets:
 
 ```bash
+WEBGRAB_COMMAND=true
+WEBGRAB_WORKDIR=/app/data/webgrab
+WEBGRAB_OUTPUT_FILE=guide.xml
 WEBGRAB_SOURCE_FILES=/app/data/webgrab/guide.xml
-npm run webgrab:register-sources
+```
+
+With this setup the admin "Run WebGrab+" action validates and imports the
+latest `guide.xml` written by the `webgrabplus` container. WebGrab+Plus still
+requires real `<channel>` entries in `webgrab/config/WebGrab++.config.xml`;
+SiteIni country folders are scraper definitions and catalog metadata, not
+channels to grab by themselves. Copy channel lines from the relevant
+`.channels.xml` files into `WebGrab++.config.xml`, then restart or wait for the
+webgrabplus container's next run.
+
+To rerun setup after changing the WebGrab catalog/config:
+
+```bash
+docker compose run --rm webgrab-setup
 ```
 
 After `npm run webgrab:prepare`, the same registration script also registers
@@ -828,13 +841,6 @@ Then run imports from admin or API:
 ```bash
 curl -X POST -H "x-admin-token: $ADMIN_TOKEN" \
   http://localhost:3000/api/admin/imports/run
-```
-
-If you need to keep a long-running webgrab container for periodic updates, keep
-the `webgrab` profile enabled and add it to compose startup when desired:
-
-```bash
-docker compose --profile webgrab up -d
 ```
 
 ## Docker Usage

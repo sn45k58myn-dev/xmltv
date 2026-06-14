@@ -1,12 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<webgrab>
+<settings>
+  <filename>/data/webgrab/guide.xml</filename>
+  <mode>m</mode>
+  <logging>on</logging>
+  <retry time-out="5">4</retry>
+  <timespan>7</timespan>
+  <update>f</update>
   <!--
     Template WebGrab+ config for XMLTV import.
-    Copy to WebGrab++.config.xml and configure your country/source blocks.
-    Use `npm run webgrab:generate-config` to generate all discovered country entries.
+    Copy channel entries from downloaded .channels.xml files into this file.
+    Use `npm run webgrab:generate-config` to generate a country scaffold.
   -->
-  <settings>
-    <option name="log_path">./logs</option>
-    <option name="log_level">2</option>
-  </settings>
-</webgrab>
+</settings>

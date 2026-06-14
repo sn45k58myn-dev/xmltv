@@ -23,6 +23,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      webgrab-setup:
+        condition: service_completed_successfully
     ports:
       - "3000:3000"
     env_file:
@@ -30,9 +32,17 @@ services:
     environment:
       DATABASE_URL: postgresql://xmltv:xmltv@postgres:5432/xmltv?schema=public
       RUN_MIGRATIONS: "true"
+      WEBGRAB_ENABLED: "true"
+      WEBGRAB_COMMAND: "true"
+      WEBGRAB_WORKDIR: /app/data/webgrab
+      WEBGRAB_OUTPUT_FILE: guide.xml
+      WEBGRAB_SOURCE_FILES: /app/data/webgrab/guide.xml
+      WEBGRAB_REGISTER_SITEINI_SOURCES: "true"
+      WEBGRAB_SITEINI_SOURCE_ENABLED: "true"
     volumes:
       - ./cache:/app/cache
       - ./data:/app/data
+      - ./webgrab/config:/app/webgrab/config:ro
       - ./webgrab/data:/app/data/webgrab:ro
       - ./uploads:/app/uploads
       - ./backups:/app/backups
@@ -49,12 +59,34 @@ services:
       start_period: 30s
       retries: 3
 
+  webgrab-setup:
+    build: .
+    restart: "no"
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://xmltv:xmltv@postgres:5432/xmltv?schema=public
+      RUN_MIGRATIONS: "false"
+      WEBGRAB_CONFIG_DIR: /app/webgrab/config
+      WEBGRAB_CONFIG_OUTPUT_FILE: /data/webgrab/guide.xml
+      WEBGRAB_WORKDIR: /app/data/webgrab
+      WEBGRAB_OUTPUT_FILE: guide.xml
+      WEBGRAB_SOURCE_FILES: /app/data/webgrab/guide.xml
+      WEBGRAB_REGISTER_SITEINI_SOURCES: "true"
+      WEBGRAB_SITEINI_SOURCE_ENABLED: "true"
+    volumes:
+      - ./webgrab/config:/app/webgrab/config
+      - ./webgrab/data:/app/data/webgrab
+    command: ["npm", "run", "webgrab:setup-stack"]
+
   webgrabplus:
     image: lscr.io/linuxserver/webgrabplus:latest
     container_name: xmltv-webgrabplus
     restart: unless-stopped
-    profiles:
-      - webgrab
     environment:
       PUID: 1000
       PGID: 1000
@@ -63,7 +95,8 @@ services:
       - ./webgrab/config:/config
       - ./webgrab/data:/data/webgrab
     depends_on:
-      - xmltv
+      webgrab-setup:
+        condition: service_completed_successfully
 
 volumes:
   postgres-data:

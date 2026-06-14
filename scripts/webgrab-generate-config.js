@@ -6,6 +6,7 @@ require('dotenv/config');
 const ROOT_DIR = process.cwd();
 const CONFIG_DIR = path.resolve(process.env.WEBGRAB_CONFIG_DIR || path.join(ROOT_DIR, 'webgrab', 'config'));
 const TARGET_FILE = process.env.WEBGRAB_AUTO_CONFIG_FILE || path.join(CONFIG_DIR, 'WebGrab++.config.xml');
+const OUTPUT_FILE = process.env.WEBGRAB_CONFIG_OUTPUT_FILE || '/data/webgrab/guide.xml';
 
 const DEFAULT_COUNTRIES = [
   'AU', 'AT', 'BE', 'BR', 'CA', 'CH', 'CL', 'CO', 'CZ', 'DE', 'DK', 'EE', 'ES',
@@ -172,18 +173,26 @@ function buildCountries() {
 
 function buildConfigXml(countries) {
   const sites = countries
-    .map((code) => `  <site country="${code}" />`)
+    .map((code) => `  <!-- ${code}: copy channel lines from this country's .channels.xml files here. -->`)
     .join('\n');
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<webgrab>',
-    '  <settings>',
-    '    <option name="log_path">./logs</option>',
-    '    <option name="log_level">2</option>',
-    '  </settings>',
+    '<settings>',
+    `  <filename>${OUTPUT_FILE}</filename>`,
+    '  <mode>m</mode>',
+    '  <logging>on</logging>',
+    '  <retry time-out="5">4</retry>',
+    '  <timespan>7</timespan>',
+    '  <update>f</update>',
+    '',
+    '  <!--',
+    '    WebGrab+Plus needs real <channel> entries copied from .channels.xml files.',
+    '    The xmltv app registers every country folder as a Source catalog row, but',
+    '    WebGrab+Plus only grabs channels that are explicitly configured below.',
+    '  -->',
     sites,
-    '</webgrab>'
+    '</settings>'
   ].join('\n') + '\n';
 }
 

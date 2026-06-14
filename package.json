@@ -24,6 +24,7 @@
     "webgrab:doctor": "node scripts/webgrab-doctor.js",
     "webgrab:configure": "node scripts/webgrab-doctor.js --write-env",
     "webgrab:setup": "npm run webgrab:prepare && npm run webgrab:register-sources && npm run webgrab:doctor",
+    "webgrab:setup-stack": "npm run webgrab:prepare && npm run webgrab:register-sources",
     "webgrab:register-sources": "node scripts/webgrab-register.js",
     "webgrab:import": "npm run webgrab:register-sources && npm run import",
     "metadata:backfill": "tsx src/cli/backfillMetadata.ts",

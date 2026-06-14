@@ -20,13 +20,16 @@ RUN npx prisma generate
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache git
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package*.json ./
 COPY prisma ./prisma
+COPY scripts ./scripts
+COPY webgrab/config/WebGrab++.config.template.xml ./webgrab/config/WebGrab++.config.template.xml
 COPY .env.example ./.env.example
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
-RUN mkdir -p cache data uploads && chown -R node:node /app
+RUN mkdir -p cache data uploads webgrab/config && chown -R node:node /app
 RUN chmod +x ./docker-entrypoint.sh
 USER node
 EXPOSE 3000
