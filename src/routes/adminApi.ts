@@ -229,6 +229,57 @@ adminApi.get('/queue', requireViewer, async (req, res) => res.json(await prisma.
     max: 500
   })
 })));
+adminApi.delete('/queue', requireAdmin, async (req, res) => {
+  const statusParam = String(req.query.status || '');
+  const statuses = statusParam.length
+    ? statusParam
+        .split(',')
+        .map((status) => status.trim())
+        .filter(Boolean)
+    : ['failed', 'completed'];
+
+  if (statuses.length === 0) {
+    res.status(400).json({ error: 'Provide at least one status value, e.g. ?status=failed,completed' });
+    return;
+  }
+
+  const allowedStatuses = new Set(['failed', 'completed', 'running', 'pending', 'stale', 'cancelled']);
+  const invalid = statuses.find((status) => !allowedStatuses.has(status));
+
+  if (invalid) {
+    res.status(400).json({ error: `Unsupported status value: ${invalid}` });
+    return;
+  }
+
+  if (statuses.includes('running') || statuses.includes('pending') || statuses.includes('stale')) {
+    res.status(400).json({
+      error: 'Refusing to clear active/pending queue states in this action.'
+    });
+    return;
+  }
+
+  const result = await prisma.jobQueue.deleteMany({
+    where: {
+      status: {
+        in: statuses
+      }
+    }
+  });
+
+  await recordAuditEvent(req, {
+    action: 'queue.clear',
+    entityType: 'JobQueue',
+    metadata: {
+      statuses,
+      deleted: result.count
+    }
+  });
+
+  res.json({
+    deleted: result.count,
+    statuses
+  });
+});
 adminApi.get('/queue/summary', requireViewer, async (_req, res) => res.json(await getQueueHealth()));
 adminApi.post('/queue/stale/requeue', requireAdmin, async (req, res) => {
   const result = await requeueStaleRunningJobs();

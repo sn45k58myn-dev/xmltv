@@ -622,6 +622,8 @@ async function loadQueueUI() {
       <h2>Queue</h2>
       <div class="card">
         <button data-action="requeue-stale-jobs">Requeue stale running jobs</button>
+        <button data-action="clear-queue-completed">Clear completed jobs</button>
+        <button data-action="clear-queue-failed">Clear failed jobs</button>
       </div>
       <h3>Queued Jobs</h3>
       <table>
@@ -749,6 +751,20 @@ async function loadAuditLog() {
         metadata: event.metadata || '-'
       })))}
     `;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function clearQueueJobs(statuses) {
+  if (!confirm(`Delete all ${statuses} queue jobs? This cannot be undone.`)) return;
+
+  try {
+    const result = await api(`queue?status=${encodeURIComponent(statuses)}`, {
+      method: 'DELETE'
+    });
+    showNotice(`Queue cleaned (${result.deleted} job${result.deleted === 1 ? '' : 's'} removed).`);
+    await loadQueueUI();
   } catch (error) {
     showError(error);
   }
@@ -1203,6 +1219,8 @@ document.addEventListener('click', (event) => {
   if (action === 'dashboard-validation') return loadDashboardValidation();
   if (action === 'dashboard-imports') return runDashboardImports();
   if (action === 'dashboard-webgrab') return runDashboardWebGrab();
+  if (action === 'clear-queue-completed') return clearQueueJobs('completed');
+  if (action === 'clear-queue-failed') return clearQueueJobs('failed');
   if (action === 'sources-ui') return loadSourcesUI();
   if (action === 'run-all-imports') return runAllImports();
   if (action === 'retry-queue-job') return retryQueueJob(id);
