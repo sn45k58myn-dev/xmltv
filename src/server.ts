@@ -26,7 +26,7 @@ import { feedDiscoveryRoutes } from './routes/feedDiscoveryRoutes';
 import { docsRoutes } from './routes/docsRoutes';
 import { requireAdmin } from './middleware/auth';
 import { securityHeaders } from './middleware/securityHeaders';
-import { getCachedFeed, getCachedFeedGzip } from './services/cacheService';
+import { createCachedFeedReadStream, getCachedFeedFile } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 import { buildManifest } from './services/manifestService';
 import { providerFeedKey } from './services/feedKeys';
@@ -335,12 +335,19 @@ app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
   }
 
   const key = providerFeedKey(providerId);
-  const cached = await getCachedFeed(key);
-  const xml = cached ?? await exportProvider(providerId);
+  const cached = await getCachedFeedFile(key, '.xml');
+
+  if (cached) {
+    await recordFeedDownload(`${key}.xml`);
+    return sendCachedFeedFile(
+      res,
+      cached,
+      'application/xml; charset=utf-8'
+    );
+  }
 
   await recordFeedDownload(`${key}.xml`);
-
-  sendXml(res, xml);
+  return sendXml(res, await exportProvider(providerId));
 });
 
 app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
@@ -355,7 +362,7 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
   }
 
   const key = providerFeedKey(providerId);
-  const gzip = await getCachedFeedGzip(key);
+  const gzip = await getCachedFeedFile(key, '.xml.gz');
 
   if (!gzip) {
     return res.status(404).send('Feed not generated');
@@ -363,14 +370,11 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
 
   await recordFeedDownload(`${key}.xml.gz`);
 
-  res.setHeader(
-    'content-type',
+  return sendCachedFeedFile(
+    res,
+    gzip,
     'application/gzip'
   );
-  setEntityTag(res, gzip);
-  setFeedCacheHeaders(res);
-
-  res.send(gzip);
 });
 
 function setFeedCacheHeaders(res) {
@@ -400,6 +404,19 @@ function setEntityTag(
   res.setHeader('etag', `"${hash}"`);
 }
 
+function setFileEntityTag(
+  res,
+  file: {
+    size: number;
+    mtime: Date;
+  }
+) {
+  res.setHeader(
+    'etag',
+    `W/"${file.size.toString(16)}-${file.mtime.getTime().toString(16)}"`
+  );
+}
+
 function sendXml(
   res,
   xml
@@ -414,41 +431,66 @@ function sendXml(
   res.send(xml);
 }
 
+function sendCachedFeedFile(
+  res,
+  file,
+  contentType: string
+) {
+  setFeedCacheHeaders(res);
+  setFileEntityTag(res, file);
+  res.setHeader('content-type', contentType);
+  res.setHeader('content-length', String(file.size));
+
+  return createCachedFeedReadStream(file)
+    .on('error', (error) => {
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Unable to stream cached feed'
+        });
+        return;
+      }
+
+      res.destroy(error);
+    })
+    .pipe(res);
+}
+
 async function sendCachedCountryXml(
   res,
   country: string
 ) {
-  const xml = await getCachedFeed(country);
+  const file = await getCachedFeedFile(country, '.xml');
 
-  if (!xml) {
+  if (!file) {
     return res.status(404).send('Feed not generated');
   }
 
   await recordFeedDownload(`${country}.xml`);
 
-  return sendXml(res, xml);
+  return sendCachedFeedFile(
+    res,
+    file,
+    'application/xml; charset=utf-8'
+  );
 }
 
 async function sendCachedCountryGzip(
   res,
   country: string
 ) {
-  const gzip = await getCachedFeedGzip(country);
+  const file = await getCachedFeedFile(country, '.xml.gz');
 
-  if (!gzip) {
+  if (!file) {
     return res.status(404).send('Feed not generated');
   }
 
   await recordFeedDownload(`${country}.xml.gz`);
 
-  res.setHeader(
-    'content-type',
+  return sendCachedFeedFile(
+    res,
+    file,
     'application/gzip'
   );
-  setEntityTag(res, gzip);
-  setFeedCacheHeaders(res);
-
-  return res.send(gzip);
 }
 
 app.get('/', (_req, res) => {

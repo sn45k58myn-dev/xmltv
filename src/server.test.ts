@@ -1,7 +1,8 @@
 import request from 'supertest';
+import { Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from './db/prisma';
-import { assertCacheDirectoryWritable, getCachedFeed } from './services/cacheService';
+import { assertCacheDirectoryWritable, getCachedFeedFile } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 
 vi.mock('./db/prisma', () => ({
@@ -71,8 +72,8 @@ vi.mock('./db/prisma', () => ({
 
 vi.mock('./services/cacheService', () => ({
   assertCacheDirectoryWritable: vi.fn(),
-  getCachedFeed: vi.fn(),
-  getCachedFeedGzip: vi.fn()
+  createCachedFeedReadStream: vi.fn(() => Readable.from(['<tv></tv>'])),
+  getCachedFeedFile: vi.fn()
 }));
 
 vi.mock('./services/downloadMetrics', () => ({
@@ -504,7 +505,11 @@ describe('server API', () => {
     vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
       count: 1
     });
-    vi.mocked(getCachedFeed).mockResolvedValue('<tv></tv>');
+    vi.mocked(getCachedFeedFile).mockResolvedValue({
+      filePath: 'cache/GB.xml',
+      size: Buffer.byteLength('<tv></tv>'),
+      mtime: new Date('2026-06-14T00:00:00.000Z')
+    });
     vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
 
     const app = await loadApp();
@@ -525,7 +530,11 @@ describe('server API', () => {
     vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
       count: 1
     });
-    vi.mocked(getCachedFeed).mockResolvedValue('<tv></tv>');
+    vi.mocked(getCachedFeedFile).mockResolvedValue({
+      filePath: 'cache/GB.xml',
+      size: Buffer.byteLength('<tv></tv>'),
+      mtime: new Date('2026-06-14T00:00:00.000Z')
+    });
     vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
 
     const app = await loadApp();
@@ -534,8 +543,10 @@ describe('server API', () => {
       .set('x-export-token', 'valid-token');
 
     expect(response.status).toBe(200);
+    expect(response.text).toBe('<tv></tv>');
     expect(response.headers['cache-control']).toBe('private, max-age=300');
-    expect(response.headers.etag).toMatch(/^".+"$/);
+    expect(response.headers.etag).toMatch(/^W\/".+"$/);
+    expect(response.headers['content-length']).toBe(String(Buffer.byteLength('<tv></tv>')));
     expect(response.headers.vary).toContain('x-export-token');
     expect(recordFeedDownload).toHaveBeenCalledWith('GB.xml');
   });

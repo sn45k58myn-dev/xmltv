@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { assertCacheDirectoryWritable, getCachedFeed, getCachedFeedGzip, listCachedFeedKeys, removeCachedFeed, setCachedFeed, setCachedFeedGzip } from './cacheService';
+import { assertCacheDirectoryWritable, createCachedFeedReadStream, getCachedFeed, getCachedFeedFile, getCachedFeedGzip, listCachedFeedKeys, removeCachedFeed, setCachedFeed, setCachedFeedGzip } from './cacheService';
 
 const cacheDir = path.join(
   process.cwd(),
@@ -20,6 +20,9 @@ describe('cacheService', () => {
     await setCachedFeed('TEST', '<tv />');
 
     expect(await getCachedFeed('TEST')).toBe('<tv />');
+    await expect(getCachedFeedFile('TEST', '.xml')).resolves.toMatchObject({
+      size: Buffer.byteLength('<tv />')
+    });
 
     const files = await fs.readdir(cacheDir);
     expect(files).toContain('TEST.xml');
@@ -38,10 +41,28 @@ describe('cacheService', () => {
     await expect(assertCacheDirectoryWritable()).resolves.toBeUndefined();
   });
 
+  it('creates read streams for cached feed files', async () => {
+    await setCachedFeed('TEST', '<tv />');
+    const file = await getCachedFeedFile('TEST', '.xml');
+
+    expect(file).not.toBeNull();
+
+    const chunks: Buffer[] = [];
+    await new Promise<void>((resolve, reject) => {
+      createCachedFeedReadStream(file!)
+        .on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+        .on('error', reject)
+        .on('end', resolve);
+    });
+
+    expect(Buffer.concat(chunks).toString('utf8')).toBe('<tv />');
+  });
+
   it('rejects unsafe cache keys before file access', async () => {
     await expect(setCachedFeed('../escape', '<tv />')).rejects.toThrow('Invalid cache feed key');
     await expect(setCachedFeedGzip('bad/name', Buffer.from('gzip'))).rejects.toThrow('Invalid cache feed key');
     await expect(getCachedFeed('../escape')).resolves.toBeNull();
+    await expect(getCachedFeedFile('../escape', '.xml')).resolves.toBeNull();
     await expect(getCachedFeedGzip('bad/name')).resolves.toBeNull();
   });
 

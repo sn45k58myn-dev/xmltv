@@ -766,6 +766,9 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - In multi-container or multi-replica deployments, run `ENABLE_SCHEDULER=true`
   on only one scheduler owner and set it to `false` everywhere else.
 - Generated feeds send `Cache-Control` using `FEED_CACHE_MAX_AGE_SECONDS`.
+- Cached country and provider feed files stream from disk with `Content-Length`
+  and entity tags to reduce per-request memory pressure under high subscriber
+  load.
 - Watch `cacheWarning` from `/api/stats/dashboard` and increase storage or prune
   generated cache files when the warning is present.
 - The built-in rate limiter and request metrics are process-local; use external

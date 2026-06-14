@@ -1,3 +1,4 @@
+import { createReadStream } from 'node:fs';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'node:crypto';
@@ -8,6 +9,12 @@ const CACHE_DIR = path.join(
   'cache'
 );
 const SAFE_CACHE_KEY = /^[A-Za-z0-9_.-]+$/;
+
+export type CachedFeedFile = {
+  filePath: string;
+  size: number;
+  mtime: Date;
+};
 
 function cachePath(
   name: string,
@@ -145,6 +152,32 @@ export async function listCachedFeedKeys(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+export async function getCachedFeedFile(
+  name: string,
+  extension: '.xml' | '.xml.gz'
+): Promise<CachedFeedFile | null> {
+  try {
+    const filePath = cachePath(name, extension);
+    const stat = await fs.stat(filePath);
+
+    if (!stat.isFile()) {
+      return null;
+    }
+
+    return {
+      filePath,
+      size: stat.size,
+      mtime: stat.mtime
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function createCachedFeedReadStream(file: CachedFeedFile) {
+  return createReadStream(file.filePath);
 }
 
 export async function removeCachedFeed(name: string) {
