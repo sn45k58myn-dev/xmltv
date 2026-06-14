@@ -363,6 +363,8 @@ export async function runImport(definition) {
       `Processing ${parsed.channels.length} channels and ${programs.length} programmes`
     );
 
+    const channelCategories = new Map();
+
     for (const channelInput of parsed.channels) {
       const { channel, created } = await findOrCreateChannel(
         channelInput,
@@ -370,6 +372,7 @@ export async function runImport(definition) {
       );
 
       channelMap.set(channelInput.id, channel.id);
+      channelCategories.set(channelInput.id, channel.category ?? null);
 
       if (created) {
         channelsCreated++;
@@ -387,11 +390,12 @@ export async function runImport(definition) {
         continue;
       }
 
+      const category = program.category ?? channelCategories.get(program.channel) ?? 'General';
       const programChecksum = checksum({
         title: program.title,
         subtitle: program.subtitle,
         description: program.description,
-        category: program.category,
+        category,
       });
 
       batch.push({
@@ -399,7 +403,7 @@ export async function runImport(definition) {
         title: program.title,
         subtitle: program.subtitle,
         description: program.description,
-        category: program.category,
+        category,
         start: program.start,
         stop: program.stop,
         sourceId: source.id,

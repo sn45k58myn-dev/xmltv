@@ -23,6 +23,14 @@ type UncategorizedSourceGroupRow = {
   };
 };
 
+function displayCategory(category: string | null | undefined) {
+  const value = category?.trim();
+
+  return value && value !== 'Uncategorized'
+    ? value
+    : 'General';
+}
+
 export async function getSourceCategories() {
   const [
     sources,
@@ -83,34 +91,51 @@ export async function getSourceCategories() {
   const sourcesById = new Map(
     sources.map((source) => [source.id, source])
   );
-  const rows: SourceCategoryRow[] = typedCategoryRows.flatMap((row) => {
-    if (!row.sourceId) return [];
+  const rowsBySourceCategory = new Map<string, SourceCategoryRow>();
+  const addRow = (
+    sourceId: string,
+    category: string,
+    programs: number
+  ) => {
+    const source = sourcesById.get(sourceId);
+    const key = `${sourceId}\0${category}`;
+    const existing = rowsBySourceCategory.get(key);
 
-    const source = sourcesById.get(row.sourceId);
+    if (existing) {
+      existing.programs += programs;
+      return;
+    }
 
-    return [{
-      sourceId: row.sourceId,
+    rowsBySourceCategory.set(key, {
+      sourceId,
       sourceName: source?.name ?? 'Unknown source',
       sourceType: source?.type ?? 'unknown',
-      category: row.category ?? 'Uncategorized',
-      programs: row._count._all
-    }];
+      category,
+      programs
+    });
+  };
+
+  typedCategoryRows.forEach((row) => {
+    if (!row.sourceId) return [];
+
+    addRow(
+      row.sourceId,
+      displayCategory(row.category),
+      row._count._all
+    );
   });
 
   for (const row of typedUncategorizedRows) {
     if (!row.sourceId) continue;
 
-    const source = sourcesById.get(row.sourceId);
-
-    rows.push({
-      sourceId: row.sourceId,
-      sourceName: source?.name ?? 'Unknown source',
-      sourceType: source?.type ?? 'unknown',
-      category: 'Uncategorized',
-      programs: row._count._all
-    });
+    addRow(
+      row.sourceId,
+      'General',
+      row._count._all
+    );
   }
 
+  const rows = [...rowsBySourceCategory.values()];
   const summary = sources.map((source) => {
     const sourceRows = rows
       .filter((row) => row.sourceId === source.id)

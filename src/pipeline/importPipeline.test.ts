@@ -70,7 +70,8 @@ describe('runImport', () => {
     vi.mocked(prisma.channel.create).mockResolvedValue({
       id: 'channel-1',
       xmltvId: 'sample.channel',
-      displayName: 'Sample Channel'
+      displayName: 'Sample Channel',
+      category: undefined
     } as any);
     vi.mocked(prisma.channel.update).mockImplementation(async ({ data }) => ({
       id: 'channel-1',
@@ -171,6 +172,41 @@ describe('runImport', () => {
         priority: 80,
         mergeWeight: 50
       })
+    }));
+  });
+
+  it('falls back to channel category when programmes are uncategorized', async () => {
+    vi.mocked(prisma.channel.create).mockResolvedValue({
+      id: 'channel-1',
+      xmltvId: 'bbc.news',
+      displayName: 'BBC News',
+      category: 'News'
+    } as any);
+    vi.mocked(fetchXmltvSource).mockResolvedValue(`
+      <tv>
+        <channel id="bbc.news">
+          <display-name>BBC News</display-name>
+        </channel>
+        <programme start="20260612090000 +0000" stop="20260612100000 +0000" channel="bbc.news">
+          <title>Morning Show</title>
+        </programme>
+      </tv>
+    `);
+
+    const result = await runImport({
+      name: 'Test Source GB',
+      type: 'custom-url',
+      url: 'https://example.test/feed.xml',
+      priority: 10
+    });
+
+    expect(result.status).toBe('success');
+    expect(prisma.program.createMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: [
+        expect.objectContaining({
+          category: 'News'
+        })
+      ]
     }));
   });
 
