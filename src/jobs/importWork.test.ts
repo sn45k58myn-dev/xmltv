@@ -97,6 +97,32 @@ describe('import work', () => {
     });
   });
 
+  it('skips WebGrab country catalog sources without importing them', async () => {
+    vi.mocked(prisma.source.findMany).mockResolvedValue([
+      {
+        id: 'webgrab-gb',
+        name: 'WebGrab+ United Kingdom',
+        type: 'webgrab-country',
+        url: './webgrab/config/siteini/United Kingdom',
+        priority: 70,
+        mergeWeight: 100
+      },
+      sources[0]
+    ] as any);
+    vi.mocked(runImport).mockResolvedValue({ status: 'success' } as any);
+
+    const results = await runEnabledImports();
+
+    expect(shouldBackoffSource).toHaveBeenCalledTimes(1);
+    expect(shouldBackoffSource).toHaveBeenCalledWith('source-1');
+    expect(runImport).toHaveBeenCalledTimes(1);
+    expect(results[0]).toEqual({
+      sourceId: 'webgrab-gb',
+      status: 'skipped',
+      skippedReason: 'webgrab country catalog source'
+    });
+  });
+
   it('records per-source failures and continues the batch', async () => {
     vi.mocked(withImportTimeout)
       .mockRejectedValueOnce(new Error('upstream timed out'))

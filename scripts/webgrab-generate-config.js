@@ -85,6 +85,20 @@ function collectFromSiteIni(siteIniRoot) {
   return normalizeCountryList(Array.from(candidates)).filter((value) => value.length === 2);
 }
 
+function listSiteIniCountryDirectories(siteIniRoot = locateSiteIniRoot()) {
+  if (!siteIniRoot || !fs.existsSync(siteIniRoot)) {
+    return [];
+  }
+
+  return fs.readdirSync(siteIniRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.toUpperCase() !== 'SITEINI')
+    .map((entry) => ({
+      name: entry.name,
+      path: path.join(siteIniRoot, entry.name)
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function collectFromIntl() {
   let supported = [];
 
@@ -201,10 +215,12 @@ async function main() {
   console.log(`Sample: ${countries.slice(0, 5).join(', ')}${countries.length > 5 ? ', ...' : ''}`);
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
 
 module.exports = {
   generateConfigFile,
@@ -213,5 +229,6 @@ module.exports = {
   collectFromIntl,
   normalizeCountryList,
   buildCountries,
-  locateSiteIniRoot
+  locateSiteIniRoot,
+  listSiteIniCountryDirectories
 };

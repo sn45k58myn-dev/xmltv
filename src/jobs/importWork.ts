@@ -25,6 +25,15 @@ export async function runEnabledImports() {
   const importResults: ImportWorkResult[] = [];
 
   for (const source of sources) {
+    if (source.type === 'webgrab-country') {
+      importResults.push({
+        sourceId: source.id,
+        status: 'skipped',
+        skippedReason: 'webgrab country catalog source'
+      });
+      continue;
+    }
+
     if (await shouldBackoffSource(source.id)) {
       importResults.push({
         sourceId: source.id,

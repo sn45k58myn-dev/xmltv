@@ -128,6 +128,10 @@ Important variables:
   import attempts.
 - `WEBGRAB_COUNTRIES`: Optional override for generated country config. Comma-separated ISO2/ISO3 codes.
 - `WEBGRAB_AUTO_CONFIG_FILE`: Optional output path for `npm run webgrab:generate-config`.
+- `WEBGRAB_REGISTER_SITEINI_SOURCES`: Registers downloaded WebGrab+ country
+  folders as `webgrab-country` catalog rows in Sources. Defaults to `true`.
+- `WEBGRAB_SITEINI_SOURCE_ENABLED`: Marks registered WebGrab+ country catalog
+  rows enabled. Defaults to `true`; import workers skip this catalog-only type.
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
   Production startup requires at least 32 characters.
 - `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
@@ -737,6 +741,15 @@ You can also use local-source registration script and include multiple files:
 WEBGRAB_SOURCE_FILES=/app/data/webgrab/guide.xml
 npm run webgrab:register-sources
 ```
+
+After `npm run webgrab:prepare`, the same registration script also registers
+all discovered WebGrab+ country folders in the Sources panel as
+`webgrab-country` catalog sources. These rows make every supported country
+visible to operators, but they are not imported directly because SiteIni files
+are scraper definitions, not XMLTV guide output. The import worker skips
+`webgrab-country` rows cleanly so enabled catalog rows do not create failed
+import runs. Set `WEBGRAB_REGISTER_SITEINI_SOURCES=false` to disable catalog
+registration or `WEBGRAB_SITEINI_SOURCE_ENABLED=false` to add them disabled.
 
 Then import it with:
 

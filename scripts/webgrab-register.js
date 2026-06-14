@@ -1,9 +1,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { PrismaClient } = require('@prisma/client');
+const { listSiteIniCountryDirectories } = require('./webgrab-generate-config');
 require('dotenv/config');
 
 const prisma = new PrismaClient();
+const REGISTER_SITEINI_SOURCES = process.env.WEBGRAB_REGISTER_SITEINI_SOURCES !== 'false';
+const SITEINI_SOURCE_ENABLED = process.env.WEBGRAB_SITEINI_SOURCE_ENABLED !== 'false';
 
 function parseList(value) {
   if (!value) {
@@ -72,17 +75,53 @@ async function upsertWebGrabSource(filePath) {
   console.log(`Registered ${absPath} as ${name} (${source.id})`);
 }
 
+function countrySourceName(countryName) {
+  return `WebGrab+ ${countryName}`;
+}
+
+async function upsertWebGrabCountrySource(country) {
+  const name = countrySourceName(country.name);
+  const source = await prisma.source.upsert({
+    where: { name },
+    create: {
+      name,
+      type: 'webgrab-country',
+      url: country.path,
+      priority: 70,
+      enabled: SITEINI_SOURCE_ENABLED
+    },
+    update: {
+      type: 'webgrab-country',
+      url: country.path,
+      priority: 70,
+      enabled: SITEINI_SOURCE_ENABLED
+    }
+  });
+
+  console.log(`Registered WebGrab+ country catalog source ${country.name} (${source.id})`);
+}
+
 async function main() {
   const webgrabSources = parseList(process.env.WEBGRAB_SOURCE_FILES);
-
-  if (!webgrabSources.length) {
-    throw new Error('No WEBGRAB_SOURCE_FILES configured. Set WEBGRAB_SOURCE_FILES=/app/data/webgrab/guide.xml and retry.');
-  }
 
   const files = [...new Set(webgrabSources.map((value) => value.trim()).filter(Boolean))];
 
   for (const filePath of files) {
     await upsertWebGrabSource(filePath);
+  }
+
+  if (REGISTER_SITEINI_SOURCES) {
+    const countries = listSiteIniCountryDirectories();
+
+    if (!countries.length && !files.length) {
+      throw new Error('No WebGrab siteini country directories or WEBGRAB_SOURCE_FILES found. Run npm run webgrab:prepare first.');
+    }
+
+    for (const country of countries) {
+      await upsertWebGrabCountrySource(country);
+    }
+  } else if (!files.length) {
+    throw new Error('No WEBGRAB_SOURCE_FILES configured. Set WEBGRAB_SOURCE_FILES=/app/data/webgrab/guide.xml and retry.');
   }
 
   await prisma.$disconnect();
