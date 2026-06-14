@@ -95,6 +95,8 @@ CACHE_WARNING_MB=1024
 VALIDATION_MAX_FEED_MB=250
 VALIDATION_TIMEOUT_MS=30000
 WEBGRAB_ENABLED=true
+WEBGRAB_COUNTRIES=
+WEBGRAB_AUTO_CONFIG_FILE=
 WEBGRAB_COMMAND=
 WEBGRAB_WORKDIR=webgrab
 WEBGRAB_OUTPUT_FILE=guide.xml
@@ -104,9 +106,7 @@ WEBGRAB_SOURCE_MERGE_WEIGHT=50
 WEBGRAB_TIMEOUT_MS=3600000
 WEBGRAB_MAX_OUTPUT_MB=1024
 WEBGRAB_REBUILD_FEEDS=true
-WEBGRAB_COUNTRIES=
-WEBGRAB_AUTO_CONFIG_FILE=
-```
+``` 
 
 Important variables:
 
@@ -763,6 +763,25 @@ If you want to keep your custom `<site country=\"...\"/>` list somewhere else, s
 
 That command keeps a local cache of the WebGrab+ site in `webgrab/config/siteinipack`
 and creates a starter `webgrab/config/WebGrab++.config.xml` from template if missing.
+
+To generate a country-complete config file for all available site sites, run:
+
+```bash
+npm run webgrab:generate-config
+```
+
+You can pin country set and output path:
+
+```env
+WEBGRAB_COUNTRIES=GB,US,DE,FR
+WEBGRAB_AUTO_CONFIG_FILE=webgrab/config/WebGrab++.config.xml
+```
+
+Or run both bootstrap and config generation in one step:
+
+```bash
+npm run webgrab:prepare
+```
 
 Then run imports from admin or API:
 

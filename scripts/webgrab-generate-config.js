@@ -1,89 +1,192 @@
+const fsp = require('node:fs/promises');
 const fs = require('node:fs');
 const path = require('node:path');
 require('dotenv/config');
 
 const ROOT_DIR = process.cwd();
 const CONFIG_DIR = path.resolve(process.env.WEBGRAB_CONFIG_DIR || path.join(ROOT_DIR, 'webgrab', 'config'));
-const TARGET_FILE = path.resolve(
-  process.env.WEBGRAB_AUTO_CONFIG_FILE || path.join(CONFIG_DIR, 'WebGrab++.config.xml')
-);
-const COUNTRIES_ENV = process.env.WEBGRAB_COUNTRIES || '';
+const TARGET_FILE = process.env.WEBGRAB_AUTO_CONFIG_FILE || path.join(CONFIG_DIR, 'WebGrab++.config.xml');
 
-function readCountryList() {
-  if (COUNTRIES_ENV.trim()) {
-    return Array.from(
-      new Set(
-        COUNTRIES_ENV
-          .split(',')
-          .map((item) => item.trim().toUpperCase())
-          .filter((item) => /^[A-Z]{2,3}$/.test(item))
-      )
-    );
+const DEFAULT_COUNTRIES = [
+  'AU', 'AT', 'BE', 'BR', 'CA', 'CH', 'CL', 'CO', 'CZ', 'DE', 'DK', 'EE', 'ES',
+  'FI', 'FR', 'GB', 'GR', 'HK', 'HU', 'IE', 'IL', 'IN', 'IT', 'JP', 'KR', 'MX',
+  'NL', 'NO', 'NZ', 'PE', 'PL', 'PT', 'RU', 'SE', 'SG', 'TH', 'TR', 'TW', 'US'
+];
+
+function normalizeCountryList(values) {
+  return [...new Set(
+    values
+      .map((value) => value.trim().toUpperCase())
+      .filter((value) => /^[A-Z]{2,3}$/.test(value))
+  )].sort();
+}
+
+function collectFromEnvironment() {
+  const configured = process.env.WEBGRAB_COUNTRIES;
+
+  if (!configured) {
+    return [];
   }
 
-  if (typeof Intl.supportedValuesOf === 'function') {
-    try {
-      const values = Intl
-        .supportedValuesOf('region')
-        .filter((code) => /^[A-Z]{2}$/.test(code));
+  return normalizeCountryList(configured.split(','));
+}
 
-      if (values.length) {
-        return values;
-      }
-    } catch (_error) {
-      // Fall through to fallback list.
+function collectCountryFromFileName(fileName) {
+  const normalized = fileName.toUpperCase();
+  const withoutExtension = normalized.split('.').slice(0, -1).join('.');
+  const tokenCandidates = [
+    ...withoutExtension.split(/[-._]/),
+    ...withoutExtension.split('.')
+  ];
+
+  for (const token of tokenCandidates) {
+    if (/^[A-Z]{2}$/.test(token)) {
+      return token;
     }
   }
 
-  // Fallback list for environments where supportedValuesOf is not available.
-  return [
-    'GB',
-    'US',
-    'AU',
-    'CA',
-    'DE',
-    'ES',
-    'FR',
-    'IT',
-    'IE',
-    'NL',
-    'NO',
-    'SE',
-    'DK',
-    'PL',
-    'PT',
-    'NZ',
-    'IN'
-  ];
+  return null;
 }
 
-function buildConfigContent(countries) {
+function collectFromDirectory(rootPath, candidates) {
+  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = path.join(rootPath, entry.name);
+
+    if (entry.isDirectory()) {
+      if (entry.name.toUpperCase() !== 'SITEINI') {
+        if (/^[A-Z]{2}$/i.test(entry.name)) {
+          candidates.add(entry.name.toUpperCase());
+        }
+      }
+
+      collectFromDirectory(entryPath, candidates);
+      continue;
+    }
+
+    if (entry.name.toUpperCase() === 'INDEX' || entry.name.startsWith('.')) {
+      continue;
+    }
+
+    const code = collectCountryFromFileName(entry.name);
+    if (code) {
+      candidates.add(code);
+    }
+  }
+}
+
+function collectFromSiteIni(siteIniRoot) {
+  if (!siteIniRoot || !fs.existsSync(siteIniRoot)) {
+    return [];
+  }
+
+  const candidates = new Set();
+  collectFromDirectory(siteIniRoot, candidates);
+  return normalizeCountryList(Array.from(candidates));
+}
+
+function collectFromIntl() {
+  let supported = [];
+
+  try {
+    supported = Intl?.supportedValuesOf?.('region') ?? [];
+  } catch (_error) {
+    supported = [];
+  }
+
+  if (!supported?.length) {
+    return [];
+  }
+
+  return normalizeCountryList(supported);
+}
+
+function locateSiteIniRoot() {
+  const explicit = process.env.WEBGRAB_SITEINI_DIR?.trim();
+
+  if (explicit && fs.existsSync(explicit)) {
+    return explicit;
+  }
+
+  const candidates = [
+    path.join(CONFIG_DIR, 'siteini'),
+    path.join(CONFIG_DIR, 'siteini.pack'),
+    path.join(CONFIG_DIR, 'siteini.pack', 'siteini'),
+    path.join(CONFIG_DIR, 'siteini.pack', 'sites'),
+    path.join(CONFIG_DIR, 'siteinipack')
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate));
+}
+
+function buildCountries() {
+  const byEnv = collectFromEnvironment();
+  if (byEnv.length) {
+    return byEnv;
+  }
+
+  const siteIniRoot = locateSiteIniRoot();
+  if (siteIniRoot) {
+    const siteIniCountries = collectFromSiteIni(siteIniRoot);
+    if (siteIniCountries.length) {
+      return siteIniCountries;
+    }
+  }
+
+  const intlCountries = collectFromIntl();
+  if (intlCountries.length) {
+    return intlCountries;
+  }
+
+  return DEFAULT_COUNTRIES;
+}
+
+function buildConfigXml(countries) {
   const sites = countries
-    .sort()
     .map((code) => `  <site country="${code}" />`)
     .join('\n');
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<webgrab>\n` +
-    `  <settings>\n` +
-    `    <option name="log_path">./logs</option>\n` +
-    `    <option name="log_level">2</option>\n` +
-    `  </settings>\n` +
-    `${sites}\n` +
-    `</webgrab>\n`;
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<webgrab>',
+    '  <settings>',
+    '    <option name="log_path">./logs</option>',
+    '    <option name="log_level">2</option>',
+    '  </settings>',
+    sites,
+    '</webgrab>'
+  ].join('\n') + '\n';
+}
+
+async function generateConfigFile(options = {}) {
+  const {
+    targetFile = TARGET_FILE,
+    overwrite = true
+  } = options;
+
+  if (!overwrite && fs.existsSync(targetFile)) {
+    console.log(`Skipping existing config file ${targetFile}`);
+    return targetFile;
+  }
+
+  const countries = buildCountries();
+  const payload = buildConfigXml(countries);
+  await fsp.mkdir(path.dirname(targetFile), { recursive: true });
+  await fsp.writeFile(targetFile, payload, 'utf8');
+
+  console.log(`Generated ${targetFile} with ${countries.length} countries`);
+  return targetFile;
 }
 
 async function main() {
-  await fs.promises.mkdir(CONFIG_DIR, { recursive: true });
-
-  const countries = readCountryList().filter(Boolean);
+  await fsp.mkdir(CONFIG_DIR, { recursive: true });
+  const countries = buildCountries().filter(Boolean);
   if (!countries.length) {
     throw new Error('No countries found. Set WEBGRAB_COUNTRIES with comma-separated values.');
   }
 
-  const content = buildConfigContent(countries);
-  await fs.promises.writeFile(TARGET_FILE, content, 'utf8');
-  console.log(`Wrote ${countries.length} country entries to ${TARGET_FILE}`);
+  await generateConfigFile({ targetFile: TARGET_FILE, overwrite: true });
   console.log(`Sample: ${countries.slice(0, 5).join(', ')}${countries.length > 5 ? ', ...' : ''}`);
 }
 
@@ -91,3 +194,13 @@ main().catch((error) => {
   console.error(error.message);
   process.exit(1);
 });
+
+module.exports = {
+  generateConfigFile,
+  collectFromEnvironment,
+  collectFromSiteIni,
+  collectFromIntl,
+  normalizeCountryList,
+  buildCountries,
+  locateSiteIniRoot
+};

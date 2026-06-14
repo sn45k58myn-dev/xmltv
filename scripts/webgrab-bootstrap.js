@@ -2,14 +2,17 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { generateConfigFile } = require('./webgrab-generate-config');
 require('dotenv/config');
 
 const ROOT_DIR = process.cwd();
 const CONFIG_DIR = path.resolve(process.env.WEBGRAB_CONFIG_DIR || path.join(ROOT_DIR, 'webgrab', 'config'));
 const TMP_DIR = path.resolve(process.env.WEBGRAB_TMP_DIR || path.join(ROOT_DIR, 'webgrab', '.tmp', 'siteinipack'));
 const REPO_URLS = [
-  process.env.WEBGRAB_SITEINIPACK_REPO || 'https://github.com/WebGrabPlus/siteinipack.git',
-  process.env.WEBGRAB_SITEINIPACK_REPO_ALT || 'https://github.com/WebGrabPlus/WebGrabPlus-siteinipack.git'
+  process.env.WEBGRAB_SITEINIPACK_REPO || 'https://github.com/silentbuteo2/webgrabplus-siteinipack.git',
+  process.env.WEBGRAB_SITEINIPACK_REPO_ALT || 'https://github.com/WebGrabPlus/siteinipack.git',
+  process.env.WEBGRAB_SITEINIPACK_REPO_ALT2 || 'https://github.com/WebGrabPlus/WebGrabPlus-siteinipack.git',
+  process.env.WEBGRAB_SITEINIPACK_REPO_ALT3 || 'https://github.com/SilentButeo2/webgrabplus-siteinipack.git'
 ];
 
 const ALLOW_EXTENSIONS = new Set(['.xml', '.ini', '.conf', '.cfg', '.json']);
@@ -65,7 +68,6 @@ async function writeTemplateConfig() {
   }
 
   const targetConfig = path.join(CONFIG_DIR, 'WebGrab++.config.xml');
-
   if (!fs.existsSync(targetConfig)) {
     await fsp.copyFile(template, targetConfig);
     console.log(`Created starter ${targetConfig}`);
@@ -106,10 +108,19 @@ async function main() {
     throw new Error('Unable to fetch WebGrab siteinipack. Install git and check network access or override WEBGRAB_SITEINIPACK_REPO.');
   }
 
-  const siteiniSrc = path.join(TMP_DIR, 'siteini');
+  const candidates = [
+    path.join(TMP_DIR, 'siteini'),
+    path.join(TMP_DIR, 'siteinipack'),
+    path.join(TMP_DIR, 'siteini.pack'),
+    path.join(TMP_DIR, 'siteini.pack', 'siteini'),
+    path.join(TMP_DIR, 'siteini.pack', 'sites'),
+    path.join(TMP_DIR, 'siteinipack', 'siteini')
+  ];
+
+  const siteiniSrc = candidates.find((candidate) => fs.existsSync(candidate));
   const siteiniTarget = path.join(CONFIG_DIR, 'siteini');
 
-  if (fs.existsSync(siteiniSrc)) {
+  if (siteiniSrc && fs.existsSync(siteiniSrc)) {
     await fsp.rm(siteiniTarget, { recursive: true, force: true });
     await ensureDir(siteiniTarget);
     await copyFileRecursive(siteiniSrc, siteiniTarget);
@@ -119,6 +130,9 @@ async function main() {
   }
 
   await writeTemplateConfig();
+  await generateConfigFile({
+    overwrite: process.env.WEBGRAB_FORCE_CONFIG === 'true'
+  });
   console.log('WebGrab bootstrap completed. Edit webgrab/config/WebGrab++.config.xml before import runs.');
 }
 

@@ -3,10 +3,10 @@
   <!--
     Template WebGrab+ config for XMLTV import.
     Copy to WebGrab++.config.xml and configure your country/source blocks.
+    Use `npm run webgrab:generate-config` to generate all discovered country entries.
   -->
   <settings>
     <option name="log_path">./logs</option>
     <option name="log_level">2</option>
   </settings>
-  <site country="GB" />
 </webgrab>
