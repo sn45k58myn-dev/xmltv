@@ -3,6 +3,7 @@ require('dotenv/config');
 const { mkdirSync } = require('node:fs');
 const { join } = require('node:path');
 const { spawn } = require('node:child_process');
+const { writeBackupManifest } = require('./backup-utils');
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -33,9 +34,20 @@ child.on('error', (error) => {
   process.exit(1);
 });
 
-child.on('exit', (code) => {
+child.on('exit', async (code) => {
   if (code === 0) {
-    console.log(file);
+    try {
+      const { manifestFile } = await writeBackupManifest(
+        file,
+        databaseUrl
+      );
+
+      console.log(file);
+      console.log(manifestFile);
+    } catch (error) {
+      console.error(`Unable to write backup manifest: ${error.message}`);
+      process.exit(1);
+    }
   }
 
   process.exit(code ?? 1);

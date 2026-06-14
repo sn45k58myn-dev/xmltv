@@ -710,7 +710,10 @@ npm run backup:db
 ```
 
 This runs `scripts/backup-postgres.js` and writes a timestamped `.dump` file to
-`BACKUP_DIR`, defaulting to `backups/`.
+`BACKUP_DIR`, defaulting to `backups/`. A sidecar `.dump.json` manifest is also
+written with file size, creation time, redacted database URL, and SHA-256
+checksum. Keep the manifest beside the dump file; restore and verification
+commands validate the checksum when the manifest exists.
 
 Prune old local backup files:
 
@@ -724,11 +727,13 @@ Restore a backup:
 npm run restore:db -- backups/xmltv-YYYYMMDDTHHMMSSZ.dump
 ```
 
-This runs `scripts/restore-postgres.js`, which calls `pg_restore --clean
---if-exists`. Restores replace objects in the target database, so verify
-`DATABASE_URL` before running it. `BACKUP_DIR` is ignored by git. Stop writers or
-schedule backups during a quiet import window for the most consistent recovery
-point.
+This runs `scripts/restore-postgres.js`, validates the sidecar checksum when
+available, then calls `pg_restore --clean --if-exists`. Restores replace objects
+in the target database, so verify `DATABASE_URL` before running it. In
+`NODE_ENV=production`, restore is refused unless
+`RESTORE_CONFIRM=I_UNDERSTAND_THIS_REPLACES_PRODUCTION_DATA` is set for that
+command. `BACKUP_DIR` is ignored by git. Stop writers or schedule backups during
+a quiet import window for the most consistent recovery point.
 
 Verify restore into a disposable database before trusting a backup:
 

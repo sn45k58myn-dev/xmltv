@@ -14,7 +14,11 @@ npm run backup:prune
 ```
 
 `pg_dump --format=custom` creates archives intended for `pg_restore`, which is
-more flexible than plain SQL dumps for restore workflows.
+more flexible than plain SQL dumps for restore workflows. Each backup also gets
+a `.dump.json` sidecar manifest containing file size, creation time, a redacted
+database URL, and a SHA-256 checksum. Keep the manifest beside the dump file so
+`restore:db` and `backup:verify` can detect corruption before running
+`pg_restore`.
 
 ## Environment
 
@@ -23,10 +27,13 @@ DATABASE_URL=postgresql://xmltv:xmltv@db:5432/xmltv?schema=public
 BACKUP_DIR=backups
 BACKUP_RETENTION_DAYS=14
 VERIFY_DATABASE_URL=postgresql://xmltv:xmltv@db:5432/xmltv_restore_check?schema=public
+RESTORE_CONFIRM=I_UNDERSTAND_THIS_REPLACES_PRODUCTION_DATA
 ```
 
 `VERIFY_DATABASE_URL` must point at a disposable restore-check database. Do not
-point it at production.
+point it at production. `RESTORE_CONFIRM` is only required when restoring with
+`NODE_ENV=production`; set it for that one command after verifying the target
+`DATABASE_URL`.
 
 ## Cron Example
 
@@ -112,7 +119,8 @@ docker compose run --rm -e VERIFY_DATABASE_URL="$VERIFY_DATABASE_URL" app npm ru
 
 1. Create a disposable PostgreSQL database.
 2. Run `npm run backup:verify -- <backup-file>` with `VERIFY_DATABASE_URL` set.
-3. Confirm the reported channel and programme counts are plausible.
+3. Confirm the sidecar checksum passes and the reported channel/programme counts
+   are plausible.
 4. Run `npx prisma migrate deploy` against the restored database.
 5. Start the app with the restored database and check `/ready` and
    `/api/stats/dashboard`.

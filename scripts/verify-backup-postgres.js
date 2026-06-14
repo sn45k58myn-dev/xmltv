@@ -1,7 +1,10 @@
 require('dotenv/config');
 
-const { existsSync, statSync } = require('node:fs');
 const { spawn } = require('node:child_process');
+const {
+  assertBackupFile,
+  verifyBackupManifest
+} = require('./backup-utils');
 
 const backupFile = process.argv[2];
 const verifyDatabaseUrl = process.env.VERIFY_DATABASE_URL;
@@ -11,8 +14,10 @@ if (!backupFile) {
   process.exit(1);
 }
 
-if (!existsSync(backupFile) || !statSync(backupFile).isFile()) {
-  console.error(`Backup file not found: ${backupFile}`);
+try {
+  assertBackupFile(backupFile);
+} catch (error) {
+  console.error(error.message);
   process.exit(1);
 }
 
@@ -45,6 +50,12 @@ function run(command, args, options = {}) {
 }
 
 async function main() {
+  const manifestCheck = await verifyBackupManifest(backupFile);
+
+  if (manifestCheck.skipped) {
+    console.warn(`Backup manifest check skipped: ${manifestCheck.reason}`);
+  }
+
   await run('pg_restore', [
     '--clean',
     '--if-exists',

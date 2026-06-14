@@ -1,7 +1,11 @@
 require('dotenv/config');
 
-const { existsSync, statSync } = require('node:fs');
 const { spawn } = require('node:child_process');
+const {
+  assertBackupFile,
+  assertProductionRestoreAllowed,
+  verifyBackupManifest
+} = require('./backup-utils');
 
 const databaseUrl = process.env.DATABASE_URL;
 const backupFile = process.argv[2];
@@ -16,27 +20,37 @@ if (!backupFile) {
   process.exit(1);
 }
 
-if (!existsSync(backupFile) || !statSync(backupFile).isFile()) {
-  console.error(`Backup file not found: ${backupFile}`);
-  process.exit(1);
+async function main() {
+  assertBackupFile(backupFile);
+  assertProductionRestoreAllowed();
+  const manifestCheck = await verifyBackupManifest(backupFile);
+
+  if (manifestCheck.skipped) {
+    console.warn(`Backup manifest check skipped: ${manifestCheck.reason}`);
+  }
+
+  const child = spawn('pg_restore', [
+    '--clean',
+    '--if-exists',
+    '--no-owner',
+    `--dbname=${databaseUrl}`,
+    backupFile
+  ], {
+    stdio: 'inherit',
+    shell: process.platform === 'win32'
+  });
+
+  child.on('error', (error) => {
+    console.error(`Unable to start pg_restore: ${error.message}`);
+    process.exit(1);
+  });
+
+  child.on('exit', (code) => {
+    process.exit(code ?? 1);
+  });
 }
 
-const child = spawn('pg_restore', [
-  '--clean',
-  '--if-exists',
-  '--no-owner',
-  `--dbname=${databaseUrl}`,
-  backupFile
-], {
-  stdio: 'inherit',
-  shell: process.platform === 'win32'
-});
-
-child.on('error', (error) => {
-  console.error(`Unable to start pg_restore: ${error.message}`);
+main().catch((error) => {
+  console.error(error.message);
   process.exit(1);
-});
-
-child.on('exit', (code) => {
-  process.exit(code ?? 1);
 });

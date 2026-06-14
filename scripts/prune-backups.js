@@ -13,12 +13,14 @@ if (!Number.isFinite(retentionDays) || retentionDays < 1) {
 
 const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
 let removed = 0;
+let removedManifests = 0;
 
 if (!existsSync(backupDir)) {
   console.log(JSON.stringify({
     backupDir,
     retentionDays,
-    removed
+    removed,
+    removedManifests
   }));
   process.exit(0);
 }
@@ -42,10 +44,18 @@ for (const file of readdirSync(backupDir, {
 
   unlinkSync(filePath);
   removed++;
+
+  const manifestPath = `${filePath}.json`;
+
+  if (existsSync(manifestPath)) {
+    unlinkSync(manifestPath);
+    removedManifests++;
+  }
 }
 
 console.log(JSON.stringify({
   backupDir,
   retentionDays,
-  removed
+  removed,
+  removedManifests
 }));
