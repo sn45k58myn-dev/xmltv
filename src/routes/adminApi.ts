@@ -117,7 +117,8 @@ adminApi.post('/webgrab/run', requireAdmin, async (req, res) => {
 
     if (!status.commandConfigured) {
       return res.status(400).json({
-        error: 'WEBGRAB_COMMAND is required when WEBGRAB_ENABLED=true.'
+        error: 'WEBGRAB_COMMAND is required when WEBGRAB_ENABLED=true.',
+        status
       });
     }
 

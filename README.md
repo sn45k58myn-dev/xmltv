@@ -97,6 +97,9 @@ VALIDATION_TIMEOUT_MS=30000
 WEBGRAB_ENABLED=true
 WEBGRAB_COUNTRIES=
 WEBGRAB_AUTO_CONFIG_FILE=
+WEBGRAB_REGISTER_SITEINI_SOURCES=true
+WEBGRAB_SITEINI_SOURCE_ENABLED=true
+WEBGRAB_EXECUTABLE=
 WEBGRAB_COMMAND=
 WEBGRAB_WORKDIR=webgrab
 WEBGRAB_OUTPUT_FILE=guide.xml
@@ -132,6 +135,9 @@ Important variables:
   folders as `webgrab-country` catalog rows in Sources. Defaults to `true`.
 - `WEBGRAB_SITEINI_SOURCE_ENABLED`: Marks registered WebGrab+ country catalog
   rows enabled. Defaults to `true`; import workers skip this catalog-only type.
+- `WEBGRAB_EXECUTABLE`: Optional explicit path used by
+  `npm run webgrab:doctor` / `npm run webgrab:configure` when auto-detection
+  cannot find `WebGrab+Plus.exe`.
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
   Production startup requires at least 32 characters.
 - `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
@@ -762,6 +768,27 @@ If you need to load WebGrab+ site metadata before configuring your guide source,
 ```bash
 npm run webgrab:bootstrap
 ```
+
+For a complete local setup pass, run:
+
+```bash
+npm run webgrab:setup
+```
+
+That downloads/refreshes the SiteIni catalog, generates
+`webgrab/config/WebGrab++.config.xml`, registers all discovered country folders
+as Sources, and prints a runtime report. If WebGrab+Plus is installed locally,
+run:
+
+```bash
+npm run webgrab:configure
+```
+
+to write the detected `WEBGRAB_COMMAND` into `.env`. If no local executable is
+detected, install WebGrab+Plus from [webgrabplus.com/download](https://webgrabplus.com/download)
+or use the Docker profile. WebGrab+Plus is an external closed-source runtime,
+so this app configures, validates, and imports its generated `guide.xml` but
+does not vendor the scraper engine itself.
 
 To create a ready-to-edit WebGrab+ configuration with one `<site country=\"...\"/>`
 entry for all ISO country codes, run:

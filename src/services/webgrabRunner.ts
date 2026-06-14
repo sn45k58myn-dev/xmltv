@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { env } from '../config/env';
 import { runImport } from '../pipeline/importPipeline';
@@ -66,6 +68,82 @@ function resolveOutputPath(workdir: string) {
   }
 
   return outputPath;
+}
+
+function webGrabExecutableCandidates() {
+  const candidates = [
+    process.env.WEBGRAB_EXECUTABLE,
+    process.env.LOCALAPPDATA
+      ? path.join(process.env.LOCALAPPDATA, 'WebGrab+Plus', 'WebGrab+Plus.exe')
+      : undefined,
+    process.env.ProgramFiles
+      ? path.join(process.env.ProgramFiles, 'WebGrab+Plus', 'WebGrab+Plus.exe')
+      : undefined,
+    process.env['ProgramFiles(x86)']
+      ? path.join(process.env['ProgramFiles(x86)'], 'WebGrab+Plus', 'WebGrab+Plus.exe')
+      : undefined,
+    'C:\\ProgramData\\WebGrab+Plus\\WebGrab+Plus.exe'
+  ];
+
+  return candidates.filter((candidate): candidate is string => Boolean(candidate));
+}
+
+function quoteCommand(value: string) {
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+function detectExecutableCommand() {
+  for (const candidate of webGrabExecutableCandidates()) {
+    if (fsSync.existsSync(candidate)) {
+      return quoteCommand(candidate);
+    }
+  }
+
+  const where = spawnSync(
+    process.platform === 'win32' ? 'where.exe' : 'which',
+    process.platform === 'win32'
+      ? ['WebGrab+Plus.exe']
+      : ['WebGrab+Plus'],
+    {
+      encoding: 'utf8',
+      windowsHide: true
+    }
+  );
+  const first = where.stdout
+    ?.split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  return first ? quoteCommand(first) : undefined;
+}
+
+function dockerAvailable() {
+  const result = spawnSync(
+    'docker',
+    ['--version'],
+    {
+      encoding: 'utf8',
+      windowsHide: true
+    }
+  );
+
+  return result.status === 0;
+}
+
+export function detectWebGrabRuntime() {
+  const executableCommand = detectExecutableCommand();
+  const hasDocker = dockerAvailable();
+
+  return {
+    executableCommand,
+    dockerAvailable: hasDocker,
+    suggestedCommand: executableCommand,
+    setupHint: executableCommand
+      ? `Set WEBGRAB_COMMAND=${executableCommand}`
+      : hasDocker
+        ? 'Use docker compose --profile webgrab up -d webgrabplus and set WEBGRAB_COMMAND=true after it writes guide.xml.'
+        : 'Install WebGrab+Plus from https://webgrabplus.com/download or install Docker Desktop for the webgrabplus container.'
+  };
 }
 
 function assertConfigured() {
@@ -177,6 +255,7 @@ async function readAndValidateOutput(outputPath: string) {
 export async function getWebGrabStatus() {
   const workdir = resolveWorkdir();
   const outputPath = resolveOutputPath(workdir);
+  const runtime = detectWebGrabRuntime();
   let output: {
     exists: boolean;
     bytes?: number;
@@ -202,6 +281,11 @@ export async function getWebGrabStatus() {
   return {
     enabled: env.WEBGRAB_ENABLED === 'true',
     commandConfigured: Boolean(env.WEBGRAB_COMMAND?.trim()),
+    runtimeDetected: Boolean(runtime.executableCommand || runtime.dockerAvailable),
+    executableDetected: Boolean(runtime.executableCommand),
+    dockerAvailable: runtime.dockerAvailable,
+    suggestedCommand: runtime.suggestedCommand,
+    setupHint: runtime.setupHint,
     workdir,
     outputPath,
     output,
