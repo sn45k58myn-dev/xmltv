@@ -12,7 +12,10 @@ vi.mock('../db/prisma', () => ({
       delete: vi.fn()
     },
     program: {
-      updateMany: vi.fn()
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn()
     },
     alias: {
       findMany: vi.fn(),
@@ -55,6 +58,16 @@ describe('mergeChannels', () => {
     } as any);
     vi.mocked(prisma.alias.findMany).mockResolvedValue([]);
     vi.mocked(prisma.mapping.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.program.findMany).mockResolvedValue([
+      {
+        id: 'program-1',
+        start: new Date('2026-06-12T09:00:00Z'),
+        stop: new Date('2026-06-12T10:00:00Z'),
+        checksum: 'checksum-1'
+      }
+    ] as any);
+    vi.mocked(prisma.program.findUnique).mockResolvedValue(null);
+    vi.mocked(prisma.program.update).mockResolvedValue({} as any);
     vi.mocked(prisma.channel.update).mockResolvedValue({} as any);
 
     await expect(mergeChannels(
@@ -66,10 +79,15 @@ describe('mergeChannels', () => {
       mergedCount: 1
     });
 
-    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function));
-    expect(prisma.program.updateMany).toHaveBeenCalledWith({
+    expect(prisma.$transaction).toHaveBeenCalledWith(
+      expect.any(Function),
+      {
+        timeout: 60_000
+      }
+    );
+    expect(prisma.program.update).toHaveBeenCalledWith({
       where: {
-        channelId: 'merge'
+        id: 'program-1'
       },
       data: {
         channelId: 'target'
@@ -105,6 +123,7 @@ describe('mergeChannels', () => {
     } as any);
     vi.mocked(prisma.alias.findMany).mockResolvedValue([]);
     vi.mocked(prisma.mapping.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.program.findMany).mockResolvedValue([]);
     vi.mocked(prisma.channel.update).mockResolvedValue({} as any);
 
     await expect(mergeChannels(
@@ -119,5 +138,45 @@ describe('mergeChannels', () => {
         sourceRefs: '[]'
       }
     }));
+  });
+
+  it('drops exact duplicate programmes when merging channels', async () => {
+    vi.mocked(prisma.channel.findUniqueOrThrow).mockResolvedValue({
+      id: 'target',
+      sourceRefs: null
+    } as any);
+    vi.mocked(prisma.channel.findUnique).mockResolvedValue({
+      id: 'merge',
+      sourceRefs: null
+    } as any);
+    vi.mocked(prisma.program.findMany).mockResolvedValue([
+      {
+        id: 'program-duplicate',
+        start: new Date('2026-06-12T09:00:00Z'),
+        stop: new Date('2026-06-12T10:00:00Z'),
+        checksum: 'checksum-1'
+      }
+    ] as any);
+    vi.mocked(prisma.program.findUnique).mockResolvedValue({
+      id: 'target-program'
+    } as any);
+    vi.mocked(prisma.alias.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.mapping.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.channel.update).mockResolvedValue({} as any);
+    vi.mocked(prisma.program.delete).mockResolvedValue({} as any);
+
+    await expect(mergeChannels(
+      'target',
+      ['merge']
+    )).resolves.toMatchObject({
+      success: true
+    });
+
+    expect(prisma.program.delete).toHaveBeenCalledWith({
+      where: {
+        id: 'program-duplicate'
+      }
+    });
+    expect(prisma.program.update).not.toHaveBeenCalled();
   });
 });

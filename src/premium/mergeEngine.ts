@@ -31,11 +31,41 @@ export async function mergeChannels(targetChannelId: string, channelIdsToMerge: 
       const sourceChannel = await tx.channel.findUnique({ where: { id: mergeId } });
       if (!sourceChannel) continue;
 
-      // 1. Reassign programs
-      await tx.program.updateMany({
+      // 1. Reassign programs, dropping exact duplicates that already exist on the target.
+      const programs = await tx.program.findMany({
         where: { channelId: mergeId },
-        data: { channelId: targetChannelId }
+        select: {
+          id: true,
+          start: true,
+          stop: true,
+          checksum: true
+        }
       });
+
+      for (const program of programs) {
+        const duplicate = await tx.program.findUnique({
+          where: {
+            channelId_start_stop_checksum: {
+              channelId: targetChannelId,
+              start: program.start,
+              stop: program.stop,
+              checksum: program.checksum
+            }
+          }
+        });
+
+        if (duplicate) {
+          await tx.program.delete({
+            where: { id: program.id }
+          });
+          continue;
+        }
+
+        await tx.program.update({
+          where: { id: program.id },
+          data: { channelId: targetChannelId }
+        });
+      }
 
       // 2. Reassign aliases
       const aliases = await tx.alias.findMany({ where: { channelId: mergeId } });
@@ -89,5 +119,7 @@ export async function mergeChannels(targetChannelId: string, channelIdsToMerge: 
     });
 
     return { success: true, targetChannelId, mergedCount: channelIdsToMerge.length };
+  }, {
+    timeout: 60_000
   });
 }
