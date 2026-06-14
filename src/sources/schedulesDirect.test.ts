@@ -138,4 +138,195 @@ describe('SchedulesDirectClient', () => {
       }
     }));
   });
+
+  it('batches large schedule requests for commercial lineups', async () => {
+    const http = mockHttpClient();
+    const stations = Array.from({
+      length: 5001
+    }, (_value, index) => ({
+      stationID: `station-${index}`
+    }));
+
+    http.post.mockResolvedValue({
+      data: {
+        response: 'OK',
+        token: 'token-1'
+      }
+    });
+    http.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            stationID: 'station-0',
+            programs: []
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            stationID: 'station-5000',
+            programs: []
+          }
+        ]
+      });
+
+    const client = new SchedulesDirectClient(http as any, {
+      username: 'sd-user',
+      password: 'sd-pass',
+      lineup: 'USA-OTA-12345',
+      days: 1,
+      baseUrl: 'https://example.test',
+      timeoutMs: 1000
+    });
+    const schedules = await client.getSchedules(stations);
+
+    expect(schedules).toHaveLength(2);
+    expect(http.request).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      method: 'post',
+      url: '/schedules',
+      data: expect.arrayContaining([
+        {
+          stationID: 'station-0',
+          date: expect.any(String)
+        }
+      ])
+    }));
+    expect(http.request).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      method: 'post',
+      url: '/schedules',
+      data: [
+        {
+          stationID: 'station-5000',
+          date: expect.any(String)
+        }
+      ]
+    }));
+  });
+
+  it('de-duplicates and batches program detail requests', async () => {
+    const http = mockHttpClient();
+    const programIds = [
+      ...Array.from({
+        length: 501
+      }, (_value, index) => `EP${String(index).padStart(10, '0')}`),
+      'EP0000000000'
+    ];
+
+    http.post.mockResolvedValue({
+      data: {
+        response: 'OK',
+        token: 'token-1'
+      }
+    });
+    http.request
+      .mockResolvedValueOnce({
+        data: [
+          {
+            programID: 'EP0000000000'
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            programID: 'EP0000000500'
+          }
+        ]
+      });
+
+    const client = new SchedulesDirectClient(http as any, {
+      username: 'sd-user',
+      password: 'sd-pass',
+      lineup: 'USA-OTA-12345',
+      days: 1,
+      baseUrl: 'https://example.test',
+      timeoutMs: 1000
+    });
+    const programs = await client.getPrograms(programIds);
+
+    expect(programs.size).toBe(2);
+    expect(http.request).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      method: 'post',
+      url: '/programs',
+      data: expect.arrayContaining(['EP0000000000'])
+    }));
+    expect(http.request).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      method: 'post',
+      url: '/programs',
+      data: ['EP0000000500']
+    }));
+  });
+
+  it('skips malformed schedule programme windows when generating XMLTV', async () => {
+    const http = mockHttpClient();
+
+    http.post.mockResolvedValue({
+      data: {
+        response: 'OK',
+        token: 'token-1'
+      }
+    });
+    http.request
+      .mockResolvedValueOnce({
+        data: {
+          stations: [
+            {
+              stationID: '10001',
+              callsign: 'TEST'
+            }
+          ]
+        }
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            stationID: '10001',
+            programs: [
+              {
+                programID: 'EPBADDATE',
+                airDateTime: 'not-a-date',
+                duration: 1800
+              },
+              {
+                programID: 'EPBADDURATION',
+                airDateTime: '2026-06-12T09:00:00Z',
+                duration: 0
+              },
+              {
+                programID: 'EPGOOD',
+                airDateTime: '2026-06-12T10:00:00Z',
+                duration: 1800
+              }
+            ]
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            programID: 'EPGOOD',
+            titles: [
+              {
+                title120: 'Good Programme'
+              }
+            ]
+          }
+        ]
+      });
+
+    const xml = await fetchSchedulesDirectXmltv(new SchedulesDirectClient(http as any, {
+      username: 'sd-user',
+      password: 'sd-pass',
+      lineup: 'USA-OTA-12345',
+      days: 1,
+      baseUrl: 'https://example.test',
+      timeoutMs: 1000
+    }));
+
+    expect(xml).toContain('Good Programme');
+    expect(xml).not.toContain('EPBADDATE');
+    expect(xml).not.toContain('EPBADDURATION');
+    expect(xml).not.toContain('NaN');
+  });
 });

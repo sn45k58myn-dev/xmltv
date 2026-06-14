@@ -53,6 +53,9 @@ type SchedulesDirectConfig = {
   timeoutMs: number;
 };
 
+const SCHEDULE_REQUEST_BATCH_SIZE = 5000;
+const PROGRAM_REQUEST_BATCH_SIZE = 500;
+
 function defaultConfig(): SchedulesDirectConfig {
   return {
     username: env.SCHEDULES_DIRECT_USERNAME,
@@ -62,6 +65,22 @@ function defaultConfig(): SchedulesDirectConfig {
     baseUrl: env.SCHEDULES_DIRECT_BASE_URL,
     timeoutMs: env.SOURCE_FETCH_TIMEOUT_MS
   };
+}
+
+function chunk<T>(
+  values: T[],
+  size: number
+) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(
+      index,
+      index + size
+    ));
+  }
+
+  return chunks;
 }
 
 function sha1(value: string) {
@@ -84,6 +103,20 @@ function xmltvDate(value: Date) {
   const pad = (input: number) => String(input).padStart(2, '0');
 
   return `${value.getUTCFullYear()}${pad(value.getUTCMonth() + 1)}${pad(value.getUTCDate())}${pad(value.getUTCHours())}${pad(value.getUTCMinutes())}${pad(value.getUTCSeconds())} +0000`;
+}
+
+function validScheduleWindow(program: SchedulesDirectScheduleProgram) {
+  const start = new Date(program.airDateTime);
+  const duration = Number(program.duration);
+
+  if (Number.isNaN(start.getTime()) || !Number.isFinite(duration) || duration <= 0) {
+    return undefined;
+  }
+
+  return {
+    start,
+    stop: new Date(start.getTime() + duration * 1000)
+  };
 }
 
 function dateRange(days: number) {
@@ -241,15 +274,26 @@ export class SchedulesDirectClient {
       return [];
     }
 
-    return this.request<SchedulesDirectSchedule[]>('post', '/schedules', requests);
+    const schedules: SchedulesDirectSchedule[] = [];
+
+    for (const batch of chunk(
+      requests,
+      SCHEDULE_REQUEST_BATCH_SIZE
+    )) {
+      schedules.push(...await this.request<SchedulesDirectSchedule[]>('post', '/schedules', batch));
+    }
+
+    return schedules;
   }
 
   async getPrograms(programIds: string[]) {
     const uniqueIds = Array.from(new Set(programIds));
     const programs = new Map<string, SchedulesDirectProgram>();
 
-    for (let i = 0; i < uniqueIds.length; i += 500) {
-      const batch = uniqueIds.slice(i, i + 500);
+    for (const batch of chunk(
+      uniqueIds,
+      PROGRAM_REQUEST_BATCH_SIZE
+    )) {
       const response = await this.request<SchedulesDirectProgram[]>('post', '/programs', batch);
 
       for (const program of response) {
@@ -302,11 +346,15 @@ export async function fetchSchedulesDirectXmltv(
     }
 
     for (const scheduleProgram of schedule.programs ?? []) {
-      const start = new Date(scheduleProgram.airDateTime);
-      const stop = new Date(start.getTime() + scheduleProgram.duration * 1000);
+      const window = validScheduleWindow(scheduleProgram);
+
+      if (!window) {
+        continue;
+      }
+
       const program = programs.get(scheduleProgram.programID);
 
-      xml.push(`  <programme start="${xmltvDate(start)}" stop="${xmltvDate(stop)}" channel="${xmlEscape(station.stationID)}">`);
+      xml.push(`  <programme start="${xmltvDate(window.start)}" stop="${xmltvDate(window.stop)}" channel="${xmlEscape(station.stationID)}">`);
       xml.push(`    <title>${xmlEscape(programTitle(program))}</title>`);
 
       if (program?.episodeTitle150) {

@@ -263,6 +263,8 @@ downloads station schedules and program details, then converts the result to
 XMLTV before it enters the normal parser/import pipeline. Set
 `SCHEDULES_DIRECT_LINEUP` to pin a specific lineup; otherwise the first account
 lineup is used.
+Large Schedules Direct lineups are requested in batches so station/day schedule
+payloads and program detail lookups stay within practical API and proxy limits.
 
 URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
 `SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
