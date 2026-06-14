@@ -24,6 +24,13 @@ function validProgrammeWindow(program: Program) {
   );
 }
 
+function belongsToChannel(
+  program: Program,
+  channel: Channel
+) {
+  return !program.channelId || program.channelId === channel.id;
+}
+
 type ChannelWithPrograms = Channel & {
   aliases?: Alias[];
   programs: Program[];
@@ -49,7 +56,10 @@ export function writeXmltv(channels: ChannelWithPrograms[]): string {
   }
   for (const channel of channels) {
     for (const program of channel.programs) {
-      if (!validProgrammeWindow(program)) {
+      if (!belongsToChannel(
+        program,
+        channel
+      ) || !validProgrammeWindow(program)) {
         continue;
       }
 

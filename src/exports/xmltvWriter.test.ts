@@ -70,6 +70,7 @@ describe('writeXmltv', () => {
   it('skips programmes with invalid time windows', () => {
     const xml = writeXmltv([
       {
+        id: 'channel-news',
         xmltvId: 'news.one',
         displayName: 'News One',
         logo: null,
@@ -93,5 +94,44 @@ describe('writeXmltv', () => {
     expect(xml).not.toContain('Bad Window');
     expect(xml).toContain('Good Window');
     expect(xml.match(/<programme /g)).toHaveLength(1);
+  });
+
+  it('only writes programmes that belong to the current channel', () => {
+    const xml = writeXmltv([
+      {
+        id: 'itv-channel',
+        xmltvId: 'itv',
+        displayName: 'ITV',
+        logo: null,
+        icon: null,
+        image: null,
+        programs: [
+          {
+            channelId: 'itv-channel',
+            title: 'ITV Evening News',
+            start: new Date('2026-06-12T18:00:00.000Z'),
+            stop: new Date('2026-06-12T18:30:00.000Z')
+          },
+          {
+            channelId: 'channel-5',
+            title: 'Channel 5 Programme',
+            start: new Date('2026-06-12T18:00:00.000Z'),
+            stop: new Date('2026-06-12T18:30:00.000Z')
+          },
+          {
+            channelId: 'sky-movies',
+            title: 'Sky Movies Programme',
+            start: new Date('2026-06-12T19:00:00.000Z'),
+            stop: new Date('2026-06-12T21:00:00.000Z')
+          }
+        ]
+      }
+    ] as any);
+
+    expect(xml).toContain('ITV Evening News');
+    expect(xml).not.toContain('Channel 5 Programme');
+    expect(xml).not.toContain('Sky Movies Programme');
+    expect(xml.match(/<programme /g)).toHaveLength(1);
+    expect(xml).toContain('channel="itv"');
   });
 });
