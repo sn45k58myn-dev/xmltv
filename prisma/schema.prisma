@@ -25,6 +25,10 @@ model Channel {
   mappings    Mapping[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([country, displayName])
+  @@index([category])
+  @@index([normalized])
 }
 
 model Program {
@@ -112,6 +116,9 @@ model ImportRun {
   errors          String?
   startedAt       DateTime  @default(now())
   finishedAt      DateTime?
+
+  @@index([sourceId, startedAt])
+  @@index([status, startedAt])
 }
 
 model Mapping {
@@ -123,6 +130,8 @@ model Mapping {
   createdAt         DateTime @default(now())
 
   @@unique([providerId, providerChannelId])
+  @@index([providerId])
+  @@index([channelId])
 }
 
 model ExportProfile {
@@ -137,6 +146,10 @@ model ExportProfile {
   rateLimit  Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([country])
+  @@index([category])
+  @@index([providerId])
 }
 
 model ExportToken {
@@ -149,6 +162,11 @@ model ExportToken {
   requests   Int       @default(0)
   lastUsedAt DateTime?
   createdAt  DateTime  @default(now())
+
+  @@index([active])
+  @@index([profileId])
+  @@index([providerId])
+  @@index([createdAt])
 }
 
 model Metric {

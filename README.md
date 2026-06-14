@@ -293,6 +293,10 @@ rows, and stale feed download counters according to the retention env vars.
 Pending or running queue jobs are never removed by retention.
 Source health and feed download tables include indexes for retention, dashboard,
 and monitoring queries.
+Country exports, profile filters, provider mappings, import history, and token
+administration also have dedicated database indexes for larger commercial
+datasets. These indexes improve feed and admin reads at the cost of a small
+additional write overhead during imports and token/profile changes.
 
 ## Job Runs
 
