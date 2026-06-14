@@ -61,7 +61,17 @@ const schema = z.object({
   CACHE_WARNING_MB: positiveInt.default(1024),
   CACHE_METADATA_STORE: z.enum(['filesystem', 'redis']).default('filesystem'),
   VALIDATION_MAX_FEED_MB: positiveInt.default(250),
-  VALIDATION_TIMEOUT_MS: positiveInt.default(30000)
+  VALIDATION_TIMEOUT_MS: positiveInt.default(30000),
+  WEBGRAB_ENABLED: booleanString.default('false'),
+  WEBGRAB_COMMAND: z.string().optional(),
+  WEBGRAB_WORKDIR: z.string().default('webgrab'),
+  WEBGRAB_OUTPUT_FILE: z.string().default('guide.xml'),
+  WEBGRAB_SOURCE_NAME: z.string().default('WebGrabPlus'),
+  WEBGRAB_SOURCE_PRIORITY: positiveInt.default(90),
+  WEBGRAB_SOURCE_MERGE_WEIGHT: positiveInt.default(50),
+  WEBGRAB_TIMEOUT_MS: positiveInt.default(3600000),
+  WEBGRAB_MAX_OUTPUT_MB: positiveInt.default(1024),
+  WEBGRAB_REBUILD_FEEDS: booleanString.default('true')
 });
 
 export const env = schema.parse(process.env);

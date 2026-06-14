@@ -41,7 +41,8 @@ export async function runEnabledImports() {
           name: source.name,
           type: source.type,
           url: source.url ?? undefined,
-          priority: source.priority
+          priority: source.priority,
+          mergeWeight: source.mergeWeight
         })
       );
 

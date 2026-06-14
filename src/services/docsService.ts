@@ -37,6 +37,8 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/stats/downloads', description: 'Admin/viewer feed download stats. Requires x-admin-token or API key.' },
       { method: 'GET', path: '/api/admin/analytics', description: 'Admin analytics summary.' },
       { method: 'POST', path: '/api/admin/imports/run', description: 'Admin manual import trigger. Runs inline by default or enqueues when IMPORT_RUN_MODE=queue.' },
+      { method: 'GET', path: '/api/admin/webgrab/status', description: 'Admin/viewer WebGrab+Plus importer configuration and output file status. Does not expose WEBGRAB_COMMAND.' },
+      { method: 'POST', path: '/api/admin/webgrab/run', description: 'Admin WebGrab+Plus trigger. Runs WEBGRAB_COMMAND, validates WEBGRAB_OUTPUT_FILE as XMLTV, imports it, and optionally rebuilds cached feeds.' },
       { method: 'GET', path: '/api/admin/jobs', description: 'Admin job run history.' },
       { method: 'GET', path: '/api/admin/jobs/:id', description: 'Admin job run details.' },
       { method: 'GET', path: '/api/admin/queue', description: 'Admin queued job history for queued import workers.' },

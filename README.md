@@ -93,6 +93,16 @@ FEED_CACHE_MAX_AGE_SECONDS=300
 CACHE_WARNING_MB=1024
 VALIDATION_MAX_FEED_MB=250
 VALIDATION_TIMEOUT_MS=30000
+WEBGRAB_ENABLED=false
+WEBGRAB_COMMAND=
+WEBGRAB_WORKDIR=webgrab
+WEBGRAB_OUTPUT_FILE=guide.xml
+WEBGRAB_SOURCE_NAME=WebGrabPlus
+WEBGRAB_SOURCE_PRIORITY=90
+WEBGRAB_SOURCE_MERGE_WEIGHT=50
+WEBGRAB_TIMEOUT_MS=3600000
+WEBGRAB_MAX_OUTPUT_MB=1024
+WEBGRAB_REBUILD_FEEDS=true
 ```
 
 Important variables:
@@ -169,6 +179,20 @@ Important variables:
 - `CACHE_METADATA_STORE`: `filesystem` for direct cache scans, or `redis` for a shared cache metadata index.
 - `VALIDATION_MAX_FEED_MB`: Maximum cached feed file size parsed by full validation.
 - `VALIDATION_TIMEOUT_MS`: Per-feed timeout guard for full validation.
+- `WEBGRAB_ENABLED`: Enables the admin WebGrab+Plus importer when `true`.
+- `WEBGRAB_COMMAND`: Trusted deployment command run by
+  `/api/admin/webgrab/run`. The API never accepts arbitrary commands from
+  requests.
+- `WEBGRAB_WORKDIR`: Working directory used for the WebGrab+Plus run.
+- `WEBGRAB_OUTPUT_FILE`: XMLTV file produced by WebGrab+Plus, relative to
+  `WEBGRAB_WORKDIR` unless absolute.
+- `WEBGRAB_SOURCE_NAME`: Source name used when importing the generated guide.
+- `WEBGRAB_SOURCE_PRIORITY` and `WEBGRAB_SOURCE_MERGE_WEIGHT`: Import ordering
+  and merge weight for the generated WebGrab+Plus source.
+- `WEBGRAB_TIMEOUT_MS`: Maximum WebGrab+Plus command runtime.
+- `WEBGRAB_MAX_OUTPUT_MB`: Maximum generated guide size before import.
+- `WEBGRAB_REBUILD_FEEDS`: Rebuilds cached feeds after a successful WebGrab+Plus
+  import when `true`.
 
 ## Database Setup
 
@@ -272,25 +296,67 @@ endpoint accepts one XMLTV file field and a small number of form fields,
 sanitizes the original filename before using it in import labels, and removes
 temporary upload files after success or failure.
 
-### WebGrab+Plus Upstream Feeds
+### WebGrab+Plus Importer
 
 WebGrab+Plus can be used as an upstream XMLTV generator when a country/provider
-is better covered by its SiteIni pack than by direct public XMLTV feeds. Run
-WebGrab+Plus separately, publish its generated `guide.xml` or `guide.xml.gz`
-from trusted storage, then add that URL in Admin -> Sources with type `url`.
+is better covered by its SiteIni pack than by direct public XMLTV feeds. XMLTV
+Aggregator does not embed the WebGrab+Plus scraper engine or SiteIni runtime.
+Instead, it can run a trusted `WEBGRAB_COMMAND`, validate the generated
+`guide.xml`, import it through the normal XMLTV pipeline, and optionally rebuild
+cached country/profile/provider feeds.
 
-Recommended source settings:
+Minimal local configuration:
 
-- Name: `WebGrabPlus <country/provider>`
-- Type: `url`
-- URL: `https://your-host.example/guide.xml` or `guide.xml.gz`
-- Priority: lower than your primary licensed/provider feed when used as backup
-- Merge Weight: lower than your primary feed when the same channels overlap
+```env
+WEBGRAB_ENABLED=true
+WEBGRAB_WORKDIR=C:\xmltv\webgrab
+WEBGRAB_OUTPUT_FILE=guide.xml
+WEBGRAB_COMMAND="C:\Program Files\WebGrab+Plus\WebGrab+Plus.exe"
+WEBGRAB_SOURCE_NAME=WebGrabPlus UK
+WEBGRAB_SOURCE_PRIORITY=90
+WEBGRAB_SOURCE_MERGE_WEIGHT=50
+WEBGRAB_REBUILD_FEEDS=true
+```
+
+With the LinuxServer.io WebGrab+Plus image, mount the same data path into both
+the WebGrab+Plus container and XMLTV Aggregator. The WebGrab+Plus container
+generates `guide.xml`; XMLTV Aggregator then imports that file from the shared
+directory. If WebGrab+Plus runs on its own schedule, use a harmless command such
+as `true` so `/api/admin/webgrab/run` validates and imports the latest generated
+file without starting a nested container:
+
+```env
+WEBGRAB_ENABLED=true
+WEBGRAB_WORKDIR=/data/webgrab
+WEBGRAB_OUTPUT_FILE=guide.xml
+WEBGRAB_COMMAND=true
+WEBGRAB_SOURCE_NAME=WebGrabPlus
+WEBGRAB_REBUILD_FEEDS=true
+```
+
+Trigger a run from Admin -> Dashboard -> Run WebGrab+, Admin -> Sources -> Run
+WebGrab+, or the API:
+
+```bash
+curl -X POST -H "x-admin-token: $ADMIN_TOKEN" \
+  http://localhost:3000/api/admin/webgrab/run
+```
+
+When `IMPORT_RUN_MODE=queue`, the same endpoint enqueues a `webgrab-run` job for
+the database queue or BullMQ worker. Check configuration without exposing the
+actual command:
+
+```bash
+curl -H "x-admin-token: $ADMIN_TOKEN" \
+  http://localhost:3000/api/admin/webgrab/status
+```
 
 Remote source fetching requests and accepts `gzip`, `deflate`, and `br`
 compressed responses, and also detects `.xml.gz` files by extension/magic bytes.
-Do not import the public WebGrab+Plus SiteIni files directly into this app; they
-are scraper definitions for the WebGrab+Plus runtime, not XMLTV guide output.
+You can still publish a generated `guide.xml` or `guide.xml.gz` from trusted
+storage and add it as an Admin -> Sources URL source. Do not import public
+WebGrab+Plus SiteIni files directly into this app; `.ini` and `.channels.xml`
+files are scraper/config definitions for WebGrab+Plus, not XMLTV guide output.
 
 Schedules Direct imports use the SD-JSON API when
 `SCHEDULES_DIRECT_USERNAME` and `SCHEDULES_DIRECT_PASSWORD` are set. The adapter

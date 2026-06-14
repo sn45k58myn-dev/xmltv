@@ -27,14 +27,16 @@ const sources = [
     name: 'Primary',
     type: 'url',
     url: 'https://example.com/primary.xml',
-    priority: 1
+    priority: 1,
+    mergeWeight: 25
   },
   {
     id: 'source-2',
     name: 'Backup',
     type: 'url',
     url: 'https://example.com/backup.xml',
-    priority: 2
+    priority: 2,
+    mergeWeight: 75
   }
 ];
 
@@ -62,6 +64,10 @@ describe('import work', () => {
       }
     });
     expect(withImportTimeout).toHaveBeenCalledTimes(2);
+    expect(runImport).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Primary',
+      mergeWeight: 25
+    }));
     expect(results).toEqual([
       expect.objectContaining({
         sourceId: 'source-1',

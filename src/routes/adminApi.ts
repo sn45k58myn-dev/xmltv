@@ -1,6 +1,7 @@
 
 import { Router } from 'express';
 import crypto from 'node:crypto';
+import { env } from '../config/env';
 import { prisma } from '../db/prisma';
 import { requireAdmin, requireOperator, requireRole } from '../middleware/auth';
 import { autoGenerateAliases } from '../premium/aliasGenerator';
@@ -13,7 +14,10 @@ import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
 import { createApiKey, maskApiKey } from '../services/apiKeys';
-import { getQueueHealth, requeueStaleRunningJobs, retryFailedQueuedJob } from '../jobs/jobQueue';
+import { enqueueJob, getQueueHealth, requeueStaleRunningJobs, retryFailedQueuedJob } from '../jobs/jobQueue';
+import { enqueueBullJob } from '../jobs/bullQueue';
+import { runTrackedJob } from '../jobs/jobRuns';
+import { getWebGrabStatus, runWebGrabImport, summarizeWebGrabResult } from '../services/webgrabRunner';
 import { boundedLimit } from '../utils/limits';
 import { safeRouteId } from '../utils/routeParams';
 import {
@@ -80,6 +84,71 @@ adminApi.get('/summary', requireViewer, async (_req, res) => {
 adminApi.get('/analytics', requireViewer, async (_req, res) => res.json(await getDashboardStats()));
 adminApi.get('/metadata', requireViewer, async (_req, res) => res.json(await getFeedMetadata()));
 adminApi.get('/validation', requireOperator, async (_req, res) => res.json(await validateCachedFeeds()));
+adminApi.get('/webgrab/status', requireViewer, async (_req, res) => res.json(await getWebGrabStatus()));
+adminApi.post('/webgrab/run', requireAdmin, async (req, res) => {
+  if (env.IMPORT_RUN_MODE === 'queue') {
+    if (env.JOB_QUEUE_BACKEND === 'bullmq') {
+      const job = await enqueueBullJob('webgrab-run');
+
+      await recordAuditEvent(req, {
+        action: 'webgrab.queue',
+        entityType: 'BullMQ',
+        entityId: job.id,
+        metadata: {
+          backend: 'bullmq'
+        }
+      });
+
+      return res.status(202).json({
+        queued: true,
+        backend: 'bullmq',
+        jobId: job.id,
+        status: job.status,
+        type: job.type
+      });
+    }
+
+    const job = await enqueueJob('webgrab-run');
+
+    await recordAuditEvent(req, {
+      action: 'webgrab.queue',
+      entityType: 'JobQueue',
+      entityId: job.id,
+      metadata: {
+        backend: 'database'
+      }
+    });
+
+    return res.status(202).json({
+      queued: true,
+      backend: 'database',
+      jobId: job.id,
+      status: job.status,
+      type: job.type
+    });
+  }
+
+  const result = await runTrackedJob(
+    'webgrab-run',
+    'manual',
+    runWebGrabImport,
+    summarizeWebGrabResult
+  );
+
+  await recordAuditEvent(req, {
+    action: 'webgrab.run',
+    entityType: 'ImportRun',
+    entityId: (result.importResult as { id?: string })?.id,
+    metadata: {
+      sourceName: result.sourceName,
+      channels: result.channels,
+      programs: result.programs,
+      feedsRebuilt: result.feedsRebuilt
+    }
+  });
+
+  return res.json(result);
+});
 adminApi.get('/quality', requireViewer, async (req, res) => {
   const persistSnapshot = req.query.snapshot === 'true';
 

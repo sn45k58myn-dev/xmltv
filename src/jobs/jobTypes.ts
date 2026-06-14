@@ -1,7 +1,8 @@
-export type JobType = 'manual-imports';
+export type JobType = 'manual-imports' | 'webgrab-run';
 
 const KNOWN_JOB_TYPES = new Set<string>([
-  'manual-imports'
+  'manual-imports',
+  'webgrab-run'
 ]);
 export const MAX_JOB_PAYLOAD_BYTES = 64 * 1024;
 

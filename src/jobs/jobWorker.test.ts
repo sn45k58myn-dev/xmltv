@@ -24,6 +24,11 @@ vi.mock('./importWork', () => ({
   summarizeImportResults: vi.fn()
 }));
 
+vi.mock('../services/webgrabRunner', () => ({
+  runWebGrabImport: vi.fn(),
+  summarizeWebGrabResult: vi.fn()
+}));
+
 describe('jobWorker', () => {
   beforeEach(() => {
     vi.clearAllMocks();

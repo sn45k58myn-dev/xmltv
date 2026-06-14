@@ -325,6 +325,7 @@ async function loadDashboard() {
         <button data-action="dashboard-metadata">Load metadata</button>
         <button data-action="dashboard-validation">Run validation</button>
         <button data-action="dashboard-imports">Run imports</button>
+        <button data-action="dashboard-webgrab">Run WebGrab+</button>
       </div>
       <h3>Top Feeds</h3>
       ${table(analytics.topFeeds)}
@@ -397,12 +398,39 @@ async function runDashboardImports() {
   }
 }
 
+async function runDashboardWebGrab() {
+  const target = document.getElementById('dashboard-detail') || document.getElementById('analytics-detail') || content();
+  target.innerHTML = '<p class="muted">Running WebGrab+ importer...</p>';
+
+  try {
+    const result = await api('webgrab/run', {
+      method: 'POST'
+    });
+    target.innerHTML = `
+      <h3>WebGrab+ Result</h3>
+      ${table([{
+        queued: result.queued || false,
+        backend: result.backend || 'inline',
+        jobId: result.jobId || '',
+        status: result.status,
+        channels: result.channels,
+        programs: result.programs,
+        outputBytes: result.outputBytes,
+        feedsRebuilt: result.feedsRebuilt
+      }])}
+    `;
+  } catch (error) {
+    target.innerHTML = `<pre class="error">${escapeHtml(error.message || String(error))}</pre>`;
+  }
+}
+
 async function loadSourcesUI() {
   cardsEl().innerHTML = '';
   content().innerHTML = `
     <h2>Sources</h2>
     <div class="card">
       <button data-action="run-all-imports">Run All Enabled Imports</button>
+      <button data-action="dashboard-webgrab">Run WebGrab+</button>
     </div>
     <div class="card">
       <h3 id="form-title">Add Source</h3>
@@ -778,6 +806,7 @@ async function loadAnalytics() {
         <button data-action="feed-quality">Score quality</button>
         <button data-action="feed-quality-history">Quality history</button>
         <button data-action="dashboard-imports">Run imports</button>
+        <button data-action="dashboard-webgrab">Run WebGrab+</button>
       </div>
       <h3>Top Feeds</h3>
       ${table(analytics.topFeeds)}
@@ -1138,6 +1167,7 @@ document.addEventListener('click', (event) => {
   if (action === 'dashboard-metadata') return loadDashboardMetadata();
   if (action === 'dashboard-validation') return loadDashboardValidation();
   if (action === 'dashboard-imports') return runDashboardImports();
+  if (action === 'dashboard-webgrab') return runDashboardWebGrab();
   if (action === 'sources-ui') return loadSourcesUI();
   if (action === 'run-all-imports') return runAllImports();
   if (action === 'retry-queue-job') return retryQueueJob(id);

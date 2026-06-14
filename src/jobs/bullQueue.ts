@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import { runTrackedJob } from './jobRuns';
 import { runEnabledImports, summarizeImportResults } from './importWork';
 import { assertJobPayloadSize, assertKnownJobType } from './jobTypes';
+import { runWebGrabImport, summarizeWebGrabResult } from '../services/webgrabRunner';
 
 const QUEUE_NAME = 'xmltv-jobs';
 
@@ -81,6 +82,15 @@ export function startBullJobWorker() {
           'bullmq',
           runEnabledImports,
           summarizeImportResults
+        );
+      }
+
+      if (job.name === 'webgrab-run') {
+        return runTrackedJob(
+          'webgrab-run',
+          'bullmq',
+          runWebGrabImport,
+          summarizeWebGrabResult
         );
       }
 

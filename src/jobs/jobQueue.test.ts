@@ -151,6 +151,21 @@ describe('jobQueue', () => {
     vi.useRealTimers();
   });
 
+  it('allows WebGrab+Plus import jobs', async () => {
+    vi.mocked(prisma.jobQueue.create).mockResolvedValue({
+      ...job,
+      type: 'webgrab-run'
+    } as any);
+
+    await enqueueJob('webgrab-run');
+
+    expect(prisma.jobQueue.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: 'webgrab-run'
+      })
+    });
+  });
+
   it('summarizes queue health for operations', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));

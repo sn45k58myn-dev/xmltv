@@ -7,6 +7,7 @@ import {
   retryQueuedJob
 } from './jobQueue';
 import { runEnabledImports, summarizeImportResults } from './importWork';
+import { runWebGrabImport, summarizeWebGrabResult } from '../services/webgrabRunner';
 
 async function runQueuedJob(job: Awaited<ReturnType<typeof claimNextJob>>) {
   if (!job) return;
@@ -17,6 +18,22 @@ async function runQueuedJob(job: Awaited<ReturnType<typeof claimNextJob>>) {
       'queue',
       runEnabledImports,
       summarizeImportResults
+    );
+
+    await finishQueuedJob(
+      job.id,
+      'success',
+      result
+    );
+    return;
+  }
+
+  if (job.type === 'webgrab-run') {
+    const result = await runTrackedJob(
+      'webgrab-run',
+      'queue',
+      runWebGrabImport,
+      summarizeWebGrabResult
     );
 
     await finishQueuedJob(
