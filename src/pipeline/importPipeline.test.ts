@@ -17,6 +17,8 @@ vi.mock('../db/prisma', () => ({
     channel: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
       create: vi.fn()
     },
     alias: {
@@ -65,6 +67,12 @@ describe('runImport', () => {
       xmltvId: 'sample.channel',
       displayName: 'Sample Channel'
     } as any);
+    vi.mocked(prisma.channel.update).mockImplementation(async ({ data }) => ({
+      id: 'channel-1',
+      xmltvId: 'sample.channel',
+      displayName: 'Sample Channel',
+      sourceRefs: data.sourceRefs
+    }) as any);
     vi.mocked(prisma.program.createMany).mockResolvedValue({
       count: 1
     } as any);
@@ -148,5 +156,46 @@ describe('runImport', () => {
       type: 'upload',
       url: 'uploads/local-file'
     }));
+  });
+
+  it('records source references when an existing channel is reused', async () => {
+    vi.mocked(prisma.channel.findUnique).mockResolvedValue({
+      id: 'channel-1',
+      xmltvId: 'sample.channel',
+      displayName: 'Sample Channel',
+      sourceRefs: JSON.stringify([
+        {
+          sourceId: 'source-old',
+          sourceChannelId: 'old.channel'
+        }
+      ])
+    } as any);
+
+    const result = await runImport({
+      name: 'Test Source US',
+      type: 'custom-url',
+      url: 'https://example.test/feed.xml',
+      priority: 10
+    });
+
+    expect(result.status).toBe('success');
+    expect(prisma.channel.update).toHaveBeenCalledWith({
+      where: {
+        id: 'channel-1'
+      },
+      data: {
+        sourceRefs: JSON.stringify([
+          {
+            sourceId: 'source-old',
+            sourceChannelId: 'old.channel'
+          },
+          {
+            sourceId: 'source-1',
+            sourceChannelId: 'sample.channel'
+          }
+        ])
+      }
+    });
+    expect(prisma.channel.create).not.toHaveBeenCalled();
   });
 });

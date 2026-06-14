@@ -14,6 +14,16 @@ function xmltvDate(date: Date): string {
   return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())} +0000`;
 }
 
+function validProgrammeWindow(program: Program) {
+  return (
+    program.start instanceof Date &&
+    program.stop instanceof Date &&
+    !Number.isNaN(program.start.valueOf()) &&
+    !Number.isNaN(program.stop.valueOf()) &&
+    program.stop > program.start
+  );
+}
+
 type ChannelWithPrograms = Channel & {
   aliases?: Alias[];
   programs: Program[];
@@ -39,6 +49,10 @@ export function writeXmltv(channels: ChannelWithPrograms[]): string {
   }
   for (const channel of channels) {
     for (const program of channel.programs) {
+      if (!validProgrammeWindow(program)) {
+        continue;
+      }
+
       out.push(`  <programme start="${xmltvDate(program.start)}" stop="${xmltvDate(program.stop)}" channel="${esc(channel.xmltvId)}">`);
       out.push(`    <title>${esc(program.title)}</title>`);
       if (program.subtitle) out.push(`    <sub-title>${esc(program.subtitle)}</sub-title>`);

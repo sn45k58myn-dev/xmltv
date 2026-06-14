@@ -25,6 +25,53 @@ async function upsertSource(definition) {
   });
 }
 
+function sourceRefsFor(channel) {
+  if (!channel.sourceRefs) {
+    return [];
+  }
+
+  try {
+    const refs = JSON.parse(channel.sourceRefs);
+
+    return Array.isArray(refs) ? refs : [];
+  } catch {
+    return [];
+  }
+}
+
+async function ensureSourceRef(
+  channel,
+  source,
+  sourceChannelId: string
+) {
+  const refs = sourceRefsFor(channel);
+  const exists = refs.some((ref) =>
+    ref?.sourceId === source.id &&
+    ref?.sourceChannelId === sourceChannelId
+  );
+
+  if (exists) {
+    return channel;
+  }
+
+  const updatedRefs = [
+    ...refs,
+    {
+      sourceId: source.id,
+      sourceChannelId
+    }
+  ];
+
+  return prisma.channel.update({
+    where: {
+      id: channel.id
+    },
+    data: {
+      sourceRefs: JSON.stringify(updatedRefs)
+    }
+  });
+}
+
 async function findOrCreateChannel(input, source) {
   const normalized = normalizeName(input.displayName);
 
@@ -33,7 +80,14 @@ async function findOrCreateChannel(input, source) {
   });
 
   if (existingById) {
-    return { channel: existingById, created: false };
+    return {
+      channel: await ensureSourceRef(
+        existingById,
+        source,
+        input.id
+      ),
+      created: false
+    };
   }
 
   const alias = await prisma.alias.findFirst({
@@ -42,9 +96,13 @@ async function findOrCreateChannel(input, source) {
 
   if (alias) {
     return {
-      channel: await prisma.channel.findUniqueOrThrow({
-        where: { id: alias.channelId },
-      }),
+      channel: await ensureSourceRef(
+        await prisma.channel.findUniqueOrThrow({
+          where: { id: alias.channelId },
+        }),
+        source,
+        input.id
+      ),
       created: false,
     };
   }
@@ -62,7 +120,14 @@ async function findOrCreateChannel(input, source) {
       },
     }).catch(() => null);
 
-    return { channel: similar, created: false };
+    return {
+      channel: await ensureSourceRef(
+        similar,
+        source,
+        input.id
+      ),
+      created: false
+    };
   }
 
   const metadata = enrichChannel(input.displayName);

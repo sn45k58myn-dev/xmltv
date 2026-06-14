@@ -14,35 +14,52 @@ function parseXmltvDate(value: string): Date {
 
 function text(value: any): string | undefined {
   if (value === undefined || value === null) return undefined;
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') return value.trim() || undefined;
   if (typeof value === 'number') return String(value);
-  if (typeof value === 'object' && '#text' in value) return String(value['#text']);
+  if (typeof value === 'object' && '#text' in value) return text(value['#text']);
   return undefined;
+}
+
+function firstValue(values: any) {
+  return text(Array.isArray(values) ? values[0] : values);
 }
 
 export function parseXmltv(xml: string): ParsedXmltv {
   const doc = parser.parse(xml);
   if (!doc.tv) throw new Error('Invalid XMLTV: missing <tv> root');
 
-  const channels: XmltvChannel[] = arrayify<any>(doc.tv.channel).map((channel) => {
+  const channels: XmltvChannel[] = arrayify<any>(doc.tv.channel).flatMap((channel) => {
+    const id = text(channel['@_id']);
+
+    if (!id) {
+      return [];
+    }
+
     const displayNames = arrayify<any>(channel['display-name']).map(text).filter(Boolean) as string[];
     const icon = Array.isArray(channel.icon) ? channel.icon[0]?.['@_src'] : channel.icon?.['@_src'];
-    return {
-      id: String(channel['@_id']),
-      displayName: displayNames[0] ?? String(channel['@_id']),
+
+    return [{
+      id,
+      displayName: displayNames[0] ?? id,
       aliases: displayNames.slice(1),
+      country: text(channel['@_country']),
+      category: firstValue(channel.category),
       icon
-    };
+    }];
   });
 
   const programs: XmltvProgram[] = arrayify<any>(doc.tv.programme).flatMap((program) => {
     if (!program['@_channel'] || !program['@_start'] || !program['@_stop']) return [];
+    const categories = arrayify<any>(program.category)
+      .map(text)
+      .filter(Boolean) as string[];
+
     return [{
       channel: String(program['@_channel']),
-      title: text(Array.isArray(program.title) ? program.title[0] : program.title) ?? 'Untitled',
-      subtitle: text(Array.isArray(program['sub-title']) ? program['sub-title'][0] : program['sub-title']),
-      description: text(Array.isArray(program.desc) ? program.desc[0] : program.desc),
-      category: text(Array.isArray(program.category) ? program.category[0] : program.category),
+      title: firstValue(program.title) ?? 'Untitled',
+      subtitle: firstValue(program['sub-title']),
+      description: firstValue(program.desc),
+      category: categories.length ? Array.from(new Set(categories)).join(', ') : undefined,
       start: parseXmltvDate(String(program['@_start'])),
       stop: parseXmltvDate(String(program['@_stop']))
     }];

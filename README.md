@@ -269,6 +269,11 @@ payloads and program detail lookups stay within practical API and proxy limits.
 URL source downloads retry transient failures using `SOURCE_FETCH_RETRIES` and
 `SOURCE_RETRY_DELAY_MS`. Freshness checks only skip imports when the source
 returns usable `ETag` or `Last-Modified` validators.
+Imports reject duplicate source channel ids, preserve all programme categories
+as comma-separated metadata, and append source reference metadata when an
+existing channel is reused through id, alias, or normalized-name matching.
+Exports defensively skip invalid programme time windows so bad rows do not leak
+into generated XMLTV feeds.
 
 Scheduled imports use database-backed job locks so only one scheduler owner runs
 the import or retention job at a time. A recent failed source health check causes

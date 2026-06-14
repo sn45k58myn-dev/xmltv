@@ -52,6 +52,46 @@ describe('parseXmltv', () => {
       aliases: ['ITV One', 'Independent Television']
     });
   });
+
+  it('keeps channel metadata and multiple programme categories', () => {
+    const parsed = parseXmltv(`
+      <tv>
+        <channel id="sports.one" country="GB">
+          <display-name> Sports One </display-name>
+          <category>Sports</category>
+        </channel>
+        <programme start="20260612090000 +0000" stop="20260612100000 +0000" channel="sports.one">
+          <title> Live Match </title>
+          <category>Sports</category>
+          <category>Football</category>
+          <category>Sports</category>
+        </programme>
+      </tv>
+    `);
+
+    expect(parsed.channels[0]).toMatchObject({
+      id: 'sports.one',
+      displayName: 'Sports One',
+      country: 'GB',
+      category: 'Sports'
+    });
+    expect(parsed.programs[0]).toMatchObject({
+      title: 'Live Match',
+      category: 'Sports, Football'
+    });
+  });
+
+  it('skips channels without usable ids', () => {
+    const parsed = parseXmltv(`
+      <tv>
+        <channel><display-name>No ID</display-name></channel>
+        <channel id="valid"><display-name>Valid</display-name></channel>
+      </tv>
+    `);
+
+    expect(parsed.channels).toHaveLength(1);
+    expect(parsed.channels[0].id).toBe('valid');
+  });
 });
 
 describe('validateXmltv', () => {
@@ -79,5 +119,16 @@ describe('validateXmltv', () => {
     `);
 
     expect(() => validateXmltv(parsed)).toThrow('programme references unknown channel missing');
+  });
+
+  it('rejects duplicate channel ids', () => {
+    const parsed = parseXmltv(`
+      <tv>
+        <channel id="dup"><display-name>One</display-name></channel>
+        <channel id="dup"><display-name>Two</display-name></channel>
+      </tv>
+    `);
+
+    expect(() => validateXmltv(parsed)).toThrow('duplicate channel id dup');
   });
 });

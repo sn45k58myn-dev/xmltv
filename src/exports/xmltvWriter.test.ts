@@ -66,4 +66,32 @@ describe('writeXmltv', () => {
     expect(xml).toContain('<display-name>News 1</display-name>');
     expect(xml.match(/<display-name>/g)).toHaveLength(2);
   });
+
+  it('skips programmes with invalid time windows', () => {
+    const xml = writeXmltv([
+      {
+        xmltvId: 'news.one',
+        displayName: 'News One',
+        logo: null,
+        icon: null,
+        image: null,
+        programs: [
+          {
+            title: 'Bad Window',
+            start: new Date('2026-06-12T10:00:00.000Z'),
+            stop: new Date('2026-06-12T09:00:00.000Z')
+          },
+          {
+            title: 'Good Window',
+            start: new Date('2026-06-12T11:00:00.000Z'),
+            stop: new Date('2026-06-12T12:00:00.000Z')
+          }
+        ]
+      }
+    ] as any);
+
+    expect(xml).not.toContain('Bad Window');
+    expect(xml).toContain('Good Window');
+    expect(xml.match(/<programme /g)).toHaveLength(1);
+  });
 });
