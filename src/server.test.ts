@@ -62,6 +62,9 @@ vi.mock('./db/prisma', () => ({
       updateMany: vi.fn(),
       update: vi.fn()
     },
+    mapping: {
+      findMany: vi.fn()
+    },
     auditLog: {
       create: vi.fn(),
       findMany: vi.fn()
@@ -734,6 +737,29 @@ describe('server API', () => {
       }
     }));
     expect(recordFeedDownload).toHaveBeenCalledWith('provider_jellyextreme.xml');
+  });
+
+  it('counts provider feed downloads when cache is not yet generated', async () => {
+    mockExportToken();
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+    vi.mocked(getCachedFeedFile).mockResolvedValue(null);
+    vi.mocked(prisma.mapping.findMany).mockResolvedValue([{
+      providerId: 'new-provider',
+      providerChannelId: 'channel-1',
+      channel: {
+        displayName: 'Channel One',
+        normalized: 'channel one',
+        programs: []
+      }
+    }] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/provider/new-provider.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(response.status).toBe(200);
+    expect(recordFeedDownload).toHaveBeenCalledWith('provider_new-provider.xml');
   });
 
   it('rejects scoped export tokens on non-matching feeds without incrementing usage', async () => {
