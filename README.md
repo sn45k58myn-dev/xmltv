@@ -289,6 +289,8 @@ Operational retention runs daily after programme retention. It prunes old audit
 logs, job runs, completed queue jobs, feed quality snapshots, source health
 rows, and stale feed download counters according to the retention env vars.
 Pending or running queue jobs are never removed by retention.
+Source health and feed download tables include indexes for retention, dashboard,
+and monitoring queries.
 
 ## Job Runs
 

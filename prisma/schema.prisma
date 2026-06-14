@@ -168,6 +168,9 @@ model SourceHealth {
   message   String?
   checkedAt DateTime @default(now())
   Source    Source   @relation(fields: [sourceId], references: [id])
+
+  @@index([checkedAt])
+  @@index([sourceId, checkedAt])
 }
 
 
@@ -178,6 +181,9 @@ model FeedDownload {
   lastDownloaded DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([downloads])
+  @@index([lastDownloaded])
 }
 
 model JobRun {
