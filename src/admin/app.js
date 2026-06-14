@@ -793,6 +793,7 @@ async function loadProfilesUI() {
           <label>Slug <input id="profile-slug" required></label>
           <label>Country <input id="profile-country" placeholder="US, GB, CA"></label>
           <label>Category <input id="profile-category" placeholder="sports, movies"></label>
+          <label>Rate limit <input id="profile-rate-limit" type="number" min="1" step="1" placeholder="requests per window"></label>
           <button type="submit">Create Profile</button>
         </form>
       </div>
@@ -814,7 +815,10 @@ async function createProfile(event) {
         name: document.getElementById('profile-name').value,
         slug: document.getElementById('profile-slug').value,
         country: document.getElementById('profile-country').value || null,
-        category: document.getElementById('profile-category').value || null
+        category: document.getElementById('profile-category').value || null,
+        rateLimit: document.getElementById('profile-rate-limit').value
+          ? Number(document.getElementById('profile-rate-limit').value)
+          : null
       })
     });
     loadProfilesUI();

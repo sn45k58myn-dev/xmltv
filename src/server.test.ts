@@ -33,6 +33,8 @@ vi.mock('./db/prisma', () => ({
     exportProfile: {
       count: vi.fn(),
       create: vi.fn(),
+      findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn()
     },
@@ -625,6 +627,47 @@ describe('server API', () => {
     expect(providerResponse.body.error).toContain('not allowed');
     expect(prisma.exportToken.updateMany).not.toHaveBeenCalled();
     expect(getCachedFeedFile).not.toHaveBeenCalled();
+  });
+
+  it('enforces profile-specific export rate limits for profile-scoped tokens', async () => {
+    mockExportToken({
+      id: 'limited-token',
+      profileId: 'profile-1'
+    });
+    vi.mocked(prisma.exportProfile.findUnique).mockResolvedValue({
+      rateLimit: 1
+    } as any);
+    vi.mocked(prisma.exportProfile.findUniqueOrThrow).mockResolvedValue({
+      id: 'profile-1',
+      name: 'Limited customer',
+      slug: 'limited',
+      country: null,
+      category: null,
+      providerId: null,
+      channelIds: null,
+      token: null,
+      rateLimit: 1,
+      createdAt: new Date('2026-06-14T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-14T00:00:00.000Z')
+    } as any);
+    vi.mocked(prisma.channel.findMany).mockResolvedValue([]);
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const first = await request(app)
+      .get('/profile/profile-1.xml')
+      .set('x-export-token', 'valid-token');
+    const second = await request(app)
+      .get('/profile/profile-1.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(first.status).toBe(200);
+    expect(first.headers['x-profile-rate-limit-limit']).toBe('1');
+    expect(first.headers['x-profile-rate-limit-remaining']).toBe('0');
+    expect(second.status).toBe(429);
+    expect(second.body.error).toContain('Profile export rate limit exceeded');
+    expect(prisma.exportToken.updateMany).toHaveBeenCalledTimes(1);
+    expect(recordFeedDownload).toHaveBeenCalledTimes(1);
   });
 
   it('returns 304 for unchanged cached feeds without streaming or counting a download', async () => {

@@ -403,6 +403,9 @@ token secret.
 Tokens with `profileId` or `providerId` are scoped to that matching profile or
 provider feed. Scoped tokens are rejected on country, category, or unrelated
 provider/profile feeds, which lets you issue customer-specific guide URLs.
+Export profiles can also set `rateLimit`; when a token is scoped to that profile,
+requests are capped to that number per `RATE_LIMIT_WINDOW_MS` before the feed is
+generated or token usage is incremented.
 
 ## Admin UI
 

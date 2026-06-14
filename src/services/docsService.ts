@@ -9,7 +9,7 @@ export function buildApiDocs() {
     authentication: {
       admin: 'Send x-admin-token or an admin role x-api-key for /api/admin, /api/sources, /api/export-tokens, /imports/upload, /profiles, and debug routes.',
       apiKeys: 'API keys may also be sent as Authorization: Bearer <api-key>. API key secrets are shown once at creation and then stored as SHA-256 hashes.',
-      exports: 'Protected feeds require PUBLIC_EXPORTS=true, x-export-token, or ?token=<export-token>. The x-export-token header takes precedence when both are supplied. Tokens with profileId or providerId are scoped to the matching profile/provider feed.'
+      exports: 'Protected feeds require PUBLIC_EXPORTS=true, x-export-token, or ?token=<export-token>. The x-export-token header takes precedence when both are supplied. Tokens with profileId or providerId are scoped to the matching profile/provider feed; profile-scoped tokens honor ExportProfile.rateLimit.'
     },
     endpoints: [
       { method: 'GET', path: '/health', description: 'Basic health check.' },
