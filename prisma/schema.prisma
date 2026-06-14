@@ -185,7 +185,7 @@ model SourceHealth {
   status    String
   message   String?
   checkedAt DateTime @default(now())
-  Source    Source   @relation(fields: [sourceId], references: [id])
+  Source    Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@index([checkedAt])
   @@index([sourceId, checkedAt])
