@@ -12,7 +12,7 @@ import { getFeedMetadata } from '../services/feedMetadata';
 import { validateCachedFeeds } from '../services/feedValidation';
 import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
-import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
+import { clearAuditEvents, getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
 import { createApiKey, maskApiKey } from '../services/apiKeys';
 import { enqueueJob, getQueueHealth, requeueStaleRunningJobs, retryFailedQueuedJob } from '../jobs/jobQueue';
 import { enqueueBullJob } from '../jobs/bullQueue';
@@ -278,6 +278,12 @@ adminApi.get('/audit', requireAdmin, async (req, res) => {
     defaultValue: 100,
     max: 500
   })));
+});
+adminApi.delete('/audit', requireAdmin, async (_req, res) => {
+  const result = await clearAuditEvents();
+  res.json({
+    cleared: result.count
+  });
 });
 adminApi.get('/api-keys', requireAdmin, async (req, res) => {
   const apiKeys = await prisma.apiKey.findMany({

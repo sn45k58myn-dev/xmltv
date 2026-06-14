@@ -69,3 +69,7 @@ export async function getAuditEvents(limit = 100) {
     })
   });
 }
+
+export async function clearAuditEvents() {
+  return prisma.auditLog.deleteMany();
+}

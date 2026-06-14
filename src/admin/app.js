@@ -736,6 +736,9 @@ async function loadAuditLog() {
 
     content().innerHTML = `
       <h2>Audit Log</h2>
+      <div class="card actions">
+        <button data-action="clear-audit-log">Clear all audit events</button>
+      </div>
       ${allEventsCount > visibleEvents.length ? `<p class="muted">Showing latest ${visibleEvents.length} of ${allEventsCount} events.</p>` : ''}
       ${table(visibleEvents.map((event) => ({
         createdAt: event.createdAt,
@@ -746,6 +749,18 @@ async function loadAuditLog() {
         metadata: event.metadata || '-'
       })))}
     `;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function clearAuditLog() {
+  if (!confirm('Clear all audit events? This cannot be undone.')) return;
+
+  try {
+    const result = await api('audit', { method: 'DELETE' });
+    showNotice(`Audit log cleared (${result.cleared} event${result.cleared === 1 ? '' : 's'} removed).`);
+    await loadAuditLog();
   } catch (error) {
     showError(error);
   }
@@ -1200,6 +1215,7 @@ document.addEventListener('click', (event) => {
   if (action === 'feed-validation') return loadFeedValidation();
   if (action === 'feed-quality') return loadFeedQuality();
   if (action === 'feed-quality-history') return loadFeedQualityHistory();
+  if (action === 'clear-audit-log') return clearAuditLog();
 });
 
 document.addEventListener('submit', (event) => {
