@@ -1152,7 +1152,7 @@ async function loadMonitoring() {
 async function readJsonResponse(res) {
   const contentType = res.headers.get('content-type') || '';
 
-  if (!contentType.includes('application/json')) {
+  if (!contentType.includes('json')) {
     const text = await res.text();
     throw new Error(text || `Expected JSON response but got ${res.status} ${res.statusText}.`);
   }
