@@ -16,6 +16,7 @@ webgrab/data/*
 !webgrab/data/.gitkeep
 webgrab/config/*.xml
 webgrab/config/siteini/
+webgrab/config/siteini.pack/
 !webgrab/config/WebGrab++.config.template.xml
 !webgrab/config/.gitkeep
 webgrab/.tmp/

@@ -30,8 +30,12 @@ services:
     env_file:
       - .env
     environment:
+      NODE_ENV: development
+      PORT: "3000"
+      BASE_URL: http://localhost:3000
       DATABASE_URL: postgresql://xmltv:xmltv@postgres:5432/xmltv?schema=public
       RUN_MIGRATIONS: "true"
+      CUSTOM_XMLTV_URLS: ""
       WEBGRAB_ENABLED: "true"
       WEBGRAB_COMMAND: "true"
       WEBGRAB_WORKDIR: /app/data/webgrab
@@ -69,8 +73,10 @@ services:
     env_file:
       - .env
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://xmltv:xmltv@postgres:5432/xmltv?schema=public
-      RUN_MIGRATIONS: "false"
+      RUN_MIGRATIONS: "true"
+      CUSTOM_XMLTV_URLS: ""
       WEBGRAB_CONFIG_DIR: /app/webgrab/config
       WEBGRAB_CONFIG_OUTPUT_FILE: /data/webgrab/guide.xml
       WEBGRAB_WORKDIR: /app/data/webgrab

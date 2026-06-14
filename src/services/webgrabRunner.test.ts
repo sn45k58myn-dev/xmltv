@@ -83,6 +83,24 @@ describe('webgrabRunner', () => {
     });
   });
 
+  it('reports docker shared-file mode when command is true', async () => {
+    const workdir = await createWorkdir();
+    const { getWebGrabStatus } = await loadRunnerWithEnv({
+      WEBGRAB_COMMAND: 'true',
+      WEBGRAB_WORKDIR: workdir
+    });
+
+    await expect(getWebGrabStatus()).resolves.toMatchObject({
+      enabled: true,
+      commandConfigured: true,
+      containerMode: true,
+      runtimeDetected: true,
+      output: {
+        exists: false
+      }
+    });
+  });
+
   it('runs the configured command, validates guide.xml, imports it, and rebuilds feeds', async () => {
     const workdir = await createWorkdir();
     const writer = path.join(
@@ -132,6 +150,19 @@ describe('webgrabRunner', () => {
       mergeWeight: 44
     });
     expect(mocks.rebuildFeeds).toHaveBeenCalledOnce();
+  });
+
+  it('explains missing guide.xml in docker shared-file mode', async () => {
+    const workdir = await createWorkdir();
+    const { runWebGrabImport } = await loadRunnerWithEnv({
+      WEBGRAB_ENABLED: 'true',
+      WEBGRAB_COMMAND: 'true',
+      WEBGRAB_WORKDIR: workdir,
+      WEBGRAB_TIMEOUT_MS: '30000'
+    });
+
+    await expect(runWebGrabImport()).rejects.toThrow('webgrabplus container must generate /data/webgrab/guide.xml first');
+    expect(mocks.runImport).not.toHaveBeenCalled();
   });
 
   it('rejects runs when WebGrab+Plus is disabled', async () => {

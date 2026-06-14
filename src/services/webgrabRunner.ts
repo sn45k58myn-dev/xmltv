@@ -130,18 +130,26 @@ function dockerAvailable() {
   return result.status === 0;
 }
 
+function isContainerImportCommand(command?: string) {
+  return command?.trim().toLowerCase() === 'true';
+}
+
 export function detectWebGrabRuntime() {
   const executableCommand = detectExecutableCommand();
   const hasDocker = dockerAvailable();
+  const containerMode = isContainerImportCommand(env.WEBGRAB_COMMAND);
 
   return {
     executableCommand,
+    containerMode,
     dockerAvailable: hasDocker,
     suggestedCommand: executableCommand,
-    setupHint: executableCommand
+    setupHint: containerMode
+      ? 'WebGrab+Plus is expected to run in the dedicated docker-compose webgrabplus service and write guide.xml to the shared WebGrab data volume.'
+      : executableCommand
       ? `Set WEBGRAB_COMMAND=${executableCommand}`
       : hasDocker
-        ? 'Use docker compose --profile webgrab up -d webgrabplus and set WEBGRAB_COMMAND=true after it writes guide.xml.'
+        ? 'Use docker compose up -d webgrabplus and set WEBGRAB_COMMAND=true after it writes guide.xml.'
         : 'Install WebGrab+Plus from https://webgrabplus.com/download or install Docker Desktop for the webgrabplus container.'
   };
 }
@@ -281,7 +289,8 @@ export async function getWebGrabStatus() {
   return {
     enabled: env.WEBGRAB_ENABLED === 'true',
     commandConfigured: Boolean(env.WEBGRAB_COMMAND?.trim()),
-    runtimeDetected: Boolean(runtime.executableCommand || runtime.dockerAvailable),
+    containerMode: runtime.containerMode,
+    runtimeDetected: Boolean(runtime.containerMode || runtime.executableCommand || runtime.dockerAvailable),
     executableDetected: Boolean(runtime.executableCommand),
     dockerAvailable: runtime.dockerAvailable,
     suggestedCommand: runtime.suggestedCommand,
@@ -313,19 +322,38 @@ export async function runWebGrabImport(): Promise<WebGrabRunResult> {
   );
 
   const command = env.WEBGRAB_COMMAND as string;
-  const commandResult = await runWebGrabCommand(
-    command,
-    workdir
-  );
+  const commandResult = isContainerImportCommand(command)
+    ? {
+        exitCode: 0,
+        signal: null,
+        stdout: '',
+        stderr: ''
+      }
+    : await runWebGrabCommand(
+      command,
+      workdir
+    );
 
   if (commandResult.exitCode !== 0) {
     throw new Error(`WebGrab+Plus command failed with exit code ${commandResult.exitCode ?? 'null'}${commandResult.signal ? ` (${commandResult.signal})` : ''}: ${commandResult.stderr || commandResult.stdout || 'no output'}`);
   }
 
+  let output;
+
+  try {
+    output = await readAndValidateOutput(outputPath);
+  } catch (error: any) {
+    if (isContainerImportCommand(command) && error?.code === 'ENOENT') {
+      throw new Error(`WebGrab+Plus output file was not found at ${outputPath}. In Docker mode the webgrabplus container must generate /data/webgrab/guide.xml first. Add real <channel> entries to webgrab/config/WebGrab++.config.xml, then check docker compose logs webgrabplus.`);
+    }
+
+    throw error;
+  }
+
   const {
     stat,
     parsed
-  } = await readAndValidateOutput(outputPath);
+  } = output;
   const importResult: any = await runImport({
     name: env.WEBGRAB_SOURCE_NAME,
     type: 'upload',
