@@ -283,7 +283,9 @@ database transaction to avoid partial merge state.
 Scheduled imports use database-backed job locks so only one scheduler owner runs
 the import or retention job at a time. A recent failed source health check causes
 the scheduler to skip that source until `SOURCE_FAILURE_BACKOFF_MINUTES` has
-elapsed. Each scheduled source import is also guarded by `IMPORT_TIMEOUT_MS`.
+elapsed. Scheduled and manual enabled-source imports are also guarded by
+`IMPORT_TIMEOUT_MS`; manual batches continue through per-source failures and
+report imported, skipped, and failed counts.
 
 Operational retention runs daily after programme retention. It prunes old audit
 logs, job runs, completed queue jobs, feed quality snapshots, source health
@@ -737,6 +739,8 @@ load tests, large-feed scenarios, and baseline recording guidance.
   responses.
 - Admin and management API responses send `Cache-Control: no-store`.
 - Source health history is protected by admin/viewer authentication.
+  `/api/source-health` supports optional `sourceId`, `status=success|failed`,
+  and bounded `limit` query parameters for targeted operations views.
 - Detailed stats routes such as `/api/stats/imports`, `/api/stats/downloads`,
   `/api/stats/top-feeds`, and `/api/stats/feeds` require admin/viewer
   authentication.

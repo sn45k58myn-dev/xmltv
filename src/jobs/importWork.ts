@@ -1,5 +1,17 @@
 import { prisma } from '../db/prisma';
 import { runImport } from '../pipeline/importPipeline';
+import { shouldBackoffSource, withImportTimeout } from '../services/sourceReliability';
+
+type ImportWorkResult = {
+  sourceId?: string;
+  status: string;
+  errors?: string;
+  skippedReason?: string;
+};
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
 
 export async function runEnabledImports() {
   const sources = await prisma.source.findMany({
@@ -10,17 +22,40 @@ export async function runEnabledImports() {
       priority: 'asc'
     }
   });
-  const importResults = [];
+  const importResults: ImportWorkResult[] = [];
 
   for (const source of sources) {
-    importResults.push(
-      await runImport({
-        name: source.name,
-        type: source.type,
-        url: source.url ?? undefined,
-        priority: source.priority
-      })
-    );
+    if (await shouldBackoffSource(source.id)) {
+      importResults.push({
+        sourceId: source.id,
+        status: 'skipped',
+        skippedReason: 'recent failure backoff'
+      });
+      continue;
+    }
+
+    try {
+      const result = await withImportTimeout(
+        source.name,
+        runImport({
+          name: source.name,
+          type: source.type,
+          url: source.url ?? undefined,
+          priority: source.priority
+        })
+      );
+
+      importResults.push({
+        sourceId: source.id,
+        ...result
+      });
+    } catch (error) {
+      importResults.push({
+        sourceId: source.id,
+        status: 'failed',
+        errors: errorMessage(error)
+      });
+    }
   }
 
   return importResults;
@@ -29,7 +64,9 @@ export async function runEnabledImports() {
 export function summarizeImportResults(
   importResults: Array<{ status: string }>
 ) {
+  const skipped = importResults.filter((result) => result.status === 'skipped').length;
   const failed = importResults.filter((result) => result.status === 'failed').length;
+  const imported = importResults.length - skipped - failed;
 
-  return `Imported ${importResults.length - failed}, failed ${failed}`;
+  return `Imported ${imported}, skipped ${skipped}, failed ${failed}`;
 }

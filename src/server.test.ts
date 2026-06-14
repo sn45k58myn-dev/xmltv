@@ -266,14 +266,34 @@ describe('server API', () => {
 
     const app = await loadApp();
     const response = await request(app)
-      .get('/api/source-health?limit=50000')
+      .get('/api/source-health?limit=50000&sourceId=source-1&status=failed')
       .set('x-admin-token', 'test-admin-token');
 
     expect(response.status).toBe(200);
     expect(response.headers['cache-control']).toBe('no-store');
     expect(prisma.sourceHealth.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        sourceId: 'source-1',
+        status: 'failed'
+      },
       take: 1000
     }));
+  });
+
+  it('rejects invalid source health filters', async () => {
+    const app = await loadApp();
+    const badStatus = await request(app)
+      .get('/api/source-health?status=unknown')
+      .set('x-admin-token', 'test-admin-token');
+    const badSourceId = await request(app)
+      .get('/api/source-health?sourceId=../source')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(badStatus.status).toBe(400);
+    expect(badStatus.body.error).toContain('Invalid source health status');
+    expect(badSourceId.status).toBe(400);
+    expect(badSourceId.body.error).toContain('Invalid route id');
+    expect(prisma.sourceHealth.findMany).not.toHaveBeenCalled();
   });
 
   it('rejects query-string admin tokens by default', async () => {
