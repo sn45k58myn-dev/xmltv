@@ -40,6 +40,44 @@ function sourceRefsFor(channel) {
   }
 }
 
+const sourceCountryRules: Array<{
+  match: RegExp;
+  country: string;
+}> = [
+  { match: /\b(uk|united kingdom|great britain|freeview)\b/i, country: 'GB' },
+  { match: /\b(us|usa|united states)\b/i, country: 'US' },
+  { match: /\b(australia)\b/i, country: 'AU' },
+  { match: /\b(ireland)\b/i, country: 'IE' },
+  { match: /\b(italy)\b/i, country: 'IT' },
+  { match: /\b(portugal)\b/i, country: 'PT' },
+  { match: /\b(new zealand|newzealand)\b/i, country: 'NZ' },
+  { match: /\b(france)\b/i, country: 'FR' },
+  { match: /\b(germany)\b/i, country: 'DE' },
+  { match: /\b(spain)\b/i, country: 'ES' },
+  { match: /\b(netherlands)\b/i, country: 'NL' },
+  { match: /\b(denmark)\b/i, country: 'DK' },
+  { match: /\b(norway)\b/i, country: 'NO' },
+  { match: /\b(poland)\b/i, country: 'PL' }
+];
+
+function inferSourceCountry(source) {
+  const value = `${source.name ?? ''} ${source.url ?? ''}`;
+  const rule = sourceCountryRules.find((item) => item.match.test(value));
+
+  return rule?.country;
+}
+
+function channelCountry(
+  input,
+  source,
+  metadata
+) {
+  return input.country ??
+    metadata.country ??
+    inferSourceCountry(source) ??
+    null;
+}
+
 async function ensureSourceRef(
   channel,
   source,
@@ -75,6 +113,12 @@ async function ensureSourceRef(
 
 async function findOrCreateChannel(input, source) {
   const normalized = normalizeName(input.displayName);
+  const metadata = enrichChannel(input.displayName);
+  const country = channelCountry(
+    input,
+    source,
+    metadata
+  );
 
   const existingById = await prisma.channel.findUnique({
     where: { xmltvId: input.id },
@@ -92,7 +136,12 @@ async function findOrCreateChannel(input, source) {
   }
 
   const alias = await prisma.alias.findFirst({
-    where: { normalized },
+    where: {
+      normalized,
+      channel: {
+        country
+      }
+    },
   });
 
   if (alias) {
@@ -109,7 +158,10 @@ async function findOrCreateChannel(input, source) {
   }
 
   const similar = await prisma.channel.findFirst({
-    where: { normalized },
+    where: {
+      normalized,
+      country
+    },
   });
 
   if (similar) {
@@ -131,21 +183,12 @@ async function findOrCreateChannel(input, source) {
     };
   }
 
-  const metadata = enrichChannel(input.displayName);
-
   const channel = await prisma.channel.create({
     data: {
       xmltvId: input.id,
       displayName: input.displayName,
       normalized,
-      country:
-        input.country ??
-        metadata.country ??
-        (source.name.includes('UK')
-          ? 'GB'
-          : source.name.includes('US')
-            ? 'US'
-            : null),
+      country,
       category: input.category ?? metadata.category,
       icon: input.icon,
       sourceRefs: JSON.stringify([

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getSourceCache, updateSourceCache } from './sourceCache';
 import { sourceChanged } from './sourceChanged';
 
 vi.mock('axios', () => ({
@@ -80,5 +81,22 @@ describe('sourceChanged', () => {
         maxRedirects: 0
       })
     );
+  });
+
+  it('treats null cached validators and missing response validators as equal', async () => {
+    vi.mocked(getSourceCache).mockResolvedValue({
+      etag: '"abc"',
+      lastModified: null
+    } as any);
+    vi.mocked(axios.head).mockResolvedValue({
+      status: 200,
+      headers: {
+        etag: '"abc"'
+      }
+    });
+
+    await expect(sourceChanged('source-1', 'https://example.com/guide.xml')).resolves.toBe(false);
+
+    expect(updateSourceCache).not.toHaveBeenCalled();
   });
 });

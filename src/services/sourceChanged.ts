@@ -84,8 +84,8 @@ export async function sourceChanged(
     }
 
     const changed =
-      cache.etag !== etag ||
-      cache.lastModified !== lastModified;
+      (cache.etag ?? undefined) !== etag ||
+      (cache.lastModified ?? undefined) !== lastModified;
 
     if (changed) {
       await updateSourceCache(

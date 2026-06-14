@@ -209,6 +209,43 @@ describe('runImport', () => {
     expect(prisma.channel.create).not.toHaveBeenCalled();
   });
 
+  it('does not merge same-named channels across inferred countries', async () => {
+    vi.mocked(prisma.source.upsert).mockResolvedValue({
+      id: 'source-fr',
+      name: 'GlobeTV France',
+      type: 'custom-url',
+      url: 'https://example.test/france.xml',
+      priority: 10
+    } as any);
+
+    await runImport({
+      name: 'GlobeTV France',
+      type: 'custom-url',
+      url: 'https://example.test/france.xml',
+      priority: 10
+    });
+
+    expect(prisma.alias.findFirst).toHaveBeenCalledWith({
+      where: {
+        normalized: 'sample-channel',
+        channel: {
+          country: 'FR'
+        }
+      }
+    });
+    expect(prisma.channel.findFirst).toHaveBeenCalledWith({
+      where: {
+        normalized: 'sample-channel',
+        country: 'FR'
+      }
+    });
+    expect(prisma.channel.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        country: 'FR'
+      })
+    }));
+  });
+
   it('delegates failed imports to source reliability policy', async () => {
     vi.mocked(fetchXmltvSource).mockRejectedValue(new Error('Source returned HTTP 500'));
     vi.mocked(prisma.importRun.update).mockResolvedValue({
