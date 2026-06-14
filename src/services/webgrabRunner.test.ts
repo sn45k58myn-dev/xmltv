@@ -68,14 +68,14 @@ describe('webgrabRunner', () => {
     vi.resetModules();
   });
 
-  it('reports disabled status without exposing a command', async () => {
+  it('reports default enabled status when command is missing', async () => {
     const workdir = await createWorkdir();
     const { getWebGrabStatus } = await loadRunnerWithEnv({
       WEBGRAB_WORKDIR: workdir
     });
 
     await expect(getWebGrabStatus()).resolves.toMatchObject({
-      enabled: false,
+      enabled: true,
       commandConfigured: false,
       output: {
         exists: false
@@ -137,6 +137,7 @@ describe('webgrabRunner', () => {
   it('rejects runs when WebGrab+Plus is disabled', async () => {
     const workdir = await createWorkdir();
     const { runWebGrabImport } = await loadRunnerWithEnv({
+      WEBGRAB_ENABLED: 'false',
       WEBGRAB_WORKDIR: workdir
     });
 
