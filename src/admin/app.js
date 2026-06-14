@@ -618,12 +618,14 @@ async function loadQueueUI() {
       Failed: summary.failedJobs,
       'Oldest pending seconds': summary.oldestPendingAgeSeconds
     });
-    content().innerHTML = `
+  content().innerHTML = `
       <h2>Queue</h2>
       <div class="card">
         <button data-action="requeue-stale-jobs">Requeue stale running jobs</button>
         <button data-action="clear-queue-completed">Clear completed jobs</button>
+        <button data-action="clear-queue-completed-older">Clear completed jobs older than 24h</button>
         <button data-action="clear-queue-failed">Clear failed jobs</button>
+        <button data-action="clear-queue-failed-older">Clear failed jobs older than 24h</button>
       </div>
       <h3>Queued Jobs</h3>
       <table>
@@ -756,11 +758,18 @@ async function loadAuditLog() {
   }
 }
 
-async function clearQueueJobs(statuses) {
-  if (!confirm(`Delete all ${statuses} queue jobs? This cannot be undone.`)) return;
+async function clearQueueJobs(statuses, maxAgeHours = null) {
+  const ageText = maxAgeHours ? `older than ${maxAgeHours}h ` : '';
+  if (!confirm(`Delete ${ageText}all ${statuses} queue jobs? This cannot be undone.`)) return;
 
   try {
-    const result = await api(`queue?status=${encodeURIComponent(statuses)}`, {
+    const query = new URLSearchParams({ status: statuses });
+
+    if (maxAgeHours) {
+      query.set('maxAgeHours', String(maxAgeHours));
+    }
+
+    const result = await api(`queue?${query.toString()}`, {
       method: 'DELETE'
     });
     showNotice(`Queue cleaned (${result.deleted} job${result.deleted === 1 ? '' : 's'} removed).`);
@@ -1220,7 +1229,9 @@ document.addEventListener('click', (event) => {
   if (action === 'dashboard-imports') return runDashboardImports();
   if (action === 'dashboard-webgrab') return runDashboardWebGrab();
   if (action === 'clear-queue-completed') return clearQueueJobs('completed');
+  if (action === 'clear-queue-completed-older') return clearQueueJobs('completed', 24);
   if (action === 'clear-queue-failed') return clearQueueJobs('failed');
+  if (action === 'clear-queue-failed-older') return clearQueueJobs('failed', 24);
   if (action === 'sources-ui') return loadSourcesUI();
   if (action === 'run-all-imports') return runAllImports();
   if (action === 'retry-queue-job') return retryQueueJob(id);

@@ -75,6 +75,20 @@ function routeIdParam(
   }
 }
 
+function isRecoverableWebGrabError(message: string) {
+  const lower = message.toLowerCase();
+
+  return lower.includes('webgrab+plus importer is disabled')
+    || lower.includes('webgrab+plus command failed')
+    || lower.includes('webgrab+plus output')
+    || lower.includes('webgrab+plus xmltv import failed')
+    || lower.includes('webgrab_command')
+    || lower.includes('command is required')
+    || lower.includes('not a file')
+    || lower.includes('output is empty')
+    || lower.includes('exceeds');
+}
+
 adminApi.get('/summary', requireViewer, async (_req, res) => {
   const [sources, channels, programs, aliases, profiles, runs, tokens] = await Promise.all([
     prisma.source.count(), prisma.channel.count(), prisma.program.count(), prisma.alias.count(), prisma.exportProfile.count(), prisma.importRun.count(), prisma.exportToken.count()
@@ -86,68 +100,92 @@ adminApi.get('/metadata', requireViewer, async (_req, res) => res.json(await get
 adminApi.get('/validation', requireOperator, async (_req, res) => res.json(await validateCachedFeeds()));
 adminApi.get('/webgrab/status', requireViewer, async (_req, res) => res.json(await getWebGrabStatus()));
 adminApi.post('/webgrab/run', requireAdmin, async (req, res) => {
-  if (env.IMPORT_RUN_MODE === 'queue') {
-    if (env.JOB_QUEUE_BACKEND === 'bullmq') {
-      const job = await enqueueBullJob('webgrab-run');
+  try {
+    const status = await getWebGrabStatus();
+
+    if (!status.enabled) {
+      return res.status(400).json({
+        error: 'WebGrab+Plus importer is disabled. Set WEBGRAB_ENABLED=true to enable it.'
+      });
+    }
+
+    if (!status.commandConfigured) {
+      return res.status(400).json({
+        error: 'WEBGRAB_COMMAND is required when WEBGRAB_ENABLED=true.'
+      });
+    }
+
+    if (env.IMPORT_RUN_MODE === 'queue') {
+      if (env.JOB_QUEUE_BACKEND === 'bullmq') {
+        const job = await enqueueBullJob('webgrab-run');
+
+        await recordAuditEvent(req, {
+          action: 'webgrab.queue',
+          entityType: 'BullMQ',
+          entityId: job.id,
+          metadata: {
+            backend: 'bullmq'
+          }
+        });
+
+        return res.status(202).json({
+          queued: true,
+          backend: 'bullmq',
+          jobId: job.id,
+          status: job.status,
+          type: job.type
+        });
+      }
+
+      const job = await enqueueJob('webgrab-run');
 
       await recordAuditEvent(req, {
         action: 'webgrab.queue',
-        entityType: 'BullMQ',
+        entityType: 'JobQueue',
         entityId: job.id,
         metadata: {
-          backend: 'bullmq'
+          backend: 'database'
         }
       });
 
       return res.status(202).json({
         queued: true,
-        backend: 'bullmq',
+        backend: 'database',
         jobId: job.id,
         status: job.status,
         type: job.type
       });
     }
 
-    const job = await enqueueJob('webgrab-run');
+    const result = await runTrackedJob(
+      'webgrab-run',
+      'manual',
+      runWebGrabImport,
+      summarizeWebGrabResult
+    );
 
     await recordAuditEvent(req, {
-      action: 'webgrab.queue',
-      entityType: 'JobQueue',
-      entityId: job.id,
+      action: 'webgrab.run',
+      entityType: 'ImportRun',
+      entityId: (result.importResult as { id?: string })?.id,
       metadata: {
-        backend: 'database'
+        sourceName: result.sourceName,
+        channels: result.channels,
+        programs: result.programs,
+        feedsRebuilt: result.feedsRebuilt
       }
     });
 
-    return res.status(202).json({
-      queued: true,
-      backend: 'database',
-      jobId: job.id,
-      status: job.status,
-      type: job.type
+    return res.json(result);
+  } catch (error) {
+    const message = error instanceof Error
+      ? error.message
+      : 'Unknown WebGrab+Plus run error';
+
+    return res.status(isRecoverableWebGrabError(message) ? 400 : 500).json({
+      error: message
     });
   }
-
-  const result = await runTrackedJob(
-    'webgrab-run',
-    'manual',
-    runWebGrabImport,
-    summarizeWebGrabResult
-  );
-
-  await recordAuditEvent(req, {
-    action: 'webgrab.run',
-    entityType: 'ImportRun',
-    entityId: (result.importResult as { id?: string })?.id,
-    metadata: {
-      sourceName: result.sourceName,
-      channels: result.channels,
-      programs: result.programs,
-      feedsRebuilt: result.feedsRebuilt
-    }
-  });
-
-  return res.json(result);
 });
 adminApi.get('/quality', requireViewer, async (req, res) => {
   const persistSnapshot = req.query.snapshot === 'true';
@@ -251,6 +289,20 @@ adminApi.delete('/queue', requireAdmin, async (req, res) => {
     return;
   }
 
+  const maxAgeHoursRaw = req.query.maxAgeHours;
+  const maxAgeHours = maxAgeHoursRaw ? Number(maxAgeHoursRaw) : null;
+
+  if (maxAgeHoursRaw && (!Number.isFinite(maxAgeHours) || maxAgeHours <= 0)) {
+    res.status(400).json({
+      error: 'If provided, maxAgeHours must be a positive number.'
+    });
+    return;
+  }
+
+  const minimumDate = maxAgeHours
+    ? new Date(Date.now() - maxAgeHours * 60 * 60 * 1000)
+    : undefined;
+
   if (statuses.includes('running') || statuses.includes('pending') || statuses.includes('stale')) {
     res.status(400).json({
       error: 'Refusing to clear active/pending queue states in this action.'
@@ -262,7 +314,12 @@ adminApi.delete('/queue', requireAdmin, async (req, res) => {
     where: {
       status: {
         in: statuses
-      }
+      },
+      ...(minimumDate ? {
+        createdAt: {
+          lt: minimumDate
+        }
+      } : {})
     }
   });
 
