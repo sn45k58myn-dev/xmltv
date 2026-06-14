@@ -426,7 +426,7 @@ async function refreshSourcesList() {
               <td>
                 <button data-action="edit-source" data-id="${escapeHtml(source.id)}">Edit</button>
                 <button data-action="toggle-source" data-id="${escapeHtml(source.id)}" data-enabled="${String(!source.enabled)}">${source.enabled ? 'Disable' : 'Enable'}</button>
-                <button data-action="delete-source" data-id="${escapeHtml(source.id)}">Delete</button>
+                <button data-action="delete-source" data-id="${escapeHtml(source.id)}">Disable</button>
               </td>
             </tr>
           `).join('')}
@@ -493,12 +493,13 @@ async function toggleSource(id, enabled) {
 }
 
 async function deleteSource(id) {
-  if (!confirm('Delete this source?')) return;
+  if (!confirm('Disable this source? Existing imported programmes stay available until retention cleanup.')) return;
 
   try {
     await api(`/api/sources/${id}`, {
       method: 'DELETE'
     });
+    showNotice('Source disabled.');
     refreshSourcesList();
   } catch (error) {
     showError(error);

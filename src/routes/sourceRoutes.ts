@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
 import { recordAuditEvent } from '../services/auditLog';
@@ -79,12 +80,26 @@ sourceRoutes.put('/:id', async (req, res) => {
 sourceRoutes.delete('/:id', async (req, res) => {
   const id = routeIdParam(req.params.id, res);
   if (!id) return;
-  const source = await prisma.source.update({
-    where: { id },
-    data: {
-      enabled: false
+
+  let source;
+
+  try {
+    source = await prisma.source.update({
+      where: { id },
+      data: {
+        enabled: false
+      }
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      res.status(404).json({
+        error: 'Source not found.'
+      });
+      return;
     }
-  });
+
+    throw error;
+  }
 
   await recordAuditEvent(req, {
     action: 'source.disable',
@@ -97,5 +112,8 @@ sourceRoutes.delete('/:id', async (req, res) => {
     }
   });
 
-  res.status(204).end();
+  res.json({
+    disabled: true,
+    source
+  });
 });
