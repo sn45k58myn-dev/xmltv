@@ -23,7 +23,8 @@ vi.mock('./db/prisma', () => ({
     },
     program: {
       findMany: vi.fn(),
-      count: vi.fn()
+      count: vi.fn(),
+      groupBy: vi.fn()
     },
     alias: {
       count: vi.fn()
@@ -183,6 +184,52 @@ describe('server API', () => {
     expect(prisma.importRun.findMany).toHaveBeenCalledWith(expect.objectContaining({
       take: 500
     }));
+  });
+
+  it('limits coverage programme aggregation to the returned channel page', async () => {
+    vi.mocked(prisma.channel.findMany).mockResolvedValue([
+      {
+        id: 'channel-1',
+        displayName: 'BBC One',
+        country: 'GB',
+        category: 'News'
+      }
+    ] as any);
+    vi.mocked(prisma.program.groupBy).mockResolvedValue([
+      {
+        channelId: 'channel-1',
+        _count: {
+          _all: 10
+        },
+        _min: {
+          start: new Date('2026-06-14T10:00:00.000Z')
+        },
+        _max: {
+          stop: new Date('2026-06-14T11:00:00.000Z')
+        }
+      }
+    ] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/coverage?limit=50000')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(prisma.channel.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 5000
+    }));
+    expect(prisma.program.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        channelId: {
+          in: ['channel-1']
+        }
+      }
+    }));
+    expect(response.body[0]).toMatchObject({
+      id: 'channel-1',
+      programs: 10
+    });
   });
 
   it('protects detailed stats routes', async () => {

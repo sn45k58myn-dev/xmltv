@@ -241,36 +241,39 @@ adminApi.get('/coverage', requireViewer, async (req, res) => {
     defaultValue: 1000,
     max: 5000
   });
-  const [
-    channels,
-    programStats
-  ] = await Promise.all([
-    prisma.channel.findMany({
-      orderBy: {
-        displayName: 'asc'
-      },
-      select: {
-        id: true,
-        displayName: true,
-        country: true,
-        category: true
-      },
-      take: limit
-    }),
-    prisma.program.groupBy({
-      by: ['channelId'],
-      _count: {
-        _all: true
-      },
-      _min: {
-        start: true
-      },
-      _max: {
-        stop: true
-      }
-    })
-  ]);
+  const channels = await prisma.channel.findMany({
+    orderBy: {
+      displayName: 'asc'
+    },
+    select: {
+      id: true,
+      displayName: true,
+      country: true,
+      category: true
+    },
+    take: limit
+  });
   const typedChannels: CoverageChannelRow[] = channels;
+  const channelIds = typedChannels.map((channel) => channel.id);
+  const programStats = channelIds.length
+    ? await prisma.program.groupBy({
+        by: ['channelId'],
+        where: {
+          channelId: {
+            in: channelIds
+          }
+        },
+        _count: {
+          _all: true
+        },
+        _min: {
+          start: true
+        },
+        _max: {
+          stop: true
+        }
+      })
+    : [];
   const typedProgramStats: CoverageProgramGroupRow[] = programStats;
   const statsByChannel = new Map(
     typedProgramStats.map((row) => [row.channelId, row])

@@ -276,6 +276,9 @@ as comma-separated metadata, and append source reference metadata when an
 existing channel is reused through id, alias, or normalized-name matching.
 Exports defensively skip invalid programme time windows so bad rows do not leak
 into generated XMLTV feeds.
+Admin coverage stats aggregate only the requested channel page, profile exports
+validate stored channel lists before querying, and channel merges run in one
+database transaction to avoid partial merge state.
 
 Scheduled imports use database-backed job locks so only one scheduler owner runs
 the import or retention job at a time. A recent failed source health check causes

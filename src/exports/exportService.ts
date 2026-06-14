@@ -33,6 +33,28 @@ function containsInsensitive(term: string) {
   };
 }
 
+function profileChannelIds(value: string | null | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error('Export profile channelIds must be a JSON array of channel ids.');
+  }
+
+  if (!Array.isArray(parsed) || parsed.some((id) => typeof id !== 'string' || !id.trim())) {
+    throw new Error('Export profile channelIds must be a JSON array of channel ids.');
+  }
+
+  return Array.from(
+    new Set(parsed.map((id) => id.trim()))
+  );
+}
+
 export async function exportCountry(country: string): Promise<string> {
   const normalized =
     country.toLowerCase() === 'uk'
@@ -83,7 +105,7 @@ export async function exportCategory(category: string): Promise<string> {
 
 export async function exportProfile(id: string): Promise<string> {
   const profile = await prisma.exportProfile.findUniqueOrThrow({ where: { id } });
-  const channelIds = profile.channelIds ? JSON.parse(profile.channelIds) as string[] : undefined;
+  const channelIds = profileChannelIds(profile.channelIds);
   const channels = await prisma.channel.findMany({
     where: {
       ...(profile.country ? { country: profile.country } : {}),
