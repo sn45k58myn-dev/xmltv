@@ -2,6 +2,23 @@ import { z } from 'zod';
 
 const nullableString = z.string().trim().nullable().optional();
 const optionalString = z.string().trim().optional();
+const safeRouteIdPattern = /^[A-Za-z0-9_.-]+$/;
+const scopedRouteId = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
+  z.string().trim().regex(safeRouteIdPattern, 'Must be a safe route id.').nullable().optional()
+);
+
+function onlyOneScope<T extends z.AnyZodObject>(schema: T) {
+  return schema.superRefine((value: z.infer<T>, ctx) => {
+    if (value.profileId && value.providerId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose either profileId or providerId, not both.',
+        path: ['providerId']
+      });
+    }
+  });
+}
 
 export const sourceCreateSchema = z.object({
   name: z.string().trim().min(1),
@@ -64,23 +81,25 @@ export const aliasGenerateSchema = z.object({
   channelId: z.string().trim().min(1)
 }).strict();
 
-export const exportTokenCreateSchema = z.object({
+const exportTokenCreateBaseSchema = z.object({
   name: z.string().trim().min(1).optional(),
-  profileId: nullableString,
-  providerId: nullableString,
+  profileId: scopedRouteId,
+  providerId: scopedRouteId,
   active: z.boolean().optional()
 }).strict();
 
-export const legacyExportTokenCreateSchema = exportTokenCreateSchema.extend({
+export const exportTokenCreateSchema = onlyOneScope(exportTokenCreateBaseSchema);
+
+export const legacyExportTokenCreateSchema = onlyOneScope(exportTokenCreateBaseSchema.extend({
   token: z.string().trim().min(16)
-}).strict();
+}).strict());
 
-export const exportTokenUpdateSchema = z.object({
+export const exportTokenUpdateSchema = onlyOneScope(z.object({
   name: z.string().trim().min(1).optional(),
-  profileId: nullableString,
-  providerId: nullableString,
+  profileId: scopedRouteId,
+  providerId: scopedRouteId,
   active: z.boolean().optional()
-}).strict();
+}).strict());
 
 export const channelAssetsSchema = z.object({
   logo: nullableString,

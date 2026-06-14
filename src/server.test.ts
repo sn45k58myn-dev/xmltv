@@ -810,6 +810,32 @@ describe('server API', () => {
     expect(prisma.exportToken.create).not.toHaveBeenCalled();
   });
 
+  it('rejects ambiguous or unsafe export token scopes', async () => {
+    const app = await loadApp();
+    const ambiguous = await request(app)
+      .post('/api/admin/tokens')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        profileId: 'profile-1',
+        providerId: 'provider-1'
+      });
+    const unsafe = await request(app)
+      .post('/api/export-tokens')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        token: '1234567890123456',
+        providerId: '../provider'
+      });
+
+    expect(ambiguous.status).toBe(400);
+    expect(ambiguous.body.error).toBe('Invalid request payload.');
+    expect(ambiguous.body.issues[0].message).toContain('Choose either profileId or providerId');
+    expect(unsafe.status).toBe(400);
+    expect(unsafe.body.error).toBe('Invalid request payload.');
+    expect(unsafe.body.issues[0].message).toContain('Must be a safe route id');
+    expect(prisma.exportToken.create).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid channel merge payloads', async () => {
     const app = await loadApp();
     const response = await request(app)
