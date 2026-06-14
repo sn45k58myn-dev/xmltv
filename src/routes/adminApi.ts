@@ -122,8 +122,11 @@ adminApi.post('/webgrab/run', requireAdmin, async (req, res) => {
     }
 
     if (env.IMPORT_RUN_MODE === 'queue') {
-      if (env.JOB_QUEUE_BACKEND === 'bullmq') {
-        const job = await enqueueBullJob('webgrab-run');
+    if (env.JOB_QUEUE_BACKEND === 'bullmq') {
+      const job = await enqueueBullJob('webgrab-run', {
+        actor: req.auth?.actor ?? null,
+        requestId: req.requestId ?? null
+      });
 
         await recordAuditEvent(req, {
           action: 'webgrab.queue',
@@ -143,7 +146,10 @@ adminApi.post('/webgrab/run', requireAdmin, async (req, res) => {
         });
       }
 
-      const job = await enqueueJob('webgrab-run');
+      const job = await enqueueJob('webgrab-run', {
+        actor: req.auth?.actor ?? null,
+        requestId: req.requestId ?? null
+      });
 
       await recordAuditEvent(req, {
         action: 'webgrab.queue',
@@ -167,7 +173,11 @@ adminApi.post('/webgrab/run', requireAdmin, async (req, res) => {
       'webgrab-run',
       'manual',
       runWebGrabImport,
-      summarizeWebGrabResult
+      summarizeWebGrabResult,
+      {
+        actor: req.auth?.actor ?? null,
+        requestId: req.requestId ?? null
+      }
     );
 
     await recordAuditEvent(req, {

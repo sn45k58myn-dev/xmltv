@@ -9,15 +9,39 @@ import {
 import { runEnabledImports, summarizeImportResults } from './importWork';
 import { runWebGrabImport, summarizeWebGrabResult } from '../services/webgrabRunner';
 
+type QueuedJobContext = {
+  actor?: string | null;
+  requestId?: string | null;
+};
+
+function parseQueuedJobContext(payload: string | null) {
+  if (!payload) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(payload) as QueuedJobContext;
+
+    return {
+      actor: parsed?.actor ?? null,
+      requestId: parsed?.requestId ?? null
+    };
+  } catch {
+    return {};
+  }
+}
+
 async function runQueuedJob(job: Awaited<ReturnType<typeof claimNextJob>>) {
   if (!job) return;
+  const context = parseQueuedJobContext(job.payload);
 
   if (job.type === 'manual-imports') {
     const result = await runTrackedJob(
       'manual-imports',
       'queue',
       runEnabledImports,
-      summarizeImportResults
+      summarizeImportResults,
+      context
     );
 
     await finishQueuedJob(
@@ -33,7 +57,8 @@ async function runQueuedJob(job: Awaited<ReturnType<typeof claimNextJob>>) {
       'webgrab-run',
       'queue',
       runWebGrabImport,
-      summarizeWebGrabResult
+      summarizeWebGrabResult,
+      context
     );
 
     await finishQueuedJob(

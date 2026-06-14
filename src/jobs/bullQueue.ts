@@ -38,6 +38,28 @@ function getQueue() {
   return queue;
 }
 
+type QueuedJobContext = {
+  actor?: string | null;
+  requestId?: string | null;
+};
+
+function parseBullJobContext(payload: unknown): QueuedJobContext {
+  if (!payload || typeof payload !== 'object') {
+    return {};
+  }
+
+  const candidate = payload as Record<string, unknown>;
+
+  return {
+    actor: typeof candidate.actor === 'string'
+      ? candidate.actor
+      : null,
+    requestId: typeof candidate.requestId === 'string'
+      ? candidate.requestId
+      : null
+  };
+}
+
 export async function enqueueBullJob(
   type: string,
   payload?: unknown,
@@ -77,20 +99,24 @@ export function startBullJobWorker() {
     QUEUE_NAME,
     async (job) => {
       if (job.name === 'manual-imports') {
+        const context = parseBullJobContext(job.data);
         return runTrackedJob(
           'manual-imports',
           'bullmq',
           runEnabledImports,
-          summarizeImportResults
+          summarizeImportResults,
+          context
         );
       }
 
       if (job.name === 'webgrab-run') {
+        const context = parseBullJobContext(job.data);
         return runTrackedJob(
           'webgrab-run',
           'bullmq',
           runWebGrabImport,
-          summarizeWebGrabResult
+          summarizeWebGrabResult,
+          context
         );
       }
 

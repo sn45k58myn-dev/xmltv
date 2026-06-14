@@ -1,0 +1,3 @@
+ALTER TABLE "JobRun" ADD COLUMN "actor" TEXT;
+ALTER TABLE "JobRun" ADD COLUMN "requestId" TEXT;
+

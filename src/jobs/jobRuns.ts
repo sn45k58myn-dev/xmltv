@@ -2,14 +2,22 @@ import { prisma } from '../db/prisma';
 
 type JobStatus = 'running' | 'success' | 'failed' | 'skipped';
 
+type JobRunContext = {
+  actor?: string | null;
+  requestId?: string | null;
+};
+
 export async function startJobRun(
   name: string,
-  trigger: string
+  trigger: string,
+  context: JobRunContext = {}
 ) {
   return prisma.jobRun.create({
     data: {
       name,
       trigger,
+      actor: context.actor ?? null,
+      requestId: context.requestId ?? null,
       status: 'running'
     }
   });
@@ -55,11 +63,13 @@ export async function runTrackedJob<T>(
   name: string,
   trigger: string,
   runner: () => Promise<T>,
-  summarize: (result: T) => string = () => 'completed'
+  summarize: (result: T) => string = () => 'completed',
+  context: JobRunContext = {}
 ) {
   const job = await startJobRun(
     name,
-    trigger
+    trigger,
+    context
   );
 
   try {

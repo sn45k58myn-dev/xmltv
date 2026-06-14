@@ -208,6 +208,8 @@ model JobRun {
   id         String    @id @default(cuid())
   name       String
   trigger    String
+  actor      String?
+  requestId  String?
   status     String
   summary    String?
   error      String?

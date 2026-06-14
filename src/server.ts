@@ -145,7 +145,10 @@ app.get('/sources', requireAdmin, async (_req, res) => res.json(await prisma.sou
 app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
   if (env.IMPORT_RUN_MODE === 'queue') {
     if (env.JOB_QUEUE_BACKEND === 'bullmq') {
-      const job = await enqueueBullJob('manual-imports');
+      const job = await enqueueBullJob('manual-imports', {
+        actor: _req.auth?.actor ?? null,
+        requestId: _req.requestId ?? null
+      });
 
       await recordAuditEvent(_req, {
         action: 'import.queue',
@@ -167,7 +170,10 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
       return;
     }
 
-    const job = await enqueueJob('manual-imports');
+      const job = await enqueueJob('manual-imports', {
+        actor: _req.auth?.actor ?? null,
+        requestId: _req.requestId ?? null
+      });
 
     await recordAuditEvent(_req, {
       action: 'import.queue',
@@ -188,12 +194,16 @@ app.post('/api/admin/imports/run', requireAdmin, async (_req, res) => {
     return;
   }
 
-  const results = await runTrackedJob(
-    'manual-imports',
-    'manual',
-    runEnabledImports,
-    summarizeImportResults
-  );
+    const results = await runTrackedJob(
+      'manual-imports',
+      'manual',
+      runEnabledImports,
+      summarizeImportResults,
+      {
+        actor: _req.auth?.actor ?? null,
+        requestId: _req.requestId ?? null
+      }
+    );
 
   await recordAuditEvent(_req, {
     action: 'import.trigger',
