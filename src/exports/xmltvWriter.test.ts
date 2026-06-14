@@ -134,4 +134,33 @@ describe('writeXmltv', () => {
     expect(xml.match(/<programme /g)).toHaveLength(1);
     expect(xml).toContain('channel="itv"');
   });
+
+  it('skips exact duplicate programme slots for the same output channel', () => {
+    const xml = writeXmltv([
+      {
+        id: 'itv-channel',
+        xmltvId: 'itv',
+        displayName: 'ITV',
+        logo: null,
+        icon: null,
+        image: null,
+        programs: [
+          {
+            channelId: 'itv-channel',
+            title: 'ITV Evening News',
+            start: new Date('2026-06-12T18:00:00.000Z'),
+            stop: new Date('2026-06-12T18:30:00.000Z')
+          },
+          {
+            channelId: 'itv-channel',
+            title: 'ITV Evening News',
+            start: new Date('2026-06-12T18:00:00.000Z'),
+            stop: new Date('2026-06-12T18:30:00.000Z')
+          }
+        ]
+      }
+    ] as any);
+
+    expect(xml.match(/<programme /g)).toHaveLength(1);
+  });
 });

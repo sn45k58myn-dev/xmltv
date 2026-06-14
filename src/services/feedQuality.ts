@@ -9,6 +9,11 @@ type FeedValidationRow = {
   channels?: number;
   programs?: number;
   error?: string;
+  integrity?: {
+    emptyChannels?: number;
+    duplicateProgrammeSlots?: number;
+    orphanProgrammes?: number;
+  };
 };
 
 function ageHours(updatedAt: string) {
@@ -38,6 +43,21 @@ function scoreFeed(
   if ((validation?.programs ?? 0) === 0) {
     score -= 20;
     reasons.push('no programmes detected');
+  }
+
+  if ((validation?.integrity?.orphanProgrammes ?? 0) > 0) {
+    score -= 40;
+    reasons.push(`${validation?.integrity?.orphanProgrammes} orphan programme references`);
+  }
+
+  if ((validation?.integrity?.duplicateProgrammeSlots ?? 0) > 0) {
+    score -= 10;
+    reasons.push(`${validation?.integrity?.duplicateProgrammeSlots} duplicate programme slots`);
+  }
+
+  if ((validation?.integrity?.emptyChannels ?? 0) > 0) {
+    score -= 5;
+    reasons.push(`${validation?.integrity?.emptyChannels} channels without programmes`);
   }
 
   if (feed.bytes <= 0) {

@@ -5,12 +5,55 @@ import { env } from '../config/env';
 import { parseXmltv } from '../pipeline/parseXmltv';
 import { validateXmltv } from '../pipeline/validateXmltv';
 import { getFeedMetadata } from './feedMetadata';
+import { ParsedXmltv } from '../models/xmltv';
 
 const CACHE_DIR = path.join(
   process.cwd(),
   'cache'
 );
 const SAFE_FEED_FILE = /^[A-Za-z0-9_.-]+\.xml(\.gz)?$/;
+
+function duplicateKey(parts: Array<string | undefined>) {
+  return parts.map((part) => part ?? '').join('\0');
+}
+
+function analyzeFeedIntegrity(parsed: ParsedXmltv) {
+  const channelIds = new Set(parsed.channels.map((channel) => channel.id));
+  const channelsWithPrograms = new Set<string>();
+  const programmeSlots = new Set<string>();
+  const duplicateProgrammeSlots = new Set<string>();
+  let orphanProgrammes = 0;
+
+  for (const program of parsed.programs) {
+    if (!channelIds.has(program.channel)) {
+      orphanProgrammes++;
+      continue;
+    }
+
+    channelsWithPrograms.add(program.channel);
+    const key = duplicateKey([
+      program.channel,
+      program.start.toISOString(),
+      program.stop.toISOString(),
+      program.title,
+      program.subtitle
+    ]);
+
+    if (programmeSlots.has(key)) {
+      duplicateProgrammeSlots.add(key);
+    } else {
+      programmeSlots.add(key);
+    }
+  }
+
+  return {
+    channelRefs: channelIds.size,
+    programmeRefs: parsed.programs.length,
+    orphanProgrammes,
+    emptyChannels: parsed.channels.length - channelsWithPrograms.size,
+    duplicateProgrammeSlots: duplicateProgrammeSlots.size
+  };
+}
 
 function assertWithinTimeout(
   started: number,
@@ -156,6 +199,7 @@ export async function validateCachedFeeds() {
         valid: true,
         channels: parsed.channels.length,
         programs: parsed.programs.length,
+        integrity: analyzeFeedIntegrity(parsed),
         durationMs: Date.now() - started
       });
     } catch (error) {

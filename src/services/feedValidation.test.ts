@@ -71,9 +71,48 @@ describe('feedValidation', () => {
           feedKey: 'GB.xml',
           valid: true,
           channels: 1,
-          programs: 1
+          programs: 1,
+          integrity: {
+            channelRefs: 1,
+            programmeRefs: 1,
+            orphanProgrammes: 0,
+            emptyChannels: 0,
+            duplicateProgrammeSlots: 0
+          }
         }
       ]
+    });
+  });
+
+  it('reports structural feed integrity warnings for valid XMLTV files', async () => {
+    await fs.writeFile(
+      path.join(
+        cacheDir,
+        'warnings.xml'
+      ),
+      [
+        '<tv>',
+        '<channel id="itv"><display-name>ITV</display-name></channel>',
+        '<channel id="empty"><display-name>Empty</display-name></channel>',
+        '<programme channel="itv" start="20260613000000 +0000" stop="20260613010000 +0000"><title>News</title></programme>',
+        '<programme channel="itv" start="20260613000000 +0000" stop="20260613010000 +0000"><title>News</title></programme>',
+        '</tv>'
+      ].join(''),
+      'utf8'
+    );
+
+    const { validateCachedFeeds } = await loadValidationService();
+    const result = await validateCachedFeeds();
+
+    expect(result.feeds[0]).toMatchObject({
+      valid: true,
+      integrity: {
+        channelRefs: 2,
+        programmeRefs: 2,
+        orphanProgrammes: 0,
+        emptyChannels: 1,
+        duplicateProgrammeSlots: 1
+      }
     });
   });
 

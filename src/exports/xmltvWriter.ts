@@ -31,6 +31,19 @@ function belongsToChannel(
   return !program.channelId || program.channelId === channel.id;
 }
 
+function programmeSlotKey(
+  channelXmltvId: string,
+  program: Program
+) {
+  return [
+    channelXmltvId,
+    program.start.toISOString(),
+    program.stop.toISOString(),
+    program.title,
+    program.subtitle ?? ''
+  ].join('\0');
+}
+
 type ChannelWithPrograms = Channel & {
   aliases?: Alias[];
   programs: Program[];
@@ -54,6 +67,8 @@ export function writeXmltv(channels: ChannelWithPrograms[]): string {
     if (icon) out.push(`    <icon src="${esc(icon)}" />`);
     out.push('  </channel>');
   }
+  const writtenProgrammeSlots = new Set<string>();
+
   for (const channel of channels) {
     for (const program of channel.programs) {
       if (!belongsToChannel(
@@ -62,6 +77,17 @@ export function writeXmltv(channels: ChannelWithPrograms[]): string {
       ) || !validProgrammeWindow(program)) {
         continue;
       }
+
+      const slotKey = programmeSlotKey(
+        channel.xmltvId,
+        program
+      );
+
+      if (writtenProgrammeSlots.has(slotKey)) {
+        continue;
+      }
+
+      writtenProgrammeSlots.add(slotKey);
 
       out.push(`  <programme start="${xmltvDate(program.start)}" stop="${xmltvDate(program.stop)}" channel="${esc(channel.xmltvId)}">`);
       out.push(`    <title>${esc(program.title)}</title>`);

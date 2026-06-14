@@ -44,6 +44,10 @@ vi.mock('node:fs/promises', () => ({
     readFile: vi.fn().mockResolvedValue(`
       <tv>
         <channel id="gb.one"><display-name>GB One</display-name></channel>
+        <channel id="gb.empty"><display-name>GB Empty</display-name></channel>
+        <programme start="20260613090000 +0000" stop="20260613100000 +0000" channel="gb.one">
+          <title>News</title>
+        </programme>
         <programme start="20260613090000 +0000" stop="20260613100000 +0000" channel="gb.one">
           <title>News</title>
         </programme>
@@ -70,12 +74,16 @@ describe('feedQuality', () => {
           score: expect.any(Number),
           grade: expect.any(String),
           valid: true,
-          channels: 1,
-          programs: 1,
+          channels: 2,
+          programs: 2,
           bytes: 2048
         })
       ]
     });
+    expect(quality.feeds[0].reasons).toEqual(expect.arrayContaining([
+      '1 duplicate programme slots',
+      '1 channels without programmes'
+    ]));
   });
 
   it('loads recent feed quality history', async () => {

@@ -399,13 +399,16 @@ empty, metadata falls back to scanning `cache/`.
 returns cache metadata and points operators to the full admin validation route.
 Full validation parses XML and compressed XML feeds, so it is protected behind
 `/api/admin/validation` and guarded by `VALIDATION_MAX_FEED_MB` and
-`VALIDATION_TIMEOUT_MS`.
+`VALIDATION_TIMEOUT_MS`. Full validation also reports output integrity fields:
+`channelRefs`, `programmeRefs`, `orphanProgrammes`, `emptyChannels`, and
+`duplicateProgrammeSlots`. A feed can be valid XMLTV while still receiving
+quality-score warnings for duplicate slots or channels with no programmes.
 
 Feed quality scores combine validation status, channel/program counts, cache
-size, freshness, and download metadata. Public discovery quality reads the latest
-persisted snapshots only, so it stays lightweight under polling. Scores are
-advisory and do not block feed serving. Admin quality checks parse cached feeds
-and can persist snapshots for trend review:
+size, freshness, output integrity, and download metadata. Public discovery
+quality reads the latest persisted snapshots only, so it stays lightweight under
+polling. Scores are advisory and do not block feed serving. Admin quality checks
+parse cached feeds and can persist snapshots for trend review:
 
 ```text
 GET /api/admin/quality?snapshot=true
