@@ -4,6 +4,9 @@ import {
   claimNextJob,
   enqueueJob,
   finishQueuedJob,
+  getQueueHealth,
+  requeueStaleRunningJobs,
+  retryFailedQueuedJob,
   retryQueuedJob
 } from './jobQueue';
 
@@ -18,7 +21,11 @@ vi.mock('../db/prisma', () => ({
   prisma: {
     jobQueue: {
       create: vi.fn(),
-      update: vi.fn()
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      groupBy: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn()
     },
     $queryRaw: vi.fn()
   }
@@ -141,6 +148,95 @@ describe('jobQueue', () => {
         lockedUntil: null
       })
     });
+    vi.useRealTimers();
+  });
+
+  it('summarizes queue health for operations', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));
+    vi.mocked(prisma.jobQueue.groupBy).mockResolvedValue([
+      {
+        status: 'pending',
+        _count: {
+          _all: 2
+        }
+      },
+      {
+        status: 'running',
+        _count: {
+          _all: 1
+        }
+      }
+    ] as any);
+    vi.mocked(prisma.jobQueue.findFirst).mockResolvedValue({
+      createdAt: new Date('2026-06-13T11:55:00.000Z')
+    } as any);
+    vi.mocked(prisma.jobQueue.count)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4);
+
+    await expect(getQueueHealth()).resolves.toMatchObject({
+      pendingJobs: 2,
+      runningJobs: 4,
+      staleRunningJobs: 1,
+      failedJobs: 3,
+      oldestPendingAgeSeconds: 300
+    });
+
+    vi.useRealTimers();
+  });
+
+  it('retries failed queued jobs by reopening attempts', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));
+    vi.mocked(prisma.jobQueue.updateMany).mockResolvedValue({ count: 1 } as any);
+
+    await retryFailedQueuedJob('job-1');
+
+    expect(prisma.jobQueue.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'job-1',
+        status: 'failed'
+      },
+      data: expect.objectContaining({
+        status: 'pending',
+        runAfter: new Date('2026-06-13T12:00:00.000Z'),
+        lockedBy: null,
+        lockedUntil: null,
+        finishedAt: null,
+        error: null,
+        maxAttempts: {
+          increment: 1
+        }
+      })
+    });
+
+    vi.useRealTimers();
+  });
+
+  it('requeues stale running jobs', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-13T12:00:00.000Z'));
+    vi.mocked(prisma.jobQueue.updateMany).mockResolvedValue({ count: 2 } as any);
+
+    await requeueStaleRunningJobs();
+
+    expect(prisma.jobQueue.updateMany).toHaveBeenCalledWith({
+      where: {
+        status: 'running',
+        lockedUntil: {
+          lt: new Date('2026-06-13T12:00:00.000Z')
+        }
+      },
+      data: {
+        status: 'pending',
+        runAfter: new Date('2026-06-13T12:00:00.000Z'),
+        lockedBy: null,
+        lockedUntil: null
+      }
+    });
+
     vi.useRealTimers();
   });
 });

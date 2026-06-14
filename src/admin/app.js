@@ -267,6 +267,7 @@ async function load(name) {
   cardsEl().innerHTML = '';
 
   if (name === 'sources') return loadSourcesUI();
+  if (name === 'queue') return loadQueueUI();
   if (name === 'export-tokens') return loadTokensUI();
   if (name === 'profiles') return loadProfilesUI();
   if (name === 'summary') return loadDashboard();
@@ -556,6 +557,88 @@ async function runAllImports() {
       method: 'POST'
     });
     content().innerHTML = `<h2>Imports Complete</h2>${table(result)}`;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+function queueActions(job) {
+  if (job.status !== 'failed') {
+    return '';
+  }
+
+  return `<button data-action="retry-queue-job" data-id="${escapeHtml(job.id)}">Retry</button>`;
+}
+
+async function loadQueueUI() {
+  cardsEl().innerHTML = '';
+  content().innerHTML = '<p class="muted">Loading queue...</p>';
+
+  try {
+    const [
+      summary,
+      jobs
+    ] = await Promise.all([
+      api('queue/summary'),
+      api('queue')
+    ]);
+
+    cards({
+      Pending: summary.pendingJobs,
+      Running: summary.runningJobs,
+      Stale: summary.staleRunningJobs,
+      Failed: summary.failedJobs,
+      'Oldest pending seconds': summary.oldestPendingAgeSeconds
+    });
+    content().innerHTML = `
+      <h2>Queue</h2>
+      <div class="card">
+        <button data-action="requeue-stale-jobs">Requeue stale running jobs</button>
+      </div>
+      <h3>Queued Jobs</h3>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Type</th><th>Status</th><th>Attempts</th><th>Run after</th><th>Locked by</th><th>Error</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          ${jobs.map((job) => `
+            <tr>
+              <td>${fmt(job.id)}</td>
+              <td>${fmt(job.type)}</td>
+              <td>${fmt(job.status)}</td>
+              <td>${fmt(`${job.attempts}/${job.maxAttempts}`)}</td>
+              <td>${fmtShortDate(job.runAfter)}</td>
+              <td>${fmt(job.lockedBy)}</td>
+              <td>${fmt(job.error)}</td>
+              <td>${queueActions(job)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function retryQueueJob(id) {
+  try {
+    await api(`queue/${id}/retry`, {
+      method: 'POST'
+    });
+    await loadQueueUI();
+  } catch (error) {
+    showError(error);
+  }
+}
+
+async function requeueStaleJobs() {
+  try {
+    await api('queue/stale/requeue', {
+      method: 'POST'
+    });
+
+    await loadQueueUI();
   } catch (error) {
     showError(error);
   }
@@ -1057,6 +1140,8 @@ document.addEventListener('click', (event) => {
   if (action === 'dashboard-imports') return runDashboardImports();
   if (action === 'sources-ui') return loadSourcesUI();
   if (action === 'run-all-imports') return runAllImports();
+  if (action === 'retry-queue-job') return retryQueueJob(id);
+  if (action === 'requeue-stale-jobs') return requeueStaleJobs();
   if (action === 'edit-source') return editSource(id);
   if (action === 'toggle-source') return toggleSource(id, button.dataset.enabled === 'true');
   if (action === 'delete-source') return deleteSource(id);

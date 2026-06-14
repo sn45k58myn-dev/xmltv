@@ -235,7 +235,17 @@ Queued jobs are visible to admins:
 
 ```text
 GET /api/admin/queue
+GET /api/admin/queue/summary
+POST /api/admin/queue/:id/retry
+POST /api/admin/queue/stale/requeue
 ```
+
+`/api/admin/queue/summary` reports pending, running, stale running, failed, and
+oldest pending job age. Failed jobs can be retried from the admin UI or API;
+retrying reopens one additional attempt and clears the old error. Stale running
+jobs are jobs whose worker lock has expired, usually after a worker crash or
+forced shutdown; the requeue endpoint moves those jobs back to pending and
+writes an audit event.
 
 Run imports from the admin UI:
 
@@ -512,8 +522,8 @@ written to logs.
 
 Prometheus output includes process health, channel/program counts, HTTP request
 latency, import run counts by status, queue depth by status, oldest pending
-queue job age, failed queue job count, total feed downloads, top feed
-downloads, and the latest persisted feed quality score.
+queue job age, failed queue job count, stale running queue job count, total feed
+downloads, top feed downloads, and the latest persisted feed quality score.
 
 The dashboard response includes `cacheWarning`, `cacheWarningThresholdMB`,
 `queueDepthByStatus`, and `oldestPendingQueueJobAgeSeconds`. Set

@@ -122,6 +122,108 @@ export async function retryQueuedJob(
   });
 }
 
+export async function getQueueHealth(now = new Date()) {
+  const [
+    statusRows,
+    oldestPendingJob,
+    staleRunningJobs,
+    failedJobs,
+    runningJobs
+  ] = await Promise.all([
+    prisma.jobQueue.groupBy({
+      by: ['status'],
+      _count: {
+        _all: true
+      }
+    }),
+    prisma.jobQueue.findFirst({
+      where: {
+        status: 'pending'
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
+    }),
+    prisma.jobQueue.count({
+      where: {
+        status: 'running',
+        lockedUntil: {
+          lt: now
+        }
+      }
+    }),
+    prisma.jobQueue.count({
+      where: {
+        status: 'failed'
+      }
+    }),
+    prisma.jobQueue.count({
+      where: {
+        status: 'running'
+      }
+    })
+  ]);
+  const statuses = Object.fromEntries(
+    statusRows.map((row) => [row.status, row._count._all])
+  );
+  const oldestPendingAgeSeconds = oldestPendingJob
+    ? Math.max(
+        0,
+        Math.floor((now.getTime() - oldestPendingJob.createdAt.getTime()) / 1000)
+      )
+    : 0;
+
+  return {
+    generatedAt: now,
+    statuses,
+    pendingJobs: statuses.pending ?? 0,
+    runningJobs,
+    staleRunningJobs,
+    failedJobs,
+    oldestPendingAgeSeconds
+  };
+}
+
+export async function retryFailedQueuedJob(
+  id: string,
+  now = new Date()
+) {
+  return prisma.jobQueue.updateMany({
+    where: {
+      id,
+      status: 'failed'
+    },
+    data: {
+      status: 'pending',
+      runAfter: now,
+      lockedBy: null,
+      lockedUntil: null,
+      finishedAt: null,
+      error: null,
+      maxAttempts: {
+        increment: 1
+      }
+    }
+  });
+}
+
+export async function requeueStaleRunningJobs(now = new Date()) {
+  return prisma.jobQueue.updateMany({
+    where: {
+      status: 'running',
+      lockedUntil: {
+        lt: now
+      }
+    },
+    data: {
+      status: 'pending',
+      runAfter: now,
+      lockedBy: null,
+      lockedUntil: null
+    }
+  });
+}
+
 export function createWorkerId(prefix = 'worker') {
   return `${prefix}-${process.pid}-${crypto.randomUUID()}`;
 }

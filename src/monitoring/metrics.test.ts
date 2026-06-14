@@ -82,7 +82,10 @@ describe('monitoring metrics', () => {
       status: 'pending',
       createdAt: new Date('2026-06-14T11:45:00.000Z')
     } as any);
-    vi.mocked(prisma.jobQueue.count).mockResolvedValue(4);
+    vi.mocked(prisma.jobQueue.count)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(2);
     vi.mocked(prisma.feedDownload.aggregate).mockResolvedValue({
       _sum: {
         downloads: 99
@@ -117,6 +120,7 @@ describe('monitoring metrics', () => {
     });
     expect(metrics.oldestPendingQueueJobAgeSeconds).toBe(900);
     expect(metrics.failedQueueJobs).toBe(4);
+    expect(metrics.staleRunningQueueJobs).toBe(1);
     expect(metrics.totalFeedDownloads).toBe(99);
     expect(metrics.feedCount).toBe(2);
     expect(metrics.totalCacheBytes).toBe(1536);
@@ -141,6 +145,7 @@ describe('monitoring metrics', () => {
     expect(text).toContain('xmltv_job_queue_jobs{status="pending"} 3');
     expect(text).toContain('xmltv_job_queue_oldest_pending_age_seconds 900');
     expect(text).toContain('xmltv_job_queue_failed_jobs 4');
+    expect(text).toContain('xmltv_job_queue_stale_running_jobs 1');
     expect(text).toContain('xmltv_feed_downloads_total 99');
     expect(text).toContain('xmltv_feed_downloads_by_feed{feed="GB.xml"} 42');
     expect(text).toContain('xmltv_cached_feeds 2');

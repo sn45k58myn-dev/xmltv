@@ -13,6 +13,7 @@ import { getFeedQuality, getFeedQualityHistory } from '../services/feedQuality';
 import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
 import { createApiKey, maskApiKey } from '../services/apiKeys';
+import { getQueueHealth, requeueStaleRunningJobs, retryFailedQueuedJob } from '../jobs/jobQueue';
 import { boundedLimit } from '../utils/limits';
 import { safeRouteId } from '../utils/routeParams';
 import {
@@ -159,6 +160,50 @@ adminApi.get('/queue', requireViewer, async (req, res) => res.json(await prisma.
     max: 500
   })
 })));
+adminApi.get('/queue/summary', requireViewer, async (_req, res) => res.json(await getQueueHealth()));
+adminApi.post('/queue/stale/requeue', requireAdmin, async (req, res) => {
+  const result = await requeueStaleRunningJobs();
+
+  await recordAuditEvent(req, {
+    action: 'queue.requeue_stale',
+    entityType: 'JobQueue',
+    metadata: {
+      count: result.count
+    }
+  });
+
+  res.json({
+    requeued: result.count
+  });
+});
+adminApi.post('/queue/:id/retry', requireAdmin, async (req, res) => {
+  const id = routeIdParam(
+    req.params.id,
+    res
+  );
+
+  if (!id) return;
+
+  const result = await retryFailedQueuedJob(id);
+
+  if (result.count === 0) {
+    res.status(404).json({
+      error: 'Failed queue job not found.'
+    });
+    return;
+  }
+
+  await recordAuditEvent(req, {
+    action: 'queue.retry_failed',
+    entityType: 'JobQueue',
+    entityId: id
+  });
+
+  res.json({
+    retried: true,
+    id
+  });
+});
 adminApi.get('/audit', requireAdmin, async (req, res) => {
   res.json(await getAuditEvents(boundedLimit(req.query.limit, {
     defaultValue: 100,

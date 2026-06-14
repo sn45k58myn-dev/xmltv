@@ -2,6 +2,7 @@
 import { prisma } from '../db/prisma';
 import { getRequestMetrics } from './requestMetrics';
 import { getFeedSizes } from '../services/feedMetrics';
+import { getQueueHealth } from '../jobs/jobQueue';
 
 export async function systemMetrics() {
   const [
@@ -10,9 +11,7 @@ export async function systemMetrics() {
     channels,
     programs,
     importStatusRows,
-    queueStatusRows,
-    oldestPendingJob,
-    failedQueueJobs,
+    queueHealth,
     totalFeedDownloads,
     topFeeds,
     latestQualitySnapshot,
@@ -28,25 +27,7 @@ export async function systemMetrics() {
         _all: true
       }
     }),
-    prisma.jobQueue.groupBy({
-      by: ['status'],
-      _count: {
-        _all: true
-      }
-    }),
-    prisma.jobQueue.findFirst({
-      where: {
-        status: 'pending'
-      },
-      orderBy: {
-        createdAt: 'asc'
-      }
-    }),
-    prisma.jobQueue.count({
-      where: {
-        status: 'failed'
-      }
-    }),
+    getQueueHealth(),
     prisma.feedDownload.aggregate({
       _sum: {
         downloads: true
@@ -68,15 +49,6 @@ export async function systemMetrics() {
   const importStatuses = Object.fromEntries(
     importStatusRows.map((row) => [row.status, row._count._all])
   );
-  const queueStatuses = Object.fromEntries(
-    queueStatusRows.map((row) => [row.status, row._count._all])
-  );
-  const oldestPendingQueueJobAgeSeconds = oldestPendingJob
-    ? Math.max(
-        0,
-        Math.floor((Date.now() - oldestPendingJob.createdAt.getTime()) / 1000)
-      )
-    : 0;
 
   return {
     ok: true,
@@ -85,9 +57,10 @@ export async function systemMetrics() {
     channels,
     programs,
     importStatuses,
-    queueStatuses,
-    oldestPendingQueueJobAgeSeconds,
-    failedQueueJobs,
+    queueStatuses: queueHealth.statuses,
+    oldestPendingQueueJobAgeSeconds: queueHealth.oldestPendingAgeSeconds,
+    failedQueueJobs: queueHealth.failedJobs,
+    staleRunningQueueJobs: queueHealth.staleRunningJobs,
     totalFeedDownloads: totalFeedDownloads._sum.downloads ?? 0,
     topFeeds,
     feedCount: feedSizes.length,
@@ -142,6 +115,9 @@ export async function prometheusMetrics() {
     '# HELP xmltv_job_queue_failed_jobs Failed queue jobs retained in the database queue.',
     '# TYPE xmltv_job_queue_failed_jobs gauge',
     metricLine('xmltv_job_queue_failed_jobs', metrics.failedQueueJobs),
+    '# HELP xmltv_job_queue_stale_running_jobs Running queue jobs whose worker lock has expired.',
+    '# TYPE xmltv_job_queue_stale_running_jobs gauge',
+    metricLine('xmltv_job_queue_stale_running_jobs', metrics.staleRunningQueueJobs),
     '# HELP xmltv_feed_downloads_total Total generated feed downloads.',
     '# TYPE xmltv_feed_downloads_total counter',
     metricLine('xmltv_feed_downloads_total', metrics.totalFeedDownloads),

@@ -48,7 +48,11 @@ vi.mock('./db/prisma', () => ({
       findUnique: vi.fn()
     },
     jobQueue: {
-      findMany: vi.fn()
+      count: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      groupBy: vi.fn(),
+      updateMany: vi.fn()
     },
     exportToken: {
       count: vi.fn(),
@@ -487,6 +491,85 @@ describe('server API', () => {
     }));
     expect(prisma.exportToken.findMany).toHaveBeenCalledWith(expect.objectContaining({
       take: 500
+    }));
+  });
+
+  it('returns admin queue health summary', async () => {
+    vi.mocked(prisma.jobQueue.groupBy).mockResolvedValue([
+      {
+        status: 'pending',
+        _count: {
+          _all: 2
+        }
+      }
+    ] as any);
+    vi.mocked(prisma.jobQueue.findFirst).mockResolvedValue({
+      createdAt: new Date()
+    } as any);
+    vi.mocked(prisma.jobQueue.count)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/admin/queue/summary')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      pendingJobs: 2,
+      staleRunningJobs: 1,
+      failedJobs: 3,
+      runningJobs: 4
+    });
+  });
+
+  it('allows admins to retry failed queue jobs', async () => {
+    vi.mocked(prisma.jobQueue.updateMany).mockResolvedValue({ count: 1 });
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/api/admin/queue/job-1/retry')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      retried: true,
+      id: 'job-1'
+    });
+    expect(prisma.jobQueue.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'job-1',
+        status: 'failed'
+      }
+    }));
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'queue.retry_failed',
+        entityId: 'job-1'
+      })
+    }));
+  });
+
+  it('allows admins to requeue stale running jobs', async () => {
+    vi.mocked(prisma.jobQueue.updateMany).mockResolvedValue({ count: 2 });
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .post('/api/admin/queue/stale/requeue')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      requeued: 2
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        action: 'queue.requeue_stale'
+      })
     }));
   });
 
