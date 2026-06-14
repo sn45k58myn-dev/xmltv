@@ -5,6 +5,17 @@ const booleanString = z.enum(['true', 'false']);
 const positiveInt = z.coerce.number().int().positive();
 const nonNegativeInt = z.coerce.number().int().nonnegative();
 
+function parseList(value: string | undefined) {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 const schema = z.object({
   DATABASE_URL: z.string().default('file:./dev.db'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
@@ -16,6 +27,7 @@ const schema = z.object({
   SCHEDULES_DIRECT_DAYS: positiveInt.default(7),
   SCHEDULES_DIRECT_BASE_URL: z.string().default('https://json.schedulesdirect.org/20141201'),
   CUSTOM_XMLTV_URLS: z.string().optional(),
+  WEBGRAB_SOURCE_FILES: z.string().optional(),
   ADMIN_TOKEN: z.string().default('dev-admin-token'),
   ALLOW_ADMIN_QUERY_TOKEN: booleanString.default('false'),
   PUBLIC_EXPORTS: booleanString.default('false'),
@@ -76,7 +88,5 @@ const schema = z.object({
 
 export const env = schema.parse(process.env);
 
-export const customXmltvUrls = (env.CUSTOM_XMLTV_URLS ?? '')
-  .split(',')
-  .map((url) => url.trim())
-  .filter(Boolean);
+export const customXmltvUrls = parseList(env.CUSTOM_XMLTV_URLS);
+export const webgrabSourceFiles = parseList(env.WEBGRAB_SOURCE_FILES);

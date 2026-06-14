@@ -33,6 +33,7 @@ services:
     volumes:
       - ./cache:/app/cache
       - ./data:/app/data
+      - ./webgrab/data:/app/data/webgrab:ro
       - ./uploads:/app/uploads
       - ./backups:/app/backups
     tmpfs:
@@ -47,6 +48,22 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 3
+
+  webgrabplus:
+    image: lscr.io/linuxserver/webgrabplus:latest
+    container_name: xmltv-webgrabplus
+    restart: unless-stopped
+    profiles:
+      - webgrab
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: UTC
+    volumes:
+      - ./webgrab/config:/config
+      - ./webgrab/data:/data/webgrab
+    depends_on:
+      - xmltv
 
 volumes:
   postgres-data:

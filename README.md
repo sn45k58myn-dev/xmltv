@@ -57,6 +57,7 @@ SCHEDULES_DIRECT_LINEUP=
 SCHEDULES_DIRECT_DAYS=7
 SCHEDULES_DIRECT_BASE_URL=https://json.schedulesdirect.org/20141201
 CUSTOM_XMLTV_URLS=https://example.com/guide.xml
+WEBGRAB_SOURCE_FILES=
 
 ADMIN_TOKEN=dev-admin-token
 ALLOW_ADMIN_QUERY_TOKEN=false
@@ -120,6 +121,7 @@ Important variables:
 - `SCHEDULES_DIRECT_DAYS`: Number of schedule days to request from SD-JSON.
 - `SCHEDULES_DIRECT_BASE_URL`: SD-JSON API base URL.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
+- `WEBGRAB_SOURCE_FILES`: Comma-separated local WebGrab output files to import as `upload` sources (for example `/app/data/webgrab/guide.xml`).
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
   Production startup requires at least 32 characters.
 - `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
@@ -689,6 +691,75 @@ For Xtream/M3U tuners, the tuner channel `tvg-id` values must match the XMLTV
 have mappings for that tuner provider. Country exports use the imported XMLTV
 ids and include channel aliases as extra `<display-name>` values to improve
 Jellyfin matching.
+
+## WebGrab+ with Docker
+
+You can run WebGrab+ as a dedicated service instead of invoking it inside the
+Node app process.
+
+```bash
+mkdir -p webgrab/config webgrab/data
+cp .env.example .env
+docker compose --profile webgrab up -d webgrabplus xmltv postgres
+```
+
+The webgrabplus container mounts:
+
+```text
+./webgrab/config -> /config
+./webgrab/data -> /data/webgrab
+```
+
+Place your WebGrab+ config in:
+
+`webgrab/config/WebGrab++.config.xml`
+
+Point your WebGrab+ configuration at `/data/webgrab` and generate
+`guide.xml` (or any file name you choose). The app mounts the same directory at
+`/app/data/webgrab`, so an upload source can read it as:
+
+`/app/data/webgrab/guide.xml`
+
+Create a normal source in the app with:
+
+- `type`: `upload`
+- `url`: `/app/data/webgrab/guide.xml`
+
+You can also use local-source registration script and include multiple files:
+
+```bash
+WEBGRAB_SOURCE_FILES=/app/data/webgrab/guide.xml
+npm run webgrab:register-sources
+```
+
+Then import it with:
+
+```bash
+npm run webgrab:import
+```
+
+If you need to load WebGrab+ site metadata before configuring your guide source, run:
+
+```bash
+npm run webgrab:bootstrap
+```
+
+That command keeps a local cache of the WebGrab+ site in `webgrab/config/siteinipack`
+and creates a starter `webgrab/config/WebGrab++.config.xml` from template if missing.
+
+Then run imports from admin or API:
+
+```bash
+curl -X POST -H "x-admin-token: $ADMIN_TOKEN" \
+  http://localhost:3000/api/admin/imports/run
+```
+
+If you need to keep a long-running webgrab container for periodic updates, keep
+the `webgrab` profile enabled and add it to compose startup when desired:
+
+```bash
+docker compose --profile webgrab up -d
+```
 
 ## Docker Usage
 

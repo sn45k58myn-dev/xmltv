@@ -11,3 +11,9 @@ cache/
 *.xml
 *.xml.gz
 backups/
+webgrab/data/*
+!webgrab/data/.gitkeep
+webgrab/config/*.xml
+!webgrab/config/WebGrab++.config.template.xml
+!webgrab/config/.gitkeep
+webgrab/.tmp/

@@ -10,7 +10,9 @@ async function loadEnvWith(overrides: Record<string, string | undefined>) {
     'SOURCE_FETCH_MAX_MB',
     'SOURCE_FETCH_MAX_REDIRECTS',
     'SOURCE_FETCH_RETRIES',
-    'WORKER_SHUTDOWN_TIMEOUT_MS'
+    'WORKER_SHUTDOWN_TIMEOUT_MS',
+    'CUSTOM_XMLTV_URLS',
+    'WEBGRAB_SOURCE_FILES'
   ];
 
   for (const key of keys) {
@@ -32,6 +34,8 @@ describe('env', () => {
     delete process.env.SOURCE_FETCH_MAX_REDIRECTS;
     delete process.env.SOURCE_FETCH_RETRIES;
     delete process.env.WORKER_SHUTDOWN_TIMEOUT_MS;
+    delete process.env.CUSTOM_XMLTV_URLS;
+    delete process.env.WEBGRAB_SOURCE_FILES;
   });
 
   it('rejects invalid positive integer settings', async () => {
@@ -66,5 +70,24 @@ describe('env', () => {
     await expect(loadEnvWith({
       WORKER_SHUTDOWN_TIMEOUT_MS: '0'
     })).rejects.toThrow();
+  });
+
+  it('parses custom XMLTV and WebGrab source list values', async () => {
+    const {
+      customXmltvUrls,
+      webgrabSourceFiles
+    } = await loadEnvWith({
+      CUSTOM_XMLTV_URLS: 'https://a.example/guide.xml, /app/data/webgrab/guide.xml',
+      WEBGRAB_SOURCE_FILES: './webgrab/data/manual.xml,   '
+    });
+
+    expect(customXmltvUrls).toEqual([
+      'https://a.example/guide.xml',
+      '/app/data/webgrab/guide.xml'
+    ]);
+
+    expect(webgrabSourceFiles).toEqual([
+      './webgrab/data/manual.xml'
+    ]);
   });
 });

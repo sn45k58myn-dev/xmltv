@@ -729,11 +729,15 @@ async function loadAuditLog() {
   content().innerHTML = '<p class="muted">Loading audit log...</p>';
 
   try {
-    const events = await api('audit');
+    const allEvents = await api('audit');
+    const eventRows = Array.isArray(allEvents) ? allEvents : [];
+    const visibleEvents = eventRows.slice(0, 80);
+    const allEventsCount = eventRows.length;
 
     content().innerHTML = `
       <h2>Audit Log</h2>
-      ${table(events.map((event) => ({
+      ${allEventsCount > visibleEvents.length ? `<p class="muted">Showing latest ${visibleEvents.length} of ${allEventsCount} events.</p>` : ''}
+      ${table(visibleEvents.map((event) => ({
         createdAt: event.createdAt,
         action: event.action,
         entityType: event.entityType,
@@ -916,10 +920,13 @@ async function loadFeedQualityHistory() {
 
   try {
     const history = await api('quality/history');
+    const historyRows = Array.isArray(history) ? history : [];
+    const visibleHistory = historyRows.slice(0, 30);
 
     target.innerHTML = `
       <h3>Feed Quality History</h3>
-      ${table(history.map((row) => ({
+      ${historyRows.length > visibleHistory.length ? `<p class="muted">Showing latest ${visibleHistory.length} of ${historyRows.length} snapshots.</p>` : ''}
+      ${table(visibleHistory.map((row) => ({
         createdAt: row.createdAt,
         feedKey: row.feedKey,
         score: row.score,
