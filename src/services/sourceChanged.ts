@@ -1,7 +1,40 @@
 import axios from 'axios';
 import { env } from '../config/env';
-import { assertResolvedSourceUrlAllowed } from '../sources/sourceUrl';
+import { assertResolvedSourceUrlAllowed, resolveSourceRedirectUrl } from '../sources/sourceUrl';
 import { getSourceCache, updateSourceCache } from './sourceCache';
+
+async function headWithValidatedRedirects(url: string) {
+  let currentUrl = url;
+
+  for (let redirectCount = 0; redirectCount <= env.SOURCE_FETCH_MAX_REDIRECTS; redirectCount++) {
+    const response = await axios.head(currentUrl, {
+      timeout: env.SOURCE_HEAD_TIMEOUT_MS,
+      maxRedirects: 0,
+      validateStatus: () => true
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.location;
+
+      if (!location || redirectCount >= env.SOURCE_FETCH_MAX_REDIRECTS) {
+        return response;
+      }
+
+      const redirected = resolveSourceRedirectUrl(
+        currentUrl,
+        location
+      );
+
+      await assertResolvedSourceUrlAllowed(redirected.toString());
+      currentUrl = redirected.toString();
+      continue;
+    }
+
+    return response;
+  }
+
+  throw new Error(`Source freshness check exceeded maximum redirects (${env.SOURCE_FETCH_MAX_REDIRECTS}).`);
+}
 
 export async function sourceChanged(
   sourceId: string,
@@ -12,11 +45,7 @@ export async function sourceChanged(
   try {
     const cache = await getSourceCache(sourceId);
 
-    const response = await axios.head(url, {
-      timeout: env.SOURCE_HEAD_TIMEOUT_MS,
-      maxRedirects: env.SOURCE_FETCH_MAX_REDIRECTS,
-      validateStatus: () => true
-    });
+    const response = await headWithValidatedRedirects(url);
 
     if (response.status >= 400) {
       console.warn(
