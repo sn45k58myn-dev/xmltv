@@ -3,13 +3,33 @@ import { prisma } from '../db/prisma';
 import { requireAdmin } from '../middleware/auth';
 import { recordAuditEvent } from '../services/auditLog';
 import { parseNonEmptyAdminPayload, parseSourceCreatePayload, sourceUpdateSchema } from '../utils/adminPayloads';
+import { boundedLimit } from '../utils/limits';
+import { safeRouteId } from '../utils/routeParams';
 
 export const sourceRoutes = Router();
 sourceRoutes.use(requireAdmin);
 
-sourceRoutes.get('/', async (_req, res) => {
+function routeIdParam(
+  value: string,
+  res
+) {
+  try {
+    return safeRouteId(value);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid route id.'
+    });
+    return undefined;
+  }
+}
+
+sourceRoutes.get('/', async (req, res) => {
   const sources = await prisma.source.findMany({
-    orderBy: { priority: 'asc' }
+    orderBy: { priority: 'asc' },
+    take: boundedLimit(req.query.limit, {
+      defaultValue: 500,
+      max: 5000
+    })
   });
 
   res.json(sources);
@@ -35,12 +55,14 @@ sourceRoutes.post('/', async (req, res) => {
 });
 
 sourceRoutes.put('/:id', async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const data = parseNonEmptyAdminPayload(
     sourceUpdateSchema,
     req.body
   );
   const source = await prisma.source.update({
-    where: { id: req.params.id },
+    where: { id },
     data
   });
 
@@ -55,8 +77,10 @@ sourceRoutes.put('/:id', async (req, res) => {
 });
 
 sourceRoutes.delete('/:id', async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const source = await prisma.source.update({
-    where: { id: req.params.id },
+    where: { id },
     data: {
       enabled: false
     }

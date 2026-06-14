@@ -738,6 +738,8 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Express framework disclosure is disabled with `X-Powered-By` removed from
   responses.
 - Admin and management API responses send `Cache-Control: no-store`.
+- Admin list endpoints use bounded `limit` parameters and mutation route ids
+  are validated before database writes.
 - Source health history is protected by admin/viewer authentication.
   `/api/source-health` supports optional `sourceId`, `status=success|failed`,
   and bounded `limit` query parameters for targeted operations views.

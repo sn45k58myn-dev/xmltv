@@ -31,7 +31,9 @@ vi.mock('./db/prisma', () => ({
     },
     exportProfile: {
       count: vi.fn(),
-      create: vi.fn()
+      create: vi.fn(),
+      findMany: vi.fn(),
+      update: vi.fn()
     },
     importRun: {
       count: vi.fn(),
@@ -378,6 +380,64 @@ describe('server API', () => {
       channels: 2,
       programs: 3
     });
+  });
+
+  it('bounds admin lifecycle list endpoints', async () => {
+    vi.mocked(prisma.source.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.apiKey.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.exportProfile.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.exportToken.findMany).mockResolvedValue([]);
+
+    const app = await loadApp();
+
+    await request(app)
+      .get('/api/admin/sources?limit=999999')
+      .set('x-admin-token', 'test-admin-token');
+    await request(app)
+      .get('/api/admin/api-keys?limit=999999')
+      .set('x-admin-token', 'test-admin-token');
+    await request(app)
+      .get('/api/admin/profiles?limit=999999')
+      .set('x-admin-token', 'test-admin-token');
+    await request(app)
+      .get('/api/admin/tokens?limit=999999')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(prisma.source.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 5000
+    }));
+    expect(prisma.apiKey.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 500
+    }));
+    expect(prisma.exportProfile.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 1000
+    }));
+    expect(prisma.exportToken.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      take: 500
+    }));
+  });
+
+  it('rejects invalid admin route ids before database mutations', async () => {
+    const app = await loadApp();
+    const apiKeyResponse = await request(app)
+      .patch('/api/admin/api-keys/..%2Fkey')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        name: 'Updated'
+      });
+    const exportTokenResponse = await request(app)
+      .patch('/api/export-tokens/..%2Ftoken')
+      .set('x-admin-token', 'test-admin-token')
+      .send({
+        name: 'Updated'
+      });
+
+    expect(apiKeyResponse.status).toBe(400);
+    expect(apiKeyResponse.body.error).toContain('Invalid route id');
+    expect(exportTokenResponse.status).toBe(400);
+    expect(exportTokenResponse.body.error).toContain('Invalid route id');
+    expect(prisma.apiKey.update).not.toHaveBeenCalled();
+    expect(prisma.exportToken.update).not.toHaveBeenCalled();
   });
 
   it('rejects viewer API keys on admin-only routes', async () => {

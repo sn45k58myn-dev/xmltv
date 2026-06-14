@@ -14,6 +14,7 @@ import { getSourceCategories } from '../services/sourceCategoryService';
 import { getAuditEvents, maskExportToken, recordAuditEvent } from '../services/auditLog';
 import { createApiKey, maskApiKey } from '../services/apiKeys';
 import { boundedLimit } from '../utils/limits';
+import { safeRouteId } from '../utils/routeParams';
 import {
   aliasCreateSchema,
   aliasGenerateSchema,
@@ -55,6 +56,20 @@ type CoverageProgramGroupRow = {
   };
 };
 
+function routeIdParam(
+  value: string,
+  res
+) {
+  try {
+    return safeRouteId(value);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid route id.'
+    });
+    return undefined;
+  }
+}
+
 adminApi.get('/summary', requireViewer, async (_req, res) => {
   const [sources, channels, programs, aliases, profiles, runs, tokens] = await Promise.all([
     prisma.source.count(), prisma.channel.count(), prisma.program.count(), prisma.alias.count(), prisma.exportProfile.count(), prisma.importRun.count(), prisma.exportToken.count()
@@ -84,7 +99,13 @@ adminApi.get('/quality/history', requireViewer, async (req, res) => {
   })));
 });
 adminApi.get('/source-categories', requireViewer, async (_req, res) => res.json(await getSourceCategories()));
-adminApi.get('/sources', requireViewer, async (_req, res) => res.json(await prisma.source.findMany({ orderBy: { priority: 'asc' } })));
+adminApi.get('/sources', requireViewer, async (req, res) => res.json(await prisma.source.findMany({
+  orderBy: { priority: 'asc' },
+  take: boundedLimit(req.query.limit, {
+    defaultValue: 500,
+    max: 5000
+  })
+})));
 adminApi.post('/sources', requireAdmin, async (req, res) => {
   const data = parseSourceCreatePayload(req.body);
   const source = await prisma.source.create({ data });
@@ -102,8 +123,10 @@ adminApi.post('/sources', requireAdmin, async (req, res) => {
   res.status(201).json(source);
 });
 adminApi.patch('/sources/:id', requireAdmin, async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const data = parseNonEmptyAdminPayload(sourceUpdateSchema, req.body);
-  const source = await prisma.source.update({ where: { id: req.params.id }, data });
+  const source = await prisma.source.update({ where: { id }, data });
 
   await recordAuditEvent(req, {
     action: 'source.update',
@@ -142,11 +165,15 @@ adminApi.get('/audit', requireAdmin, async (req, res) => {
     max: 500
   })));
 });
-adminApi.get('/api-keys', requireAdmin, async (_req, res) => {
+adminApi.get('/api-keys', requireAdmin, async (req, res) => {
   const apiKeys = await prisma.apiKey.findMany({
     orderBy: {
       createdAt: 'desc'
-    }
+    },
+    take: boundedLimit(req.query.limit, {
+      defaultValue: 100,
+      max: 500
+    })
   });
 
   res.json(apiKeys.map(maskApiKey));
@@ -175,10 +202,12 @@ adminApi.post('/api-keys', requireAdmin, async (req, res) => {
   });
 });
 adminApi.patch('/api-keys/:id', requireAdmin, async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const data = parseNonEmptyAdminPayload(apiKeyUpdateSchema, req.body);
   const apiKey = await prisma.apiKey.update({
     where: {
-      id: req.params.id
+      id
     },
     data
   });
@@ -199,9 +228,11 @@ adminApi.patch('/api-keys/:id', requireAdmin, async (req, res) => {
   res.json(maskApiKey(apiKey));
 });
 adminApi.delete('/api-keys/:id', requireAdmin, async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const apiKey = await prisma.apiKey.update({
     where: {
-      id: req.params.id
+      id
     },
     data: {
       active: false
@@ -222,9 +253,11 @@ adminApi.delete('/api-keys/:id', requireAdmin, async (req, res) => {
   res.status(204).end();
 });
 adminApi.get('/jobs/:id', requireViewer, async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const job = await prisma.jobRun.findUnique({
     where: {
-      id: req.params.id
+      id
     }
   });
 
@@ -302,8 +335,10 @@ adminApi.get('/channels', requireViewer, async (req, res) => res.json(await pris
   })
 })));
 adminApi.patch('/channels/:id', requireAdmin, async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const data = parseNonEmptyAdminPayload(channelUpdateSchema, req.body);
-  const channel = await prisma.channel.update({ where: { id: req.params.id }, data });
+  const channel = await prisma.channel.update({ where: { id }, data });
 
   await recordAuditEvent(req, {
     action: 'channel.update',
@@ -371,7 +406,9 @@ adminApi.post('/aliases', requireAdmin, async (req, res) => {
   res.status(201).json(alias);
 });
 adminApi.delete('/aliases/:id', requireAdmin, async (req, res) => {
-  const alias = await prisma.alias.delete({ where: { id: req.params.id } });
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
+  const alias = await prisma.alias.delete({ where: { id } });
 
   await recordAuditEvent(req, {
     action: 'channel.alias.delete',
@@ -384,7 +421,13 @@ adminApi.delete('/aliases/:id', requireAdmin, async (req, res) => {
 
   res.json(alias);
 });
-adminApi.get('/profiles', requireViewer, async (_req, res) => res.json(await prisma.exportProfile.findMany({ orderBy: { name: 'asc' } })));
+adminApi.get('/profiles', requireViewer, async (req, res) => res.json(await prisma.exportProfile.findMany({
+  orderBy: { name: 'asc' },
+  take: boundedLimit(req.query.limit, {
+    defaultValue: 100,
+    max: 1000
+  })
+})));
 adminApi.post('/profiles', requireAdmin, async (req, res) => {
   const data = parseProfileCreatePayload(req.body);
   const profile = await prisma.exportProfile.create({ data });
@@ -402,8 +445,10 @@ adminApi.post('/profiles', requireAdmin, async (req, res) => {
   res.status(201).json(profile);
 });
 adminApi.patch('/profiles/:id', requireAdmin, async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const data = parseNonEmptyAdminPayload(profileUpdateSchema, req.body);
-  const profile = await prisma.exportProfile.update({ where: { id: req.params.id }, data });
+  const profile = await prisma.exportProfile.update({ where: { id }, data });
 
   await recordAuditEvent(req, {
     action: 'profile.update',
@@ -414,8 +459,14 @@ adminApi.patch('/profiles/:id', requireAdmin, async (req, res) => {
 
   res.json(profile);
 });
-adminApi.get('/tokens', requireAdmin, async (_req, res) => {
-  const tokens = await prisma.exportToken.findMany({ orderBy: { createdAt: 'desc' } });
+adminApi.get('/tokens', requireAdmin, async (req, res) => {
+  const tokens = await prisma.exportToken.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: boundedLimit(req.query.limit, {
+      defaultValue: 100,
+      max: 500
+    })
+  });
 
   res.json(tokens.map(maskExportToken));
 });
@@ -445,24 +496,28 @@ adminApi.post('/tokens', requireAdmin, async (req, res) => {
   res.status(201).json(maskExportToken(token));
 });
 adminApi.post('/enrich/tmdb/:programId', requireAdmin, async (req, res) => {
-  const result = await enrichProgramWithTmdb(req.params.programId);
+  const programId = routeIdParam(req.params.programId, res);
+  if (!programId) return;
+  const result = await enrichProgramWithTmdb(programId);
 
   await recordAuditEvent(req, {
     action: 'program.enrich.tmdb',
     entityType: 'Program',
-    entityId: req.params.programId
+    entityId: programId
   });
 
   res.json(result);
 });
 adminApi.post('/enrich/channel/:channelId/assets', requireAdmin, async (req, res) => {
+  const channelId = routeIdParam(req.params.channelId, res);
+  if (!channelId) return;
   const data = parseAdminPayload(channelAssetsSchema, req.body);
-  const result = await enrichChannelAssets(req.params.channelId, data.logo, data.image);
+  const result = await enrichChannelAssets(channelId, data.logo, data.image);
 
   await recordAuditEvent(req, {
     action: 'channel.assets.enrich',
     entityType: 'Channel',
-    entityId: req.params.channelId,
+    entityId: channelId,
     metadata: {
       hasLogo: Boolean(data.logo),
       hasImage: Boolean(data.image)
@@ -472,13 +527,15 @@ adminApi.post('/enrich/channel/:channelId/assets', requireAdmin, async (req, res
   res.json(result);
 });
 adminApi.post('/catchup/:programId', requireAdmin, async (req, res) => {
+  const programId = routeIdParam(req.params.programId, res);
+  if (!programId) return;
   const data = parseAdminPayload(catchupSchema, req.body);
-  const result = await attachCatchupMetadata(req.params.programId, data.catchupUrl, data.catchupDays);
+  const result = await attachCatchupMetadata(programId, data.catchupUrl, data.catchupDays);
 
   await recordAuditEvent(req, {
     action: 'program.catchup.attach',
     entityType: 'Program',
-    entityId: req.params.programId,
+    entityId: programId,
     metadata: {
       catchupDays: data.catchupDays
     }

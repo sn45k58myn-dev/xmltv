@@ -8,13 +8,33 @@ import {
   parseAdminPayload,
   parseNonEmptyAdminPayload
 } from '../utils/adminPayloads';
+import { boundedLimit } from '../utils/limits';
+import { safeRouteId } from '../utils/routeParams';
 
 export const exportTokenRoutes = Router();
 exportTokenRoutes.use(requireAdmin);
 
-exportTokenRoutes.get('/', async (_req, res) => {
+function routeIdParam(
+  value: string,
+  res
+) {
+  try {
+    return safeRouteId(value);
+  } catch (error) {
+    res.status(400).json({
+      error: error instanceof Error ? error.message : 'Invalid route id.'
+    });
+    return undefined;
+  }
+}
+
+exportTokenRoutes.get('/', async (req, res) => {
   const tokens = await prisma.exportToken.findMany({
-    orderBy: { createdAt: 'desc' }
+    orderBy: { createdAt: 'desc' },
+    take: boundedLimit(req.query.limit, {
+      defaultValue: 100,
+      max: 500
+    })
   });
   res.json(tokens.map(maskExportToken));
 });
@@ -50,11 +70,13 @@ exportTokenRoutes.post('/', async (req, res) => {
 });
 
 exportTokenRoutes.patch('/:id', async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
   const data = parseNonEmptyAdminPayload(exportTokenUpdateSchema, req.body);
 
   try {
     const token = await prisma.exportToken.update({
-      where: { id: req.params.id },
+      where: { id },
       data
     });
 
@@ -78,9 +100,12 @@ exportTokenRoutes.patch('/:id', async (req, res) => {
 });
 
 exportTokenRoutes.delete('/:id', async (req, res) => {
+  const id = routeIdParam(req.params.id, res);
+  if (!id) return;
+
   try {
     const token = await prisma.exportToken.update({
-      where: { id: req.params.id },
+      where: { id },
       data: {
         active: false
       }
