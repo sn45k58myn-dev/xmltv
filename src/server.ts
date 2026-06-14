@@ -260,7 +260,7 @@ app.get(
   requireExportToken,
   async (req, res) => {
     try {
-      return sendCachedCountryXml(res, normalizeCountryParam(req.params.country));
+      return sendCachedCountryXml(req, res, normalizeCountryParam(req.params.country));
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : 'Invalid country code.'
@@ -274,7 +274,7 @@ app.get(
   requireExportToken,
   async (req, res) => {
     try {
-      return sendCachedCountryGzip(res, normalizeCountryParam(req.params.country));
+      return sendCachedCountryGzip(req, res, normalizeCountryParam(req.params.country));
     } catch (error) {
       return res.status(400).json({
         error: error instanceof Error ? error.message : 'Invalid country code.'
@@ -285,20 +285,20 @@ app.get(
 
 // Legacy compatibility routes
 
-app.get('/uk.xml', requireExportToken, (_req, res) =>
-  sendCachedCountryXml(res, 'GB')
+app.get('/uk.xml', requireExportToken, (req, res) =>
+  sendCachedCountryXml(req, res, 'GB')
 );
 
-app.get('/uk.xml.gz', requireExportToken, (_req, res) =>
-  sendCachedCountryGzip(res, 'GB')
+app.get('/uk.xml.gz', requireExportToken, (req, res) =>
+  sendCachedCountryGzip(req, res, 'GB')
 );
 
-app.get('/us.xml', requireExportToken, (_req, res) =>
-  sendCachedCountryXml(res, 'US')
+app.get('/us.xml', requireExportToken, (req, res) =>
+  sendCachedCountryXml(req, res, 'US')
 );
 
-app.get('/us.xml.gz', requireExportToken, (_req, res) =>
-  sendCachedCountryGzip(res, 'US')
+app.get('/us.xml.gz', requireExportToken, (req, res) =>
+  sendCachedCountryGzip(req, res, 'US')
 );
 
 app.get('/sports.xml', requireExportToken, async (_req, res) => {
@@ -338,11 +338,12 @@ app.get('/provider/:id.xml', requireExportToken, async (req, res) => {
   const cached = await getCachedFeedFile(key, '.xml');
 
   if (cached) {
-    await recordFeedDownload(`${key}.xml`);
     return sendCachedFeedFile(
+      req,
       res,
       cached,
-      'application/xml; charset=utf-8'
+      'application/xml; charset=utf-8',
+      `${key}.xml`
     );
   }
 
@@ -368,12 +369,12 @@ app.get('/provider/:id.xml.gz', requireExportToken, async (req, res) => {
     return res.status(404).send('Feed not generated');
   }
 
-  await recordFeedDownload(`${key}.xml.gz`);
-
   return sendCachedFeedFile(
+    req,
     res,
     gzip,
-    'application/gzip'
+    'application/gzip',
+    `${key}.xml.gz`
   );
 });
 
@@ -404,6 +405,15 @@ function setEntityTag(
   res.setHeader('etag', `"${hash}"`);
 }
 
+function cachedFileEntityTag(
+  file: {
+    size: number;
+    mtime: Date;
+  }
+) {
+  return `W/"${file.size.toString(16)}-${file.mtime.getTime().toString(16)}"`;
+}
+
 function setFileEntityTag(
   res,
   file: {
@@ -411,10 +421,51 @@ function setFileEntityTag(
     mtime: Date;
   }
 ) {
-  res.setHeader(
-    'etag',
-    `W/"${file.size.toString(16)}-${file.mtime.getTime().toString(16)}"`
-  );
+  res.setHeader('etag', cachedFileEntityTag(file));
+}
+
+function requestHasEntityTag(
+  req,
+  etag: string
+) {
+  const header = req.get('if-none-match');
+
+  if (!header) {
+    return false;
+  }
+
+  return header
+    .split(',')
+    .map((value) => value.trim())
+    .includes(etag);
+}
+
+function requestFreshForFile(
+  req,
+  file: {
+    size: number;
+    mtime: Date;
+  }
+) {
+  const etag = cachedFileEntityTag(file);
+
+  if (requestHasEntityTag(req, etag)) {
+    return true;
+  }
+
+  const modifiedSince = req.get('if-modified-since');
+
+  if (!modifiedSince) {
+    return false;
+  }
+
+  const modifiedSinceMs = Date.parse(modifiedSince);
+
+  if (!Number.isFinite(modifiedSinceMs)) {
+    return false;
+  }
+
+  return file.mtime.getTime() <= modifiedSinceMs;
 }
 
 function sendXml(
@@ -432,12 +483,24 @@ function sendXml(
 }
 
 function sendCachedFeedFile(
+  req,
   res,
   file,
-  contentType: string
+  contentType: string,
+  feedKey?: string
 ) {
   setFeedCacheHeaders(res);
   setFileEntityTag(res, file);
+  res.setHeader('last-modified', file.mtime.toUTCString());
+
+  if (requestFreshForFile(req, file)) {
+    return res.status(304).end();
+  }
+
+  if (feedKey) {
+    void recordFeedDownload(feedKey);
+  }
+
   res.setHeader('content-type', contentType);
   res.setHeader('content-length', String(file.size));
 
@@ -456,6 +519,7 @@ function sendCachedFeedFile(
 }
 
 async function sendCachedCountryXml(
+  req,
   res,
   country: string
 ) {
@@ -465,16 +529,17 @@ async function sendCachedCountryXml(
     return res.status(404).send('Feed not generated');
   }
 
-  await recordFeedDownload(`${country}.xml`);
-
   return sendCachedFeedFile(
+    req,
     res,
     file,
-    'application/xml; charset=utf-8'
+    'application/xml; charset=utf-8',
+    `${country}.xml`
   );
 }
 
 async function sendCachedCountryGzip(
+  req,
   res,
   country: string
 ) {
@@ -484,12 +549,12 @@ async function sendCachedCountryGzip(
     return res.status(404).send('Feed not generated');
   }
 
-  await recordFeedDownload(`${country}.xml.gz`);
-
   return sendCachedFeedFile(
+    req,
     res,
     file,
-    'application/gzip'
+    'application/gzip',
+    `${country}.xml.gz`
   );
 }
 

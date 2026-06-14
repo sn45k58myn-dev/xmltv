@@ -2,7 +2,7 @@ import request from 'supertest';
 import { Readable } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from './db/prisma';
-import { assertCacheDirectoryWritable, getCachedFeedFile } from './services/cacheService';
+import { assertCacheDirectoryWritable, createCachedFeedReadStream, getCachedFeedFile } from './services/cacheService';
 import { recordFeedDownload } from './services/downloadMetrics';
 
 vi.mock('./db/prisma', () => ({
@@ -546,9 +546,38 @@ describe('server API', () => {
     expect(response.text).toBe('<tv></tv>');
     expect(response.headers['cache-control']).toBe('private, max-age=300');
     expect(response.headers.etag).toMatch(/^W\/".+"$/);
+    expect(response.headers['last-modified']).toBe('Sun, 14 Jun 2026 00:00:00 GMT');
     expect(response.headers['content-length']).toBe(String(Buffer.byteLength('<tv></tv>')));
     expect(response.headers.vary).toContain('x-export-token');
     expect(recordFeedDownload).toHaveBeenCalledWith('GB.xml');
+  });
+
+  it('returns 304 for unchanged cached feeds without streaming or counting a download', async () => {
+    const mtime = new Date('2026-06-14T00:00:00.000Z');
+    const size = Buffer.byteLength('<tv></tv>');
+
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 1
+    });
+    vi.mocked(getCachedFeedFile).mockResolvedValue({
+      filePath: 'cache/GB.xml',
+      size,
+      mtime
+    });
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/country/GB.xml')
+      .set('x-export-token', 'valid-token')
+      .set('if-none-match', `W/"${size.toString(16)}-${mtime.getTime().toString(16)}"`);
+
+    expect(response.status).toBe(304);
+    expect(response.text).toBe('');
+    expect(response.headers.etag).toBe(`W/"${size.toString(16)}-${mtime.getTime().toString(16)}"`);
+    expect(response.headers['last-modified']).toBe('Sun, 14 Jun 2026 00:00:00 GMT');
+    expect(createCachedFeedReadStream).not.toHaveBeenCalled();
+    expect(recordFeedDownload).not.toHaveBeenCalled();
   });
 
   it('rejects obviously non-XML uploads before import processing', async () => {
