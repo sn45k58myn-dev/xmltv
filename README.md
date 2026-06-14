@@ -150,6 +150,8 @@ Important variables:
 - `JOB_RUN_RETENTION_DAYS`: Removes job run history older than this many days.
 - `JOB_QUEUE_RETENTION_DAYS`: Removes completed or failed queue jobs older than this many days.
 - `FEED_QUALITY_RETENTION_DAYS`: Removes feed quality snapshots older than this many days.
+- `SOURCE_HEALTH_RETENTION_DAYS`: Removes source health rows older than this many days.
+- `FEED_DOWNLOAD_RETENTION_DAYS`: Removes stale feed download counters whose last download is older than this many days.
 - `EXPORT_PAST_HOURS`: Past programme window included in generated feeds.
 - `EXPORT_FUTURE_DAYS`: Future programme window included in generated feeds.
 - `ENABLE_DEBUG_ROUTES`: Enables admin-protected debug routes when `true`.
@@ -281,9 +283,9 @@ the scheduler to skip that source until `SOURCE_FAILURE_BACKOFF_MINUTES` has
 elapsed. Each scheduled source import is also guarded by `IMPORT_TIMEOUT_MS`.
 
 Operational retention runs daily after programme retention. It prunes old audit
-logs, job runs, completed queue jobs, and feed quality snapshots according to
-the retention env vars. Pending or running queue jobs are never removed by
-retention.
+logs, job runs, completed queue jobs, feed quality snapshots, source health
+rows, and stale feed download counters according to the retention env vars.
+Pending or running queue jobs are never removed by retention.
 
 ## Job Runs
 
@@ -481,11 +483,14 @@ secrets, passwords, or authorization values are redacted before the path is
 written to logs.
 
 Prometheus output includes process health, channel/program counts, HTTP request
-latency, import run counts by status, queue depth by status, total feed
-downloads, top feed downloads, and the latest persisted feed quality score.
+latency, import run counts by status, queue depth by status, oldest pending
+queue job age, failed queue job count, total feed downloads, top feed
+downloads, and the latest persisted feed quality score.
 
-The dashboard response includes `cacheWarning` and `cacheWarningThresholdMB`.
-Set `CACHE_WARNING_MB` to match the storage budget for the deployment.
+The dashboard response includes `cacheWarning`, `cacheWarningThresholdMB`,
+`queueDepthByStatus`, and `oldestPendingQueueJobAgeSeconds`. Set
+`CACHE_WARNING_MB` to match the storage budget for the deployment and alert on
+old pending queue jobs when worker capacity falls behind.
 
 ## Discovery Endpoints
 

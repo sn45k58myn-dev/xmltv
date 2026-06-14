@@ -11,6 +11,8 @@ export async function systemMetrics() {
     programs,
     importStatusRows,
     queueStatusRows,
+    oldestPendingJob,
+    failedQueueJobs,
     totalFeedDownloads,
     topFeeds,
     latestQualitySnapshot,
@@ -30,6 +32,19 @@ export async function systemMetrics() {
       by: ['status'],
       _count: {
         _all: true
+      }
+    }),
+    prisma.jobQueue.findFirst({
+      where: {
+        status: 'pending'
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
+    }),
+    prisma.jobQueue.count({
+      where: {
+        status: 'failed'
       }
     }),
     prisma.feedDownload.aggregate({
@@ -56,6 +71,12 @@ export async function systemMetrics() {
   const queueStatuses = Object.fromEntries(
     queueStatusRows.map((row) => [row.status, row._count._all])
   );
+  const oldestPendingQueueJobAgeSeconds = oldestPendingJob
+    ? Math.max(
+        0,
+        Math.floor((Date.now() - oldestPendingJob.createdAt.getTime()) / 1000)
+      )
+    : 0;
 
   return {
     ok: true,
@@ -65,6 +86,8 @@ export async function systemMetrics() {
     programs,
     importStatuses,
     queueStatuses,
+    oldestPendingQueueJobAgeSeconds,
+    failedQueueJobs,
     totalFeedDownloads: totalFeedDownloads._sum.downloads ?? 0,
     topFeeds,
     feedCount: feedSizes.length,
@@ -113,6 +136,12 @@ export async function prometheusMetrics() {
     ...Object.entries(metrics.queueStatuses).map(([status, count]) =>
       metricLine('xmltv_job_queue_jobs', Number(count), { status })
     ),
+    '# HELP xmltv_job_queue_oldest_pending_age_seconds Age of the oldest pending queue job.',
+    '# TYPE xmltv_job_queue_oldest_pending_age_seconds gauge',
+    metricLine('xmltv_job_queue_oldest_pending_age_seconds', metrics.oldestPendingQueueJobAgeSeconds),
+    '# HELP xmltv_job_queue_failed_jobs Failed queue jobs retained in the database queue.',
+    '# TYPE xmltv_job_queue_failed_jobs gauge',
+    metricLine('xmltv_job_queue_failed_jobs', metrics.failedQueueJobs),
     '# HELP xmltv_feed_downloads_total Total generated feed downloads.',
     '# TYPE xmltv_feed_downloads_total counter',
     metricLine('xmltv_feed_downloads_total', metrics.totalFeedDownloads),

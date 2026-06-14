@@ -24,7 +24,9 @@ export async function getDashboardStats() {
     lastImport,
     recentImports,
     recentFailedImports,
-    recentFailures
+    recentFailures,
+    queueStatuses,
+    oldestPendingJob
   ] = await Promise.all([
     prisma.channel.count(),
     prisma.program.count(),
@@ -73,6 +75,20 @@ export async function getDashboardStats() {
           gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
         }
       }
+    }),
+    prisma.jobQueue.groupBy({
+      by: ['status'],
+      _count: {
+        _all: true
+      }
+    }),
+    prisma.jobQueue.findFirst({
+      where: {
+        status: 'pending'
+      },
+      orderBy: {
+        createdAt: 'asc'
+      }
     })
   ]);
 
@@ -83,6 +99,15 @@ export async function getDashboardStats() {
   const cacheSizeMB = Number(
     feedSizes.reduce((sum, feed) => sum + feed.megabytes, 0).toFixed(2)
   );
+  const queueDepthByStatus = Object.fromEntries(
+    queueStatuses.map((row) => [row.status, row._count._all])
+  );
+  const oldestPendingQueueJobAgeSeconds = oldestPendingJob
+    ? Math.max(
+        0,
+        Math.floor((Date.now() - oldestPendingJob.createdAt.getTime()) / 1000)
+      )
+    : 0;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -99,6 +124,8 @@ export async function getDashboardStats() {
       : null,
     cacheWarningThresholdMB: env.CACHE_WARNING_MB,
     recentFailures,
+    queueDepthByStatus,
+    oldestPendingQueueJobAgeSeconds,
     topFeeds: downloads.slice(0, 10),
     feeds: feedSizes,
     recentImports: recentImports.map((run) => ({

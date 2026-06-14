@@ -6,6 +6,8 @@ type RetentionResult = {
   jobRuns: number;
   jobQueue: number;
   feedQualitySnapshots: number;
+  sourceHealth: number;
+  feedDownloads: number;
 };
 
 function cutoff(days: number) {
@@ -17,7 +19,9 @@ export async function runOperationalRetention(): Promise<RetentionResult> {
     auditLogs,
     jobRuns,
     jobQueue,
-    feedQualitySnapshots
+    feedQualitySnapshots,
+    sourceHealth,
+    feedDownloads
   ] = await Promise.all([
     prisma.auditLog.deleteMany({
       where: {
@@ -49,6 +53,20 @@ export async function runOperationalRetention(): Promise<RetentionResult> {
           lt: cutoff(env.FEED_QUALITY_RETENTION_DAYS)
         }
       }
+    }),
+    prisma.sourceHealth.deleteMany({
+      where: {
+        checkedAt: {
+          lt: cutoff(env.SOURCE_HEALTH_RETENTION_DAYS)
+        }
+      }
+    }),
+    prisma.feedDownload.deleteMany({
+      where: {
+        lastDownloaded: {
+          lt: cutoff(env.FEED_DOWNLOAD_RETENTION_DAYS)
+        }
+      }
     })
   ]);
 
@@ -56,7 +74,9 @@ export async function runOperationalRetention(): Promise<RetentionResult> {
     auditLogs: auditLogs.count,
     jobRuns: jobRuns.count,
     jobQueue: jobQueue.count,
-    feedQualitySnapshots: feedQualitySnapshots.count
+    feedQualitySnapshots: feedQualitySnapshots.count,
+    sourceHealth: sourceHealth.count,
+    feedDownloads: feedDownloads.count
   };
 }
 
@@ -65,6 +85,8 @@ export function summarizeOperationalRetention(result: RetentionResult) {
     `auditLogs=${result.auditLogs}`,
     `jobRuns=${result.jobRuns}`,
     `jobQueue=${result.jobQueue}`,
-    `feedQualitySnapshots=${result.feedQualitySnapshots}`
+    `feedQualitySnapshots=${result.feedQualitySnapshots}`,
+    `sourceHealth=${result.sourceHealth}`,
+    `feedDownloads=${result.feedDownloads}`
   ].join(', ');
 }

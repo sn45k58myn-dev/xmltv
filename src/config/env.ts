@@ -50,6 +50,8 @@ const schema = z.object({
   JOB_RUN_RETENTION_DAYS: positiveInt.default(90),
   JOB_QUEUE_RETENTION_DAYS: positiveInt.default(30),
   FEED_QUALITY_RETENTION_DAYS: positiveInt.default(180),
+  SOURCE_HEALTH_RETENTION_DAYS: positiveInt.default(180),
+  FEED_DOWNLOAD_RETENTION_DAYS: positiveInt.default(365),
   EXPORT_PAST_HOURS: nonNegativeInt.default(12),
   EXPORT_FUTURE_DAYS: positiveInt.default(7),
   ENABLE_DEBUG_ROUTES: booleanString.default('false'),
