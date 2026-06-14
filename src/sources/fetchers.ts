@@ -37,6 +37,14 @@ function retryDelay(attempt: number) {
   return env.SOURCE_RETRY_DELAY_MS * Math.max(1, attempt);
 }
 
+function inflateDeflate(buffer: Buffer) {
+  try {
+    return zlib.inflateSync(buffer);
+  } catch {
+    return zlib.inflateRawSync(buffer);
+  }
+}
+
 function decodeSourceBody(
   data: unknown,
   url: string,
@@ -54,8 +62,26 @@ function decodeSourceBody(
     encoding.includes('gzip') ||
     url.toLowerCase().endsWith('.gz') ||
     buffer.subarray(0, 2).equals(Buffer.from([0x1f, 0x8b]));
+  const isDeflate =
+    encoding.includes('deflate') ||
+    url.toLowerCase().endsWith('.zz');
+  const isBrotli =
+    encoding.includes('br') ||
+    url.toLowerCase().endsWith('.br');
 
-  return (isGzip ? zlib.gunzipSync(buffer) : buffer).toString('utf8');
+  if (isGzip) {
+    return zlib.gunzipSync(buffer).toString('utf8');
+  }
+
+  if (isDeflate) {
+    return inflateDeflate(buffer).toString('utf8');
+  }
+
+  if (isBrotli) {
+    return zlib.brotliDecompressSync(buffer).toString('utf8');
+  }
+
+  return buffer.toString('utf8');
 }
 
 export async function fetchXmltvSource(source: SourceDefinition): Promise<string> {
@@ -158,6 +184,10 @@ async function fetchWithValidatedRedirects(
     try {
       response = await axios.get(currentUrl, {
         timeout: env.SOURCE_FETCH_TIMEOUT_MS,
+        decompress: false,
+        headers: {
+          'Accept-Encoding': 'gzip, deflate, br'
+        },
         maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
         maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
         maxRedirects: 0,

@@ -272,6 +272,26 @@ endpoint accepts one XMLTV file field and a small number of form fields,
 sanitizes the original filename before using it in import labels, and removes
 temporary upload files after success or failure.
 
+### WebGrab+Plus Upstream Feeds
+
+WebGrab+Plus can be used as an upstream XMLTV generator when a country/provider
+is better covered by its SiteIni pack than by direct public XMLTV feeds. Run
+WebGrab+Plus separately, publish its generated `guide.xml` or `guide.xml.gz`
+from trusted storage, then add that URL in Admin -> Sources with type `url`.
+
+Recommended source settings:
+
+- Name: `WebGrabPlus <country/provider>`
+- Type: `url`
+- URL: `https://your-host.example/guide.xml` or `guide.xml.gz`
+- Priority: lower than your primary licensed/provider feed when used as backup
+- Merge Weight: lower than your primary feed when the same channels overlap
+
+Remote source fetching requests and accepts `gzip`, `deflate`, and `br`
+compressed responses, and also detects `.xml.gz` files by extension/magic bytes.
+Do not import the public WebGrab+Plus SiteIni files directly into this app; they
+are scraper definitions for the WebGrab+Plus runtime, not XMLTV guide output.
+
 Schedules Direct imports use the SD-JSON API when
 `SCHEDULES_DIRECT_USERNAME` and `SCHEDULES_DIRECT_PASSWORD` are set. The adapter
 authenticates with the SHA1 password token flow, fetches the selected lineup,

@@ -34,6 +34,10 @@ describe('fetchXmltvSource', () => {
         maxContentLength: 1024 * 1024 * 1024,
         maxBodyLength: 1024 * 1024 * 1024,
         maxRedirects: 0,
+        decompress: false,
+        headers: {
+          'Accept-Encoding': 'gzip, deflate, br'
+        },
         responseType: 'arraybuffer'
       })
     );
@@ -51,6 +55,38 @@ describe('fetchXmltvSource', () => {
       type: 'url',
       url: 'https://example.com/guide.xml.gz'
     })).resolves.toBe('<tv></tv>');
+  });
+
+  it('decompresses remote deflate XMLTV feeds', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      status: 200,
+      headers: {
+        'content-encoding': 'deflate'
+      },
+      data: zlib.deflateSync('<tv><channel id="one" /></tv>')
+    });
+
+    await expect(fetchXmltvSource({
+      name: 'Deflate Remote',
+      type: 'url',
+      url: 'https://example.com/guide.xml'
+    })).resolves.toBe('<tv><channel id="one" /></tv>');
+  });
+
+  it('decompresses remote brotli XMLTV feeds', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      status: 200,
+      headers: {
+        'content-encoding': 'br'
+      },
+      data: zlib.brotliCompressSync('<tv><channel id="two" /></tv>')
+    });
+
+    await expect(fetchXmltvSource({
+      name: 'Brotli Remote',
+      type: 'url',
+      url: 'https://example.com/guide.xml'
+    })).resolves.toBe('<tv><channel id="two" /></tv>');
   });
 
   it('fails clearly when a source redirect has no location header', async () => {
