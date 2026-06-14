@@ -86,7 +86,13 @@ function isRecoverableWebGrabError(message: string) {
     || lower.includes('command is required')
     || lower.includes('not a file')
     || lower.includes('output is empty')
-    || lower.includes('exceeds');
+    || lower.includes('exceeds')
+    || lower.includes('spawn')
+    || lower.includes('enoent')
+    || lower.includes('no such file')
+    || lower.includes('permission denied')
+    || lower.includes('timed out')
+    || lower.includes('command timed');
 }
 
 adminApi.get('/summary', requireViewer, async (_req, res) => {
