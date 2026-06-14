@@ -19,6 +19,8 @@
     "smoke:import": "tsx src/cli/importSmoke.ts",
     "export": "tsx src/cli/export.ts",
     "webgrab:bootstrap": "node scripts/webgrab-bootstrap.js",
+    "webgrab:generate-config": "node scripts/webgrab-generate-config.js",
+    "webgrab:prepare": "npm run webgrab:bootstrap && npm run webgrab:generate-config",
     "webgrab:register-sources": "node scripts/webgrab-register.js",
     "webgrab:import": "npm run webgrab:register-sources && npm run import",
     "metadata:backfill": "tsx src/cli/backfillMetadata.ts",

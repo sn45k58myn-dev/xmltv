@@ -94,7 +94,7 @@ FEED_CACHE_MAX_AGE_SECONDS=300
 CACHE_WARNING_MB=1024
 VALIDATION_MAX_FEED_MB=250
 VALIDATION_TIMEOUT_MS=30000
-WEBGRAB_ENABLED=false
+WEBGRAB_ENABLED=true
 WEBGRAB_COMMAND=
 WEBGRAB_WORKDIR=webgrab
 WEBGRAB_OUTPUT_FILE=guide.xml
@@ -104,6 +104,8 @@ WEBGRAB_SOURCE_MERGE_WEIGHT=50
 WEBGRAB_TIMEOUT_MS=3600000
 WEBGRAB_MAX_OUTPUT_MB=1024
 WEBGRAB_REBUILD_FEEDS=true
+WEBGRAB_COUNTRIES=
+WEBGRAB_AUTO_CONFIG_FILE=
 ```
 
 Important variables:
@@ -122,6 +124,10 @@ Important variables:
 - `SCHEDULES_DIRECT_BASE_URL`: SD-JSON API base URL.
 - `CUSTOM_XMLTV_URLS`: Comma-separated XMLTV source URLs for custom imports.
 - `WEBGRAB_SOURCE_FILES`: Comma-separated local WebGrab output files to import as `upload` sources (for example `/app/data/webgrab/guide.xml`).
+- `WEBGRAB_ENABLED`: Set to `true` to expose the manual run endpoint and allow
+  import attempts.
+- `WEBGRAB_COUNTRIES`: Optional override for generated country config. Comma-separated ISO2/ISO3 codes.
+- `WEBGRAB_AUTO_CONFIG_FILE`: Optional output path for `npm run webgrab:generate-config`.
 - `ADMIN_TOKEN`: Legacy admin credential for admin UI/API mutations and protected admin APIs.
   Production startup requires at least 32 characters.
 - `ALLOW_ADMIN_QUERY_TOKEN`: Set to `true` only if legacy clients must pass
@@ -743,6 +749,17 @@ If you need to load WebGrab+ site metadata before configuring your guide source,
 ```bash
 npm run webgrab:bootstrap
 ```
+
+To create a ready-to-edit WebGrab+ configuration with one `<site country=\"...\"/>`
+entry for all ISO country codes, run:
+
+```bash
+WEBGRAB_COUNTRIES=   # optional override, comma-separated list (defaults to Intl regions)
+npm run webgrab:generate-config
+```
+
+If you want to keep your custom `<site country=\"...\"/>` list somewhere else, set
+`WEBGRAB_AUTO_CONFIG_FILE` to your target path before running the command.
 
 That command keeps a local cache of the WebGrab+ site in `webgrab/config/siteinipack`
 and creates a starter `webgrab/config/WebGrab++.config.xml` from template if missing.
