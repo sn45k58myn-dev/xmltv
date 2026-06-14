@@ -23,7 +23,6 @@ function normalizeCountryList(values) {
 
 function collectFromEnvironment() {
   const configured = process.env.WEBGRAB_COUNTRIES;
-
   if (!configured) {
     return [];
   }
@@ -34,12 +33,12 @@ function collectFromEnvironment() {
 function collectCountryFromFileName(fileName) {
   const normalized = fileName.toUpperCase();
   const withoutExtension = normalized.split('.').slice(0, -1).join('.');
-  const tokenCandidates = [
+  const tokens = [
     ...withoutExtension.split(/[-._]/),
     ...withoutExtension.split('.')
   ];
 
-  for (const token of tokenCandidates) {
+  for (const token of tokens) {
     if (/^[A-Z]{2}$/.test(token)) {
       return token;
     }
@@ -49,23 +48,23 @@ function collectCountryFromFileName(fileName) {
 }
 
 function collectFromDirectory(rootPath, candidates) {
-  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
+  if (!fs.existsSync(rootPath)) {
+    return;
+  }
 
+  const entries = fs.readdirSync(rootPath, { withFileTypes: true });
   for (const entry of entries) {
     const entryPath = path.join(rootPath, entry.name);
 
     if (entry.isDirectory()) {
-      if (entry.name.toUpperCase() !== 'SITEINI') {
-        if (/^[A-Z]{2}$/i.test(entry.name)) {
-          candidates.add(entry.name.toUpperCase());
-        }
+      if (entry.name.toUpperCase() !== 'SITEINI' && /^[A-Z]{2}$/i.test(entry.name)) {
+        candidates.add(entry.name.toUpperCase());
       }
-
       collectFromDirectory(entryPath, candidates);
       continue;
     }
 
-    if (entry.name.toUpperCase() === 'INDEX' || entry.name.startsWith('.')) {
+    if (entry.name.startsWith('.')) {
       continue;
     }
 
@@ -83,7 +82,7 @@ function collectFromSiteIni(siteIniRoot) {
 
   const candidates = new Set();
   collectFromDirectory(siteIniRoot, candidates);
-  return normalizeCountryList(Array.from(candidates));
+  return normalizeCountryList(Array.from(candidates)).filter((value) => value.length === 2);
 }
 
 function collectFromIntl() {
@@ -99,12 +98,11 @@ function collectFromIntl() {
     return [];
   }
 
-  return normalizeCountryList(supported);
+  return normalizeCountryList(supported).filter((value) => value.length === 2);
 }
 
 function locateSiteIniRoot() {
   const explicit = process.env.WEBGRAB_SITEINI_DIR?.trim();
-
   if (explicit && fs.existsSync(explicit)) {
     return explicit;
   }
@@ -129,6 +127,22 @@ function buildCountries() {
   const siteIniRoot = locateSiteIniRoot();
   if (siteIniRoot) {
     const siteIniCountries = collectFromSiteIni(siteIniRoot);
+    if (siteIniCountries.length) {
+      return siteIniCountries;
+    }
+  }
+
+  const explicitTmpPaths = [
+    path.join(process.cwd(), 'webgrab', '.tmp', 'siteinipack', 'siteini.pack'),
+    path.join(process.cwd(), 'webgrab', '.tmp', 'siteinipack', 'siteini')
+  ];
+
+  for (const candidate of explicitTmpPaths) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+
+    const siteIniCountries = collectFromSiteIni(candidate);
     if (siteIniCountries.length) {
       return siteIniCountries;
     }
@@ -160,10 +174,7 @@ function buildConfigXml(countries) {
 }
 
 async function generateConfigFile(options = {}) {
-  const {
-    targetFile = TARGET_FILE,
-    overwrite = true
-  } = options;
+  const { targetFile = TARGET_FILE, overwrite = true } = options;
 
   if (!overwrite && fs.existsSync(targetFile)) {
     console.log(`Skipping existing config file ${targetFile}`);

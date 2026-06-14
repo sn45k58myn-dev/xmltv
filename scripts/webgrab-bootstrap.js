@@ -105,7 +105,7 @@ async function main() {
   }
 
   if (!cloned) {
-    throw new Error('Unable to fetch WebGrab siteinipack. Install git and check network access or override WEBGRAB_SITEINIPACK_REPO.');
+    console.warn('Unable to fetch WebGrab siteinipack. Continuing with bootstrap defaults and any existing local siteini cache.');
   }
 
   const candidates = [
@@ -120,7 +120,7 @@ async function main() {
   const siteiniSrc = candidates.find((candidate) => fs.existsSync(candidate));
   const siteiniTarget = path.join(CONFIG_DIR, 'siteini');
 
-  if (siteiniSrc && fs.existsSync(siteiniSrc)) {
+  if (siteiniSrc) {
     await fsp.rm(siteiniTarget, { recursive: true, force: true });
     await ensureDir(siteiniTarget);
     await copyFileRecursive(siteiniSrc, siteiniTarget);
