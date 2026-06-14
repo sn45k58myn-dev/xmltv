@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const redisMock = {
   hSet: vi.fn(),
+  hDel: vi.fn(),
   hVals: vi.fn()
 };
 
@@ -76,5 +77,16 @@ describe('cacheMetadata', () => {
         updatedAt: '2026-06-13T00:00:00.000Z'
       }
     ]);
+  });
+
+  it('removes Redis cache metadata entries', async () => {
+    const { removeCacheMetadata } = await import('./cacheMetadata');
+
+    await removeCacheMetadata('US.xml');
+
+    expect(redisMock.hDel).toHaveBeenCalledWith(
+      'cache-metadata:feeds',
+      'US.xml'
+    );
   });
 });

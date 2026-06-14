@@ -64,6 +64,22 @@ export async function recordCacheMetadata(
   }
 }
 
+export async function removeCacheMetadata(file: string) {
+  if (env.CACHE_METADATA_STORE !== 'redis') return;
+
+  try {
+    const redis = await getRedisClient();
+    if (!redis) return;
+
+    await redis.hDel(
+      CACHE_METADATA_HASH,
+      file
+    );
+  } catch (error) {
+    console.error('Unable to remove Redis cache metadata:', error);
+  }
+}
+
 export async function listRedisCacheMetadata(): Promise<CacheMetadataEntry[] | null> {
   if (env.CACHE_METADATA_STORE !== 'redis') return null;
 

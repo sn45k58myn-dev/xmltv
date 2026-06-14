@@ -756,7 +756,8 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Persist `cache/`, `data/`, `uploads/`, and PostgreSQL data.
 - Rebuild cached feeds after source or mapping changes by running imports. Feed
   cache writes are atomic; old cache files remain available until replacements
-  are fully written.
+  are fully written. Rebuilds also prune stale generated country and provider
+  feed files when those countries or provider mappings no longer exist.
 - Download analytics are best-effort; feeds continue serving if a download
   metrics write fails.
 - Source downloads only accept `http` and `https` URLs. In production mode,

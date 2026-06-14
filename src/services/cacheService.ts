@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'node:crypto';
-import { recordCacheMetadata } from './cacheMetadata';
+import { recordCacheMetadata, removeCacheMetadata } from './cacheMetadata';
 
 const CACHE_DIR = path.join(
   process.cwd(),
@@ -27,6 +27,12 @@ async function ensureCacheDir() {
   await fs.mkdir(CACHE_DIR, {
     recursive: true
   });
+}
+
+function cacheKeyFromFile(file: string) {
+  if (file.endsWith('.xml.gz')) return file.slice(0, -7);
+  if (file.endsWith('.xml')) return file.slice(0, -4);
+  return undefined;
 }
 
 async function atomicWrite(
@@ -116,6 +122,42 @@ export async function setCachedFeedGzip(
     file,
     data.length
   );
+}
+
+export async function listCachedFeedKeys(): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(CACHE_DIR, {
+      withFileTypes: true
+    });
+    const keys = new Set<string>();
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+
+      const key = cacheKeyFromFile(entry.name);
+
+      if (key && SAFE_CACHE_KEY.test(key)) {
+        keys.add(key);
+      }
+    }
+
+    return Array.from(keys).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+export async function removeCachedFeed(name: string) {
+  if (!SAFE_CACHE_KEY.test(name)) {
+    throw new Error(`Invalid cache feed key: ${name}`);
+  }
+
+  await Promise.all([
+    fs.unlink(cachePath(name, '.xml')).catch(() => undefined),
+    fs.unlink(cachePath(name, '.xml.gz')).catch(() => undefined),
+    removeCacheMetadata(`${name}.xml`),
+    removeCacheMetadata(`${name}.xml.gz`)
+  ]);
 }
 
 export async function getCachedFeedGzip(

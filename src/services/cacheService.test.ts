@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { assertCacheDirectoryWritable, getCachedFeed, getCachedFeedGzip, setCachedFeed, setCachedFeedGzip } from './cacheService';
+import { assertCacheDirectoryWritable, getCachedFeed, getCachedFeedGzip, listCachedFeedKeys, removeCachedFeed, setCachedFeed, setCachedFeedGzip } from './cacheService';
 
 const cacheDir = path.join(
   process.cwd(),
@@ -43,5 +43,21 @@ describe('cacheService', () => {
     await expect(setCachedFeedGzip('bad/name', Buffer.from('gzip'))).rejects.toThrow('Invalid cache feed key');
     await expect(getCachedFeed('../escape')).resolves.toBeNull();
     await expect(getCachedFeedGzip('bad/name')).resolves.toBeNull();
+  });
+
+  it('lists unique cached feed keys and removes feed pairs', async () => {
+    await setCachedFeed('TEST', '<tv />');
+    await setCachedFeedGzip('TEST', Buffer.from('gzip-bytes'));
+
+    await expect(listCachedFeedKeys()).resolves.toContain('TEST');
+
+    await removeCachedFeed('TEST');
+
+    await expect(getCachedFeed('TEST')).resolves.toBeNull();
+    await expect(getCachedFeedGzip('TEST')).resolves.toBeNull();
+  });
+
+  it('rejects unsafe cache keys before removal', async () => {
+    await expect(removeCachedFeed('../escape')).rejects.toThrow('Invalid cache feed key');
   });
 });
