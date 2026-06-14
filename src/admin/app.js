@@ -152,7 +152,7 @@ async function api(path, opts = {}) {
     return null;
   }
 
-  return res.json();
+  return readJsonResponse(res);
 }
 
 async function errorMessage(res) {
@@ -300,7 +300,7 @@ async function fetchJson(path, opts = {}) {
     throw new Error(await errorMessage(res));
   }
 
-  return res.json();
+  return readJsonResponse(res);
 }
 
 async function loadDashboard() {
@@ -1096,9 +1096,11 @@ async function loadMonitoring() {
       headers
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      throw new Error(await errorMessage(res));
+    }
 
-    const metrics = await res.json();
+    const metrics = await readJsonResponse(res);
     cards({
       ok: metrics.ok,
       channels: metrics.channels,
@@ -1138,6 +1140,17 @@ async function loadMonitoring() {
       <p class="error">${escapeHtml(error.message)}</p>
     `;
   }
+}
+
+async function readJsonResponse(res) {
+  const contentType = res.headers.get('content-type') || '';
+
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    throw new Error(text || `Expected JSON response but got ${res.status} ${res.statusText}.`);
+  }
+
+  return res.json();
 }
 
 function saveMonitoringToken(event) {
