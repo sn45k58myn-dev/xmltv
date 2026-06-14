@@ -769,7 +769,8 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Cached country and provider feed files stream from disk with `Content-Length`
   `Last-Modified`, and entity tags to reduce per-request memory pressure under
   high subscriber load. Conditional requests that match the cached entity return
-  `304 Not Modified` without streaming the feed body.
+  `304 Not Modified` without streaming the feed body, and `HEAD` requests return
+  feed headers without counting as downloads.
 - Watch `cacheWarning` from `/api/stats/dashboard` and increase storage or prune
   generated cache files when the warning is present.
 - The built-in rate limiter and request metrics are process-local; use external

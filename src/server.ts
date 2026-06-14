@@ -437,7 +437,11 @@ function requestHasEntityTag(
   return header
     .split(',')
     .map((value) => value.trim())
-    .includes(etag);
+    .some((value) => value === '*' || value === etag);
+}
+
+function httpDateTime(value: Date) {
+  return Math.floor(value.getTime() / 1000) * 1000;
 }
 
 function requestFreshForFile(
@@ -465,7 +469,7 @@ function requestFreshForFile(
     return false;
   }
 
-  return file.mtime.getTime() <= modifiedSinceMs;
+  return httpDateTime(file.mtime) <= httpDateTime(new Date(modifiedSinceMs));
 }
 
 function sendXml(
@@ -497,12 +501,16 @@ function sendCachedFeedFile(
     return res.status(304).end();
   }
 
+  res.setHeader('content-type', contentType);
+  res.setHeader('content-length', String(file.size));
+
+  if (req.method === 'HEAD') {
+    return res.status(200).end();
+  }
+
   if (feedKey) {
     void recordFeedDownload(feedKey);
   }
-
-  res.setHeader('content-type', contentType);
-  res.setHeader('content-length', String(file.size));
 
   return createCachedFeedReadStream(file)
     .on('error', (error) => {

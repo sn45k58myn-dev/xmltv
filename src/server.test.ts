@@ -580,6 +580,58 @@ describe('server API', () => {
     expect(recordFeedDownload).not.toHaveBeenCalled();
   });
 
+  it('returns 304 for if-modified-since cached feed requests at HTTP date precision', async () => {
+    const mtime = new Date('2026-06-14T00:00:00.500Z');
+    const size = Buffer.byteLength('<tv></tv>');
+
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 1
+    });
+    vi.mocked(getCachedFeedFile).mockResolvedValue({
+      filePath: 'cache/GB.xml',
+      size,
+      mtime
+    });
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/country/GB.xml')
+      .set('x-export-token', 'valid-token')
+      .set('if-modified-since', 'Sun, 14 Jun 2026 00:00:00 GMT');
+
+    expect(response.status).toBe(304);
+    expect(createCachedFeedReadStream).not.toHaveBeenCalled();
+    expect(recordFeedDownload).not.toHaveBeenCalled();
+  });
+
+  it('serves cached feed HEAD requests without streaming or counting a download', async () => {
+    const mtime = new Date('2026-06-14T00:00:00.000Z');
+    const size = Buffer.byteLength('<tv></tv>');
+
+    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+      count: 1
+    });
+    vi.mocked(getCachedFeedFile).mockResolvedValue({
+      filePath: 'cache/GB.xml',
+      size,
+      mtime
+    });
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .head('/country/GB.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(response.status).toBe(200);
+    expect(response.text).toBeUndefined();
+    expect(response.headers['content-length']).toBe(String(size));
+    expect(response.headers.etag).toBe(`W/"${size.toString(16)}-${mtime.getTime().toString(16)}"`);
+    expect(createCachedFeedReadStream).not.toHaveBeenCalled();
+    expect(recordFeedDownload).not.toHaveBeenCalled();
+  });
+
   it('rejects obviously non-XML uploads before import processing', async () => {
     const app = await loadApp();
     const response = await request(app)
