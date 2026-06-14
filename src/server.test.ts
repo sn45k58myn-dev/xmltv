@@ -91,6 +91,31 @@ async function loadApp() {
   return serverModule.app;
 }
 
+function mockExportToken(
+  overrides: Partial<{
+    id: string;
+    token: string;
+    active: boolean;
+    profileId: string | null;
+    providerId: string | null;
+  }> = {}
+) {
+  vi.mocked(prisma.exportToken.findUnique).mockResolvedValue({
+    id: overrides.id ?? 'export-token-1',
+    name: 'Feed token',
+    token: overrides.token ?? 'valid-token',
+    profileId: overrides.profileId ?? null,
+    providerId: overrides.providerId ?? null,
+    active: overrides.active ?? true,
+    requests: 0,
+    lastUsedAt: null,
+    createdAt: new Date('2026-06-14T00:00:00.000Z')
+  } as any);
+  vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
+    count: 1
+  });
+}
+
 describe('server API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -474,9 +499,7 @@ describe('server API', () => {
   });
 
   it('rejects invalid country feed route params', async () => {
-    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
-      count: 1
-    });
+    mockExportToken();
 
     const app = await loadApp();
     const response = await request(app)
@@ -488,6 +511,7 @@ describe('server API', () => {
   });
 
   it('rejects protected feeds when the export token is invalid', async () => {
+    vi.mocked(prisma.exportToken.findUnique).mockResolvedValue(null);
     vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
       count: 0
     });
@@ -502,8 +526,9 @@ describe('server API', () => {
   });
 
   it('prefers header export tokens over query-string tokens', async () => {
-    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
-      count: 1
+    mockExportToken({
+      id: 'header-token-id',
+      token: 'header-token'
     });
     vi.mocked(getCachedFeedFile).mockResolvedValue({
       filePath: 'cache/GB.xml',
@@ -518,18 +543,21 @@ describe('server API', () => {
       .set('x-export-token', 'header-token');
 
     expect(response.status).toBe(200);
+    expect(prisma.exportToken.findUnique).toHaveBeenCalledWith({
+      where: {
+        token: 'header-token'
+      }
+    });
     expect(prisma.exportToken.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
-        token: 'header-token',
+        id: 'header-token-id',
         active: true
       }
     }));
   });
 
   it('marks protected feed responses as private cache entries', async () => {
-    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
-      count: 1
-    });
+    mockExportToken();
     vi.mocked(getCachedFeedFile).mockResolvedValue({
       filePath: 'cache/GB.xml',
       size: Buffer.byteLength('<tv></tv>'),
@@ -552,13 +580,58 @@ describe('server API', () => {
     expect(recordFeedDownload).toHaveBeenCalledWith('GB.xml');
   });
 
+  it('allows provider-scoped export tokens only on the matching provider feed', async () => {
+    mockExportToken({
+      providerId: 'jellyextreme'
+    });
+    vi.mocked(getCachedFeedFile).mockResolvedValue({
+      filePath: 'cache/provider_jellyextreme.xml',
+      size: Buffer.byteLength('<tv></tv>'),
+      mtime: new Date('2026-06-14T00:00:00.000Z')
+    });
+    vi.mocked(recordFeedDownload).mockResolvedValue({} as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/provider/jellyextreme.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(response.status).toBe(200);
+    expect(prisma.exportToken.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'export-token-1',
+        active: true
+      }
+    }));
+    expect(recordFeedDownload).toHaveBeenCalledWith('provider_jellyextreme.xml');
+  });
+
+  it('rejects scoped export tokens on non-matching feeds without incrementing usage', async () => {
+    mockExportToken({
+      providerId: 'jellyextreme'
+    });
+
+    const app = await loadApp();
+    const countryResponse = await request(app)
+      .get('/country/GB.xml')
+      .set('x-export-token', 'valid-token');
+    const providerResponse = await request(app)
+      .get('/provider/other-provider.xml')
+      .set('x-export-token', 'valid-token');
+
+    expect(countryResponse.status).toBe(403);
+    expect(countryResponse.body.error).toContain('not allowed');
+    expect(providerResponse.status).toBe(403);
+    expect(providerResponse.body.error).toContain('not allowed');
+    expect(prisma.exportToken.updateMany).not.toHaveBeenCalled();
+    expect(getCachedFeedFile).not.toHaveBeenCalled();
+  });
+
   it('returns 304 for unchanged cached feeds without streaming or counting a download', async () => {
     const mtime = new Date('2026-06-14T00:00:00.000Z');
     const size = Buffer.byteLength('<tv></tv>');
 
-    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
-      count: 1
-    });
+    mockExportToken();
     vi.mocked(getCachedFeedFile).mockResolvedValue({
       filePath: 'cache/GB.xml',
       size,
@@ -584,9 +657,7 @@ describe('server API', () => {
     const mtime = new Date('2026-06-14T00:00:00.500Z');
     const size = Buffer.byteLength('<tv></tv>');
 
-    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
-      count: 1
-    });
+    mockExportToken();
     vi.mocked(getCachedFeedFile).mockResolvedValue({
       filePath: 'cache/GB.xml',
       size,
@@ -609,9 +680,7 @@ describe('server API', () => {
     const mtime = new Date('2026-06-14T00:00:00.000Z');
     const size = Buffer.byteLength('<tv></tv>');
 
-    vi.mocked(prisma.exportToken.updateMany).mockResolvedValue({
-      count: 1
-    });
+    mockExportToken();
     vi.mocked(getCachedFeedFile).mockResolvedValue({
       filePath: 'cache/GB.xml',
       size,

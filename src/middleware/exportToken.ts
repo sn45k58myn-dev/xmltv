@@ -2,6 +2,47 @@ import { Request, Response, NextFunction } from 'express';
 import { env } from '../config/env';
 import { prisma } from '../db/prisma';
 
+type ExportTokenScope = {
+  profileId: string | null;
+  providerId: string | null;
+};
+
+function routeScope(req: Request): ExportTokenScope {
+  if (typeof req.params.id === 'string' && req.path.startsWith('/profile/')) {
+    return {
+      profileId: req.params.id,
+      providerId: null
+    };
+  }
+
+  if (typeof req.params.id === 'string' && req.path.startsWith('/provider/')) {
+    return {
+      profileId: null,
+      providerId: req.params.id
+    };
+  }
+
+  return {
+    profileId: null,
+    providerId: null
+  };
+}
+
+function tokenAllowedForRoute(
+  token: ExportTokenScope,
+  route: ExportTokenScope
+) {
+  if (token.profileId && token.profileId !== route.profileId) {
+    return false;
+  }
+
+  if (token.providerId && token.providerId !== route.providerId) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function requireExportToken(
   req: Request,
   res: Response,
@@ -23,9 +64,30 @@ export async function requireExportToken(
     });
   }
 
+  const exportToken = await prisma.exportToken.findUnique({
+    where: {
+      token
+    }
+  });
+
+  if (!exportToken?.active) {
+    return res.status(401).json({
+      error: 'Invalid or inactive export token.'
+    });
+  }
+
+  if (!tokenAllowedForRoute(
+    exportToken,
+    routeScope(req)
+  )) {
+    return res.status(403).json({
+      error: 'Export token is not allowed for this feed.'
+    });
+  }
+
   const updated = await prisma.exportToken.updateMany({
     where: {
-      token,
+      id: exportToken.id,
       active: true
     },
     data: {

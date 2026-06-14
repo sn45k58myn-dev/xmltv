@@ -400,6 +400,9 @@ Deleting an export token deactivates it rather than removing the row, preserving
 request history for audits. Use `PATCH /api/export-tokens/:id` to rename a
 token, change profile/provider metadata, or toggle `active` without changing the
 token secret.
+Tokens with `profileId` or `providerId` are scoped to that matching profile or
+provider feed. Scoped tokens are rejected on country, category, or unrelated
+provider/profile feeds, which lets you issue customer-specific guide URLs.
 
 ## Admin UI
 
