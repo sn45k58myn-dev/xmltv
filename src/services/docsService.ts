@@ -54,7 +54,8 @@ export function buildApiDocs() {
       { method: 'GET', path: '/api/admin/quality?snapshot=true', description: 'Admin feed quality details and persist a quality snapshot.' },
       { method: 'GET', path: '/api/admin/quality/history', description: 'Admin feed quality snapshot history.' },
       { method: 'GET', path: '/api/admin/metadata', description: 'Admin feed metadata details.' },
-      { method: 'GET', path: '/api/source-health', description: 'Admin/viewer source health history. Requires x-admin-token or API key. Supports sourceId, status=success|failed, and bounded limit filters.' }
+      { method: 'GET', path: '/api/source-health', description: 'Admin/viewer source health history. Requires x-admin-token or API key. Supports sourceId, status=success|failed, and bounded limit filters.' },
+      { method: 'GET', path: '/api/source-health/summary', description: 'Admin/viewer source health summary with latest status, failure streak, and backoff window.' }
     ]
   };
 }

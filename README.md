@@ -753,6 +753,11 @@ load tests, large-feed scenarios, and baseline recording guidance.
 - Source health history is protected by admin/viewer authentication.
   `/api/source-health` supports optional `sourceId`, `status=success|failed`,
   and bounded `limit` query parameters for targeted operations views.
+  `/api/source-health/summary` returns one row per source with latest status,
+  failure streak, and current backoff window; the admin Sources page uses this
+  view to make flaky upstream providers visible. Remote fetch failures are
+  normalized at the source boundary so import records show concise messages such
+  as `Source <name> returned HTTP 500 from <url>` instead of raw Axios stacks.
 - Detailed stats routes such as `/api/stats/imports`, `/api/stats/downloads`,
   `/api/stats/top-feeds`, and `/api/stats/feeds` require admin/viewer
   authentication.

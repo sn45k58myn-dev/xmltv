@@ -4,7 +4,8 @@ import { fetchXmltvSource } from './fetchers';
 
 vi.mock('axios', () => ({
   default: {
-    get: vi.fn()
+    get: vi.fn(),
+    isAxiosError: vi.fn((error) => Boolean(error?.isAxiosError))
   }
 }));
 
@@ -48,5 +49,45 @@ describe('fetchXmltvSource', () => {
       type: 'url',
       url: 'https://example.com/guide.xml'
     })).rejects.toThrow('did not include a Location header');
+  });
+
+  it('normalizes upstream HTTP failures into source-specific errors', async () => {
+    vi.mocked(axios.get).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 500
+      },
+      message: 'Request failed with status code 500'
+    });
+
+    await expect(fetchXmltvSource({
+      name: 'Ireland',
+      type: 'url',
+      url: 'https://www.free-epg.de/api/epg?country=IE'
+    })).rejects.toThrow(
+      'Source Ireland returned HTTP 500 from https://www.free-epg.de/api/epg?country=IE.'
+    );
+
+    expect(axios.get).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not retry non-transient upstream client errors', async () => {
+    vi.mocked(axios.get).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 404
+      },
+      message: 'Request failed with status code 404'
+    });
+
+    await expect(fetchXmltvSource({
+      name: 'Missing',
+      type: 'url',
+      url: 'https://example.com/missing.xml'
+    })).rejects.toThrow(
+      'Source Missing returned HTTP 404 from https://example.com/missing.xml.'
+    );
+
+    expect(axios.get).toHaveBeenCalledTimes(1);
   });
 });

@@ -205,6 +205,36 @@ function fmt(value) {
   return escapeHtml(String(value)).slice(0, 220);
 }
 
+function fmtShortDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return fmt(value);
+  }
+
+  return escapeHtml(date.toLocaleString());
+}
+
+function sourceHealthCell(health) {
+  if (!health) return '<span class="muted">unknown</span>';
+
+  const status = health.status || 'unknown';
+  const parts = [
+    `<strong>${escapeHtml(status)}</strong>`
+  ];
+
+  if (health.failureStreak) {
+    parts.push(`<span class="muted">${Number(health.failureStreak)} failures</span>`);
+  }
+
+  if (health.message) {
+    parts.push(`<span class="muted">${escapeHtml(health.message).slice(0, 140)}</span>`);
+  }
+
+  return parts.join('<br>');
+}
+
 function table(rows) {
   if (!rows || rows.length === 0) return '<p class="muted">No rows</p>';
 
@@ -404,8 +434,17 @@ async function loadSourcesUI() {
 
 async function refreshSourcesList() {
   try {
-    const data = await api('/api/sources');
+    const [
+      data,
+      healthSummary
+    ] = await Promise.all([
+      api('/api/sources'),
+      api('/api/source-health/summary')
+    ]);
     const list = document.getElementById('sources-list');
+    const healthBySource = new Map(
+      (healthSummary.sources || []).map((health) => [health.sourceId, health])
+    );
 
     if (!data.length) {
       list.innerHTML = '<p class="muted">No sources</p>';
@@ -414,22 +453,27 @@ async function refreshSourcesList() {
 
     list.innerHTML = `
       <table>
-        <thead><tr><th>Name</th><th>Type</th><th>Enabled</th><th>Priority</th><th>Weight</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Enabled</th><th>Health</th><th>Backoff</th><th>Last Check</th><th>Priority</th><th>Actions</th></tr></thead>
         <tbody>
-          ${data.map((source) => `
-            <tr>
-              <td>${fmt(source.name)}</td>
-              <td>${fmt(source.type)}</td>
-              <td>${fmt(source.enabled)}</td>
-              <td>${fmt(source.priority)}</td>
-              <td>${fmt(source.mergeWeight)}</td>
-              <td>
-                <button data-action="edit-source" data-id="${escapeHtml(source.id)}">Edit</button>
-                <button data-action="toggle-source" data-id="${escapeHtml(source.id)}" data-enabled="${String(!source.enabled)}">${source.enabled ? 'Disable' : 'Enable'}</button>
-                <button data-action="delete-source" data-id="${escapeHtml(source.id)}">Disable</button>
-              </td>
-            </tr>
-          `).join('')}
+          ${data.map((source) => {
+            const health = healthBySource.get(source.id);
+
+            return `
+              <tr>
+                <td>${fmt(source.name)}</td>
+                <td>${fmt(source.type)}</td>
+                <td>${fmt(source.enabled)}</td>
+                <td>${sourceHealthCell(health)}</td>
+                <td>${health?.inBackoff ? fmtShortDate(health.backoffUntil) : ''}</td>
+                <td>${fmtShortDate(health?.checkedAt)}</td>
+                <td>${fmt(source.priority)}</td>
+                <td>
+                  <button data-action="edit-source" data-id="${escapeHtml(source.id)}">Edit</button>
+                  <button data-action="toggle-source" data-id="${escapeHtml(source.id)}" data-enabled="${String(!source.enabled)}">${source.enabled ? 'Disable' : 'Enable'}</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;

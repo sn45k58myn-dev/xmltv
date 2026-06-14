@@ -5,6 +5,29 @@ import { SourceDefinition } from '../models/xmltv';
 import { fetchSchedulesDirectXmltv } from './schedulesDirect';
 import { assertResolvedSourceUrlAllowed, resolveSourceRedirectUrl } from './sourceUrl';
 
+export class SourceFetchError extends Error {
+  readonly statusCode?: number;
+  readonly url?: string;
+  readonly retryable: boolean;
+
+  constructor(
+    message: string,
+    options: {
+      statusCode?: number;
+      url?: string;
+      retryable?: boolean;
+      cause?: unknown;
+    } = {}
+  ) {
+    super(message);
+    this.name = 'SourceFetchError';
+    this.statusCode = options.statusCode;
+    this.url = options.url;
+    this.retryable = options.retryable ?? false;
+    this.cause = options.cause;
+  }
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -31,11 +54,17 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
 
   for (let attempt = 0; attempt <= env.SOURCE_FETCH_RETRIES; attempt++) {
     try {
-      return await fetchWithValidatedRedirects(currentUrl);
+      return await fetchWithValidatedRedirects(
+        source.name,
+        currentUrl
+      );
     } catch (error) {
       lastError = error;
 
-      if (attempt >= env.SOURCE_FETCH_RETRIES) {
+      if (
+        attempt >= env.SOURCE_FETCH_RETRIES ||
+        (error instanceof SourceFetchError && !error.retryable)
+      ) {
         break;
       }
 
@@ -46,18 +75,80 @@ export async function fetchXmltvSource(source: SourceDefinition): Promise<string
   throw lastError;
 }
 
-async function fetchWithValidatedRedirects(startUrl: string) {
+function sourceFetchError(
+  sourceName: string,
+  currentUrl: string,
+  error: unknown
+) {
+  if (error instanceof SourceFetchError) {
+    return error;
+  }
+
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const retryable = !status || status === 429 || status >= 500;
+
+    if (status) {
+      return new SourceFetchError(
+        `Source ${sourceName} returned HTTP ${status} from ${currentUrl}.`,
+        {
+          statusCode: status,
+          url: currentUrl,
+          retryable,
+          cause: error
+        }
+      );
+    }
+
+    if (error.code === 'ECONNABORTED') {
+      return new SourceFetchError(
+        `Source ${sourceName} timed out fetching ${currentUrl}.`,
+        {
+          url: currentUrl,
+          retryable: true,
+          cause: error
+        }
+      );
+    }
+
+    return new SourceFetchError(
+      `Source ${sourceName} could not be fetched from ${currentUrl}: ${error.message}`,
+      {
+        url: currentUrl,
+        retryable,
+        cause: error
+      }
+    );
+  }
+
+  return error;
+}
+
+async function fetchWithValidatedRedirects(
+  sourceName: string,
+  startUrl: string
+) {
   let currentUrl = startUrl;
 
   for (let redirectCount = 0; redirectCount <= env.SOURCE_FETCH_MAX_REDIRECTS; redirectCount++) {
-    const response = await axios.get(currentUrl, {
-      timeout: env.SOURCE_FETCH_TIMEOUT_MS,
-      maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
-      maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
-      maxRedirects: 0,
-      responseType: 'text',
-      validateStatus: (status) => status >= 200 && status < 400
-    });
+    let response;
+
+    try {
+      response = await axios.get(currentUrl, {
+        timeout: env.SOURCE_FETCH_TIMEOUT_MS,
+        maxContentLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
+        maxBodyLength: env.SOURCE_FETCH_MAX_MB * 1024 * 1024,
+        maxRedirects: 0,
+        responseType: 'text',
+        validateStatus: (status) => status >= 200 && status < 400
+      });
+    } catch (error) {
+      throw sourceFetchError(
+        sourceName,
+        currentUrl,
+        error
+      );
+    }
 
     if (response.status >= 300) {
       const location = response.headers?.location;

@@ -310,6 +310,51 @@ describe('server API', () => {
     }));
   });
 
+  it('returns source health summary with failure streaks and backoff state', async () => {
+    vi.mocked(prisma.source.findMany).mockResolvedValue([
+      {
+        id: 'source-1',
+        name: 'Flaky',
+        enabled: true,
+        priority: 1
+      }
+    ] as any);
+    vi.mocked(prisma.sourceHealth.findMany).mockResolvedValue([
+      {
+        sourceId: 'source-1',
+        status: 'failed',
+        message: 'Source Flaky returned HTTP 500 from https://example.com/feed.xml.',
+        checkedAt: new Date()
+      },
+      {
+        sourceId: 'source-1',
+        status: 'failed',
+        message: 'Previous failure',
+        checkedAt: new Date(Date.now() - 60_000)
+      },
+      {
+        sourceId: 'source-1',
+        status: 'success',
+        message: 'Previous success',
+        checkedAt: new Date(Date.now() - 120_000)
+      }
+    ] as any);
+
+    const app = await loadApp();
+    const response = await request(app)
+      .get('/api/source-health/summary')
+      .set('x-admin-token', 'test-admin-token');
+
+    expect(response.status).toBe(200);
+    expect(response.body.sources[0]).toMatchObject({
+      sourceId: 'source-1',
+      name: 'Flaky',
+      status: 'failed',
+      failureStreak: 2,
+      inBackoff: true
+    });
+  });
+
   it('rejects invalid source health filters', async () => {
     const app = await loadApp();
     const badStatus = await request(app)
@@ -820,7 +865,14 @@ describe('server API', () => {
       .delete('/api/sources/source-1')
       .set('x-admin-token', 'test-admin-token');
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      disabled: true,
+      source: {
+        id: 'source-1',
+        enabled: false
+      }
+    });
     expect(prisma.source.update).toHaveBeenCalledWith({
       where: {
         id: 'source-1'
